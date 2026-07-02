@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'IBM Plex Sans Arabic', 'Tajawal', 'Cairo', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: #F8FAFC;
+  color: #0F172A;
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  body {
+    background: white;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-white rounded-btn px-4 py-2 font-medium transition-colors duration-150 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-text-primary border border-border rounded-btn px-4 py-2 font-medium transition-colors duration-150 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  
+  .btn-danger {
+    @apply bg-danger text-white rounded-btn px-4 py-2 font-medium transition-colors duration-150 hover:bg-danger-600 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  
+  .card {
+    @apply bg-surface rounded-card shadow-card border border-border p-5 sm:p-6;
+  }
+  
+  .input-field {
+    @apply w-full rounded-btn border border-border bg-white px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary transition-colors duration-150;
+  }
+}

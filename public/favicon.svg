@@ -1,0 +1,79 @@
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E3A8A" />
+      <stop offset="50%" stop-color="#1D4ED8" />
+      <stop offset="100%" stop-color="#172554" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.95" />
+      <stop offset="50%" stop-color="#2563EB" stop-opacity="1" />
+      <stop offset="100%" stop-color="#1D4ED8" stop-opacity="0.95" />
+    </linearGradient>
+    <linearGradient id="crossGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F0F9FF" />
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#34D399" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#FBBF24" />
+    </linearGradient>
+  </defs>
+
+  <!-- خلفية الأيقونة (App Icon Background) -->
+  <rect x="2" y="2" width="96" height="96" rx="26" fill="url(#bgGrad)" stroke="rgba(255,255,255,0.2)" stroke-width="3"/>
+
+  <!-- الدرع الخارجي (National Guard Shield Outline) -->
+  <path
+    d="M50 12 C28 12, 15 20, 15 39 C15 69, 38 89, 50 96 C62 89, 85 69, 85 39 C85 20, 72 12, 50 12 Z"
+    fill="url(#shieldGrad)"
+    stroke="rgba(255,255,255,0.4)"
+    stroke-width="2.5"
+  />
+
+  <!-- موجات وأطواق الأشعة المقطعية (CT Scanner Rings) -->
+  <circle
+    cx="50"
+    cy="48"
+    r="26"
+    stroke="url(#emeraldGrad)"
+    stroke-width="2"
+    stroke-dasharray="4 3"
+    stroke-linecap="round"
+    opacity="0.9"
+  />
+  <circle
+    cx="50"
+    cy="48"
+    r="20"
+    stroke="#60A5FA"
+    stroke-width="1.5"
+    opacity="0.75"
+  />
+
+  <!-- التقاطع الطبي في منتصف الدرع (Medical Cross) -->
+  <path
+    d="M44 34 H56 V42 H64 V54 H56 V62 H44 V54 H36 V42 H44 V34 Z"
+    fill="url(#crossGrad)"
+  />
+
+  <!-- نبض القلب / نبضة الإشعاع داخل الصليب (Pulse Wave) -->
+  <path
+    d="M40 48 L45 48 L48 43 L52 53 L55 48 L60 48"
+    stroke="#10B981"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- سعف النخلة الرمزي أسفل الدرع (Saudi Guard Palm Accent) -->
+  <path
+    d="M40 77 C45 74, 50 72, 50 72 C50 72, 55 74, 60 77 C55 79, 50 81, 50 81 C50 81, 45 79, 40 77 Z"
+    fill="url(#goldGrad)"
+  />
+  <circle cx="50" cy="68" r="2.5" fill="url(#goldGrad)" />
+</svg>
