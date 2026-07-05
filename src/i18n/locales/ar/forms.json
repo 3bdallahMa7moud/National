@@ -1,0 +1,35 @@
+{
+  "validation": {
+    "nameMin": "الاسم الكامل يجب أن يكون 3 أحرف على الأقل",
+    "emailInvalid": "يرجى إدخال بريد إلكتروني صحيح",
+    "emailDomain": "يجب استخدام بريد إلكتروني صالح",
+    "employeeNumberMin": "الرقم الوظيفي مطلوب (4 أرقام على الأقل)",
+    "phoneMin": "رقم الجوال يجب أن يكون 9 أرقام على الأقل",
+    "positionMin": "يرجى تحديد المسمى الوظيفي",
+    "departmentRequired": "يرجى اختيار القسم",
+    "passwordMin": "كلمة المرور يجب أن تكون 6 أحرف أو أرقام على الأقل",
+    "confirmPasswordRequired": "يرجى تأكيد كلمة المرور",
+    "passwordMismatch": "كلمتا المرور غير متطابقتين",
+    "emailRequired": "يرجى إدخال بريد إلكتروني صحيح",
+    "passwordRequired": "يرجى إدخال كلمة المرور",
+    "currentPasswordWrong": "كلمة المرور الحالية غير صحيحة",
+    "newPasswordMin": "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل",
+    "newPasswordMismatch": "كلمة المرور الجديدة وتأكيدها غير متطابقتين",
+    "passwordHint": "6 أحرف على الأقل"
+  },
+  "labels": {
+    "fullName": "الاسم الكامل",
+    "phoneNumber": "رقم الهاتف",
+    "currentPassword": "كلمة المرور الحالية",
+    "newPassword": "كلمة المرور الجديدة",
+    "confirmNewPassword": "تأكيد كلمة المرور الجديدة",
+    "departmentName": "اسم القسم",
+    "departmentDescription": "وصف القسم",
+    "departmentHead": "رئيس القسم / المشرف",
+    "selectSupervisor": "اختر مشرفاً...",
+    "jobTitle": "المسمى الوظيفي"
+  },
+  "actions": {
+    "saveChanges": "حفظ التعديلات"
+  }
+}

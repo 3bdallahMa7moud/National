@@ -16,7 +16,7 @@ import DepartmentSchedulePage from '@/features/schedule/DepartmentSchedulePage';
 import CalendarSyncPage from '@/features/calendar-sync/CalendarSyncPage';
 import NotificationsPage from '@/features/notifications/NotificationsPage';
 import ProfilePage from '@/features/employees/ProfilePage';
-
+import ScheduleManagementPage from '@/features/schedule-management/ScheduleManagementPage';
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -52,6 +52,10 @@ export const router = createBrowserRouter([
               {
                 path: 'admin/schedule',
                 element: <AdminSchedulePage />,
+              },
+              {
+                path: 'admin/schedule-management',
+                element: <ScheduleManagementPage />,
               },
               {
                 path: 'admin/employees',

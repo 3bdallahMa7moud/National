@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 interface Column<T> {
@@ -17,11 +18,13 @@ interface DataTableProps<T> {
   onRowClick?: (item: T) => void;
 }
 
-export default function DataTable<T>({ columns, data, keyExtractor, emptyMessage = 'لا توجد بيانات', className, onRowClick }: DataTableProps<T>) {
+export default function DataTable<T>({ columns, data, keyExtractor, emptyMessage, className, onRowClick }: DataTableProps<T>) {
+  const { t } = useTranslation(['common']);
+
   if (data.length === 0) {
     return (
       <div className="py-12 text-center text-text-secondary">
-        <p>{emptyMessage}</p>
+        <p>{emptyMessage ?? t('common:dataTable.empty')}</p>
       </div>
     );
   }

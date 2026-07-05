@@ -1,12 +1,17 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import i18n from '@/i18n';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function getLocale(): string {
+  return i18n.language === 'ar' ? 'ar-SA' : 'en-US';
+}
+
 export function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('ar-SA', {
+  return new Date(date).toLocaleDateString(getLocale(), {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -14,7 +19,7 @@ export function formatDate(date: string): string {
 }
 
 export function formatDateShort(date: string): string {
-  return new Date(date).toLocaleDateString('ar-SA', {
+  return new Date(date).toLocaleDateString(getLocale(), {
     month: 'short',
     day: 'numeric',
   });
@@ -23,7 +28,10 @@ export function formatDateShort(date: string): string {
 export function formatTime(time: string): string {
   const [hours, minutes] = time.split(':');
   const h = parseInt(hours);
-  const period = h >= 12 ? 'م' : 'ص';
+  const isAr = i18n.language === 'ar';
+  const period = h >= 12
+    ? (isAr ? 'م' : 'PM')
+    : (isAr ? 'ص' : 'AM');
   const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
   return `${displayHour}:${minutes} ${period}`;
 }
@@ -39,12 +47,12 @@ export function getDaysInMonth(year: number, month: number): Date[] {
 }
 
 export function getDayName(date: Date): string {
-  return date.toLocaleDateString('ar-SA', { weekday: 'short' });
+  return date.toLocaleDateString(getLocale(), { weekday: 'short' });
 }
 
 export function getMonthName(month: number): string {
   const date = new Date(2024, month, 1);
-  return date.toLocaleDateString('ar-SA', { month: 'long' });
+  return date.toLocaleDateString(getLocale(), { month: 'long' });
 }
 
 export function generateId(): string {

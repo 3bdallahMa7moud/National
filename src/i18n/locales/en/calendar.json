@@ -1,0 +1,45 @@
+{
+  "page": {
+    "title": "Calendar Sync",
+    "subtitle": "Connect your CT Scan department shift schedule directly to the calendar app on your phone or personal device",
+    "secureTitle": "Secure & encrypted sync",
+    "secureDescription": "This link is unique to your account and contains a unique security token. When any schedule change occurs or you're assigned an emergency on-call shift, your calendar app will update appointments automatically without needing to log into the system."
+  },
+  "card": {
+    "urlTitle": "Your sync link",
+    "urlDescription": "Use this link to sync your schedule with your phone calendar. The schedule will update automatically when any change occurs.",
+    "updateNote": "Updates depend on your calendar app and may take from minutes to hours",
+    "howToTitle": "How to add",
+    "tabs": {
+      "google": "Google Calendar",
+      "apple": "Apple Calendar",
+      "outlook": "Outlook"
+    },
+    "instructions": {
+      "google": [
+        "Open Google Calendar on your computer",
+        "From the sidebar, click \"+\" next to \"Other calendars\"",
+        "Select \"From URL\"",
+        "Paste the sync link below",
+        "Click \"Add calendar\"",
+        "Your schedule will appear within minutes"
+      ],
+      "apple": [
+        "Open the Calendar app on iPhone or Mac",
+        "Go to Settings > Accounts > Add Account",
+        "Select \"Other\" then \"Subscribed Calendar\"",
+        "Paste the sync link",
+        "Tap \"Subscribe\"",
+        "Updates will sync automatically every few hours"
+      ],
+      "outlook": [
+        "Open Outlook on the web (outlook.com)",
+        "Go to Calendar",
+        "Click \"Add calendar\" > \"Subscribe from web\"",
+        "Paste the sync link",
+        "Enter a name for the calendar (e.g. \"Radiology Schedule\")",
+        "Click \"Import\""
+      ]
+    }
+  }
+}

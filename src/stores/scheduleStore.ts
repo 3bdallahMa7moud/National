@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { mockShifts, mockShiftTypes } from '@/mocks/mockData';
+import { mockShiftTypesSource, mockShifts } from '@/mocks/sources';
 import type { Shift } from '@/types';
 
 interface ScheduleState {
@@ -25,7 +25,7 @@ export const useScheduleStore = create<ScheduleState>((set) => ({
   addShiftToCell: (employeeId, employeeName, dateStr, shiftTypeKey, replaceRegular = true) => {
     set((state) => {
       let newShifts = [...state.shifts];
-      const shiftType = mockShiftTypes.find((st) => st.key === shiftTypeKey || st.id === shiftTypeKey);
+      const shiftType = mockShiftTypesSource.find((st) => st.key === shiftTypeKey || st.id === shiftTypeKey);
       if (!shiftType) return { shifts: newShifts };
 
       const isUrgentOrExtra = shiftType.key === 'oncall' || shiftType.key === 'overtime';
@@ -54,7 +54,7 @@ export const useScheduleStore = create<ScheduleState>((set) => ({
   bulkUpdateShifts: (cellIds, shiftTypeId) => {
     set((state) => {
       let newShifts = [...state.shifts];
-      const shiftType = mockShiftTypes.find((st) => st.id === shiftTypeId || st.key === shiftTypeId);
+      const shiftType = mockShiftTypesSource.find((st) => st.id === shiftTypeId || st.key === shiftTypeId);
       if (!shiftType) return { shifts: newShifts };
 
       cellIds.forEach((cellId) => {

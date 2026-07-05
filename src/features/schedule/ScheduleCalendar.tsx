@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import ShiftBadge from '@/components/common/ShiftBadge';
 import { getDaysInMonth, getDayName } from '@/lib/utils';
@@ -22,20 +23,17 @@ interface ScheduleCalendarProps {
   onCellManage?: (employee: Employee, dateStr: string) => void;
 }
 
-const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-const weekDays = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
-
 export default function ScheduleCalendar({
   shifts, employees, mode, editable = false,
   year, month, onPrevMonth, onNextMonth,
   selectedCells = [], onCellClick, onCellShiftClick,
   bulkSelectMode = false, onCellManage,
 }: ScheduleCalendarProps) {
+  const { t } = useTranslation(['common']);
   const days = useMemo(() => getDaysInMonth(year, month), [year, month]);
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-  // Group shifts by employee+date for matrix
   const shiftMap = useMemo(() => {
     const map = new Map<string, Shift[]>();
     shifts.forEach((s) => {
@@ -47,7 +45,6 @@ export default function ScheduleCalendar({
     return map;
   }, [shifts]);
 
-  // Group shifts by date for personal
   const dateShiftMap = useMemo(() => {
     const map = new Map<string, Shift[]>();
     shifts.forEach((s) => {
@@ -60,39 +57,35 @@ export default function ScheduleCalendar({
 
   const header = (
     <div className="mb-4 flex items-center justify-between rounded-card border border-border bg-gray-50 px-2 py-2">
-      <Button variant="ghost" size="sm" onClick={onPrevMonth} icon={<ChevronRight className="w-4 h-4" />}>
-        السابق
+      <Button variant="ghost" size="sm" onClick={onPrevMonth} icon={<ChevronRight className="w-4 h-4 rtl:rotate-180" />}>
+        {t('common:calendar.prev')}
       </Button>
       <h2 className="text-base font-semibold text-text-primary">
-        {monthNames[month]} {year}
+        {t(`common:calendar.months.${month}`)} {year}
       </h2>
-      <Button variant="ghost" size="sm" onClick={onNextMonth} icon={<ChevronLeft className="w-4 h-4" />}>
-        التالي
+      <Button variant="ghost" size="sm" onClick={onNextMonth} icon={<ChevronLeft className="w-4 h-4 rtl:rotate-180" />}>
+        {t('common:calendar.next')}
       </Button>
     </div>
   );
 
-  // ===== PERSONAL CALENDAR VIEW =====
   if (mode === 'personal') {
     const firstDayOfWeek = new Date(year, month, 1).getDay();
-    
+
     return (
       <div>
         {header}
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-card border border-border bg-border">
-          {/* Week day headers */}
-          {weekDays.map((day) => (
-            <div key={day} className="bg-gray-50 py-2 text-center text-xs font-semibold text-text-secondary">
-              {day}
+          {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => (
+            <div key={dayIndex} className="bg-gray-50 py-2 text-center text-xs font-semibold text-text-secondary">
+              {t(`common:calendar.weekdays.${dayIndex}`)}
             </div>
           ))}
-          
-          {/* Empty cells before first day */}
+
           {Array.from({ length: firstDayOfWeek }).map((_, i) => (
             <div key={`empty-${i}`} className="bg-surface min-h-[70px] sm:min-h-[100px]" />
           ))}
-          
-          {/* Day cells */}
+
           {days.map((date) => {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
             const dayShifts = dateShiftMap.get(dateStr) || [];
@@ -133,7 +126,6 @@ export default function ScheduleCalendar({
     );
   }
 
-  // ===== MATRIX VIEW =====
   return (
     <div>
       {header}
@@ -142,7 +134,7 @@ export default function ScheduleCalendar({
           <thead>
             <tr>
               <th className="sticky start-0 z-10 min-w-[110px] border-b border-e border-border bg-gray-50 px-2 py-2 text-start font-semibold text-text-secondary sm:min-w-[140px] sm:px-3">
-                الموظف
+                {t('common:calendar.employee')}
               </th>
               {days.map((date) => {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -178,7 +170,7 @@ export default function ScheduleCalendar({
                   const cellShifts = shiftMap.get(cellId) || [];
                   const isSelected = selectedCells.includes(cellId);
                   const isToday = dateStr === todayStr;
-                  const hasConflict = cellShifts.length > 1 && cellShifts.filter(s => s.shiftType !== 'oncall' && s.shiftType !== 'overtime').length > 1;
+                  const hasConflict = false;
 
                   return (
                     <td

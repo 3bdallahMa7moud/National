@@ -1,0 +1,148 @@
+{
+  "role": {
+    "admin": "Administrator",
+    "employee": "Employee"
+  },
+  "status": {
+    "active": "Active"
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "retry": "Retry",
+    "close": "Close",
+    "closeAndSave": "Close & Save"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "scheduleAdmin": "Schedule Management",
+    "employees": "Employees",
+    "departments": "Departments",
+    "reports": "Reports",
+    "auditLog": "Audit Log",
+    "mySchedule": "My Schedule",
+    "departmentSchedule": "Department Schedule",
+    "calendarSync": "Calendar Sync",
+    "notifications": "Notifications",
+    "profile": "My Profile"
+  },
+  "topbar": {
+    "profile": "Profile",
+    "logout": "Log Out"
+  },
+  "sidebar": {
+    "subtitle": "CT Scan Scheduling",
+    "collapse": "Collapse menu",
+    "expand": "Expand menu"
+  },
+  "hospital": {
+    "name": "National Guard Hospital",
+    "subtitleDefault": "CT Scan Department - CT Scan",
+    "healthAffairs": "Ministry of National Guard Health Affairs",
+    "location": "King Abdulaziz Medical City - Riyadh / Jeddah",
+    "imageAlt": "National Guard Hospital - King Abdulaziz Medical City"
+  },
+  "shifts": {
+    "morning": "Morning",
+    "evening": "Evening",
+    "night": "Night",
+    "oncall": "On-Call",
+    "overtime": "Overtime",
+    "vacation": "Vacation",
+    "sick": "Sick Leave",
+    "training": "Training"
+  },
+  "shiftStatus": {
+    "completed": "Completed",
+    "scheduled": "Scheduled"
+  },
+  "calendar": {
+    "months": {
+      "0": "January",
+      "1": "February",
+      "2": "March",
+      "3": "April",
+      "4": "May",
+      "5": "June",
+      "6": "July",
+      "7": "August",
+      "8": "September",
+      "9": "October",
+      "10": "November",
+      "11": "December"
+    },
+    "weekdays": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    },
+    "prev": "Previous",
+    "next": "Next",
+    "employee": "Employee"
+  },
+  "time": {
+    "am": "AM",
+    "pm": "PM"
+  },
+  "dataTable": {
+    "empty": "No data available"
+  },
+  "emptyState": {
+    "title": "No data",
+    "message": "No items found to display"
+  },
+  "errorState": {
+    "title": "An error occurred",
+    "message": "We couldn't load the data. Please try again"
+  },
+  "audit": {
+    "actions": {
+      "create": "Create",
+      "update": "Update",
+      "delete": "Delete",
+      "bulk_update": "Bulk Update"
+    },
+    "oldValue": "Old:",
+    "newValue": "New:"
+  },
+  "toast": {
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "changed": "Changed"
+  },
+  "labels": {
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "date": "Date",
+    "time": "Time",
+    "status": "Status",
+    "notSpecified": "Not specified",
+    "code": "Code",
+    "from": "From:",
+    "to": "To:"
+  },
+  "units": {
+    "shift": "shift",
+    "shifts": "shifts",
+    "employee": "employee",
+    "employees": "employees",
+    "hour": "hour",
+    "hours": "hours"
+  },
+  "language": {
+    "switch": "Change language",
+    "switchTo": "Switch to {{lang}}",
+    "en": "English",
+    "ar": "Arabic"
+  }
+}

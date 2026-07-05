@@ -1,0 +1,35 @@
+{
+  "validation": {
+    "nameMin": "Full name must be at least 3 characters",
+    "emailInvalid": "Please enter a valid email address",
+    "emailDomain": "A valid email address must be used",
+    "employeeNumberMin": "Employee number is required (at least 4 digits)",
+    "phoneMin": "Mobile number must be at least 9 digits",
+    "positionMin": "Please specify a job title",
+    "departmentRequired": "Please select a department",
+    "passwordMin": "Password must be at least 6 characters or digits",
+    "confirmPasswordRequired": "Please confirm your password",
+    "passwordMismatch": "Passwords do not match",
+    "emailRequired": "Please enter a valid email address",
+    "passwordRequired": "Please enter your password",
+    "currentPasswordWrong": "Current password is incorrect",
+    "newPasswordMin": "New password must be at least 6 characters",
+    "newPasswordMismatch": "New password and confirmation do not match",
+    "passwordHint": "At least 6 characters"
+  },
+  "labels": {
+    "fullName": "Full name",
+    "phoneNumber": "Phone number",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmNewPassword": "Confirm new password",
+    "departmentName": "Department name",
+    "departmentDescription": "Department description",
+    "departmentHead": "Department head / Supervisor",
+    "selectSupervisor": "Select a supervisor...",
+    "jobTitle": "Job title"
+  },
+  "actions": {
+    "saveChanges": "Save changes"
+  }
+}

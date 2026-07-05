@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import { AlertTriangle } from 'lucide-react';
@@ -16,9 +17,11 @@ interface ConfirmDialogProps {
 
 export default function ConfirmDialog({
   isOpen, onClose, onConfirm, title, message,
-  confirmText = 'تأكيد', cancelText = 'إلغاء',
+  confirmText, cancelText,
   variant = 'danger', loading = false,
 }: ConfirmDialogProps) {
+  const { t } = useTranslation(['common']);
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="sm">
       <div className="text-center">
@@ -29,10 +32,10 @@ export default function ConfirmDialog({
         <p className="text-sm text-text-secondary mb-6">{message}</p>
         <div className="flex gap-3 justify-center">
           <Button variant="secondary" onClick={onClose} disabled={loading}>
-            {cancelText}
+            {cancelText ?? t('common:actions.cancel')}
           </Button>
           <Button variant={variant === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={loading}>
-            {confirmText}
+            {confirmText ?? t('common:actions.confirm')}
           </Button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -76,6 +77,16 @@ export default {
           sick: '#EF4444',
           training: '#06B6D4',
         },
+        // Schedule Matrix tokens
+        ink:           '#101B2D',
+        'primary-teal':'#0B7285',
+        'signal-cyan': '#22D3D8',
+        'warm-surface':'#F6F5F1',
+        'slate-brand': '#5B6472',
+        'alert-coral': '#E2572B',
+        'facility-kamc':  '#101B2D',
+        'facility-kasch': '#0B7285',
+        'facility-whh':   '#453653',
       },
       borderRadius: {
         DEFAULT: '8px',

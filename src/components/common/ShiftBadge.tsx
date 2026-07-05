@@ -1,6 +1,8 @@
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Phone, Clock } from 'lucide-react';
 import type { ShiftTypeKey } from '@/types';
+import { getShiftLabel } from '@/i18n/helpers';
 
 interface ShiftBadgeProps {
   type: ShiftTypeKey;
@@ -9,22 +11,24 @@ interface ShiftBadgeProps {
   className?: string;
 }
 
-const shiftConfig: Record<ShiftTypeKey, { color: string; bg: string; border: string; label: string }> = {
-  morning: { color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200', label: 'صباحي' },
-  evening: { color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', label: 'مسائي' },
-  night: { color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200', label: 'ليلي' },
-  oncall: { color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-300', label: 'تحت الطلب' },
-  overtime: { color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-300', label: 'عمل إضافي' },
-  vacation: { color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200', label: 'إجازة' },
-  sick: { color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', label: 'إجازة مرضية' },
-  training: { color: 'text-cyan-700', bg: 'bg-cyan-50', border: 'border-cyan-200', label: 'تدريب' },
+const shiftStyles: Record<ShiftTypeKey, { color: string; bg: string; border: string }> = {
+  morning: { color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200' },
+  evening: { color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+  night: { color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
+  oncall: { color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-300' },
+  overtime: { color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-300' },
+  vacation: { color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
+  sick: { color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' },
+  training: { color: 'text-cyan-700', bg: 'bg-cyan-50', border: 'border-cyan-200' },
 };
 
 export default function ShiftBadge({ type, label, size = 'md', className }: ShiftBadgeProps) {
-  const config = shiftConfig[type];
+  const { t } = useTranslation(['common']);
+  const config = shiftStyles[type];
   if (!config) return null;
 
   const isUrgent = type === 'oncall' || type === 'overtime';
+  const displayLabel = label ?? getShiftLabel(t, type);
 
   return (
     <span
@@ -40,7 +44,7 @@ export default function ShiftBadge({ type, label, size = 'md', className }: Shif
     >
       {type === 'oncall' && <Phone className={cn(size === 'sm' ? 'w-2.5 h-2.5' : 'w-3 h-3')} />}
       {type === 'overtime' && <Clock className={cn(size === 'sm' ? 'w-2.5 h-2.5' : 'w-3 h-3')} />}
-      {label || config.label}
+      {displayLabel}
     </span>
   );
 }

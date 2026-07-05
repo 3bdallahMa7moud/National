@@ -1,0 +1,35 @@
+{
+  "title": "Reports & Statistics",
+  "subtitle": "Performance analysis and shift distribution in the CT Scan department",
+  "export": "Export Report",
+  "months": {
+    "2026-07": "July 2026",
+    "2026-06": "June 2026",
+    "2026-05": "May 2026"
+  },
+  "stats": {
+    "totalScheduled": "Total Scheduled Shifts",
+    "totalScheduledValue": "{{count}} shifts",
+    "fullCoverage": "↑ Full department coverage 100%",
+    "onCall": "On-Call Shifts",
+    "onCallValue": "{{count}} shifts",
+    "onCallAverage": "Average 3.5 shifts / employee",
+    "overtimeHours": "Overtime Hours",
+    "overtimeValue": "{{count}} hours",
+    "overtimeWithinLimit": "Within allowed range"
+  },
+  "charts": {
+    "workloadByEmployee": "Shift Distribution by Employee",
+    "shiftTypeDistribution": "Shift Type Distribution",
+    "shiftCount": "{{count}} shifts"
+  },
+  "audit": {
+    "title": "Audit Log",
+    "subtitle": "Complete tracking of all changes and actions on the schedule and system",
+    "realtimeActive": "Real-time tracking active",
+    "searchPlaceholder": "Search log (employee, description, value)...",
+    "filterAll": "All",
+    "noResults": "No entries match your search",
+    "noResultsHint": "Try changing search terms or resetting the action filter"
+  }
+}

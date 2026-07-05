@@ -1,0 +1,32 @@
+{
+  "title": "لوحة تحكم المسؤول",
+  "department": "قسم الأشعة المقطعية",
+  "activeTechnicians": "{{count}} فنيين نشطين",
+  "welcome": "مرحباً {{name}}، هذه نظرة تشغيلية مختصرة على تغطية النوبات وحركة الجدول اليوم.",
+  "actions": {
+    "manageSchedule": "إدارة الجدول",
+    "addEmployee": "إضافة موظف"
+  },
+  "stats": {
+    "totalTechnicians": "إجمالي الفنيين",
+    "vsLastMonth": "عن الشهر السابق",
+    "todayShifts": "نوبات اليوم المجدولة",
+    "onCallCoverage": "تغطية تحت الطلب (On-Call)",
+    "onCallCount": "{{count}} نوبة"
+  },
+  "todayRoster": {
+    "title": "طاقم المناوبة لليوم",
+    "viewMonthly": "عرض الجدول الشهري",
+    "columns": {
+      "employee": "الموظف",
+      "position": "المسمى",
+      "shift": "النوبة",
+      "timing": "التوقيت"
+    },
+    "defaultPosition": "فني أشعة مقطعية"
+  },
+  "recentChanges": {
+    "title": "آخر التعديلات على الجدول",
+    "viewFull": "السجل الكامل"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "title": "Admin Dashboard",
+  "department": "CT Scan Department",
+  "activeTechnicians": "{{count}} active technicians",
+  "welcome": "Welcome {{name}}, here's a brief operational overview of today's shift coverage and schedule activity.",
+  "actions": {
+    "manageSchedule": "Manage Schedule",
+    "addEmployee": "Add Employee"
+  },
+  "stats": {
+    "totalTechnicians": "Total Technicians",
+    "vsLastMonth": "vs last month",
+    "todayShifts": "Today's Scheduled Shifts",
+    "onCallCoverage": "On-Call Coverage",
+    "onCallCount": "{{count}} shifts"
+  },
+  "todayRoster": {
+    "title": "Today's On-Duty Staff",
+    "viewMonthly": "View monthly schedule",
+    "columns": {
+      "employee": "Employee",
+      "position": "Title",
+      "shift": "Shift",
+      "timing": "Time"
+    },
+    "defaultPosition": "CT Scan Technician"
+  },
+  "recentChanges": {
+    "title": "Recent Schedule Changes",
+    "viewFull": "Full log"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "title": "التقارير والإحصائيات",
+  "subtitle": "تحليل أداء وتوزيع النوبات في قسم الأشعة المقطعية",
+  "export": "تصدير التقرير",
+  "months": {
+    "2026-07": "يوليو 2026",
+    "2026-06": "يونيو 2026",
+    "2026-05": "مايو 2026"
+  },
+  "stats": {
+    "totalScheduled": "إجمالي النوبات المجدولة",
+    "totalScheduledValue": "{{count}} نوبة",
+    "fullCoverage": "↑ تغطية كاملة للقسم 100%",
+    "onCall": "نوبات تحت الطلب (On-Call)",
+    "onCallValue": "{{count}} نوبة",
+    "onCallAverage": "متوسط 3.5 نوبة / موظف",
+    "overtimeHours": "ساعات العمل الإضافي",
+    "overtimeValue": "{{count}} ساعة",
+    "overtimeWithinLimit": "ضمن النطاق المسموح به"
+  },
+  "charts": {
+    "workloadByEmployee": "توزيع النوبات حسب الموظف",
+    "shiftTypeDistribution": "نسبة أنواع النوبات",
+    "shiftCount": "{{count}} نوبة"
+  },
+  "audit": {
+    "title": "سجل التغييرات (Audit Log)",
+    "subtitle": "تتبع كامل لجميع التعديلات والحركات التي تمت على الجدول والنظام",
+    "realtimeActive": "تتبع الوقت الفعلي نشط",
+    "searchPlaceholder": "بحث في السجل (الموظف، الوصف، القيمة)...",
+    "filterAll": "الكل",
+    "noResults": "لم يتم العثور على أي حركات تطابق البحث",
+    "noResultsHint": "جرب تغيير كلمات البحث أو إعادة ضبط فلتر الحركات"
+  }
+}

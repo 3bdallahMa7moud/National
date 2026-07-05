@@ -1,0 +1,37 @@
+{
+  "profile": {
+    "title": "ملفي الشخصي",
+    "editData": "تعديل البيانات",
+    "editModalTitle": "تعديل البيانات الشخصية",
+    "shiftStats": "إحصائيات نوباتي",
+    "totalShifts": "إجمالي النوبات",
+    "completed": "مكتملة",
+    "nextShift": "النوبة القادمة",
+    "noUpcomingShifts": "لا توجد نوبات مجدولة قادمة",
+    "upcomingShifts": "النوبات القادمة",
+    "security": "الأمان",
+    "password": "كلمة المرور",
+    "passwordDescription": "يمكنك تغيير كلمة المرور لحماية حسابك",
+    "changePassword": "تغيير كلمة المرور",
+    "changePasswordModalTitle": "تغيير كلمة المرور",
+    "profileUpdated": "تم تحديث بياناتك الشخصية بنجاح",
+    "passwordChanged": "تم تغيير كلمة المرور بنجاح"
+  },
+  "management": {
+    "title": "إدارة الموظفين",
+    "countInDepartment": "{{count}} موظف في القسم",
+    "addEmployee": "إضافة موظف",
+    "editEmployee": "تعديل موظف",
+    "searchPlaceholder": "بحث بالاسم أو البريد أو الرقم...",
+    "columns": {
+      "number": "الرقم",
+      "employee": "الموظف",
+      "email": "البريد",
+      "phone": "الهاتف",
+      "role": "الدور"
+    },
+    "deleteTitle": "حذف الموظف",
+    "deleteMessage": "هل أنت متأكد من حذف هذا الموظف؟ لا يمكن التراجع عن هذا الإجراء.",
+    "deleteSuccess": "تم حذف الموظف بنجاح"
+  }
+}

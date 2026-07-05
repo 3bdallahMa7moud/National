@@ -1,17 +1,28 @@
 import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
 import { Menu, LogOut, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import NotificationCenter from '@/components/common/NotificationCenter';
-import { mockNotifications } from '@/mocks/mockData';
-import { useState } from 'react';
+import LanguageSwitcher from '@/components/common/LanguageSwitcher';
+import { useMockData } from '@/hooks/useMockData';
 import type { AppNotification } from '@/types';
+import { useLanguage } from '@/hooks/useLanguage';
+import { useTranslation } from 'react-i18next';
 
 export default function Topbar() {
+  const { t } = useTranslation(['common']);
   const { user, logout } = useAuthStore();
   const { toggleSidebar } = useUIStore();
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<AppNotification[]>(mockNotifications);
+  const { dateLocale } = useLanguage();
+  const { notifications: baseNotifications } = useMockData();
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+
+  const notifications = useMemo(
+    () => baseNotifications.map((n) => ({ ...n, isRead: n.isRead || readIds.has(n.id) })),
+    [baseNotifications, readIds],
+  );
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const handleLogout = () => {
@@ -20,16 +31,14 @@ export default function Topbar() {
   };
 
   const handleMarkRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
+    setReadIds((prev) => new Set(prev).add(id));
   };
 
   const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setReadIds(new Set(baseNotifications.map((n) => n.id)));
   };
 
-  const today = new Date().toLocaleDateString('ar-SA', {
+  const today = new Date().toLocaleDateString(dateLocale, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -39,7 +48,6 @@ export default function Topbar() {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur">
       <div className="flex h-14 items-center justify-between px-4 lg:px-8">
-        {/* Right side */}
         <div className="flex items-center gap-3">
           <button
             onClick={toggleSidebar}
@@ -52,8 +60,9 @@ export default function Topbar() {
           </div>
         </div>
 
-        {/* Left side */}
         <div className="flex items-center gap-2">
+          <LanguageSwitcher variant="icon" />
+
           {user?.role !== 'admin' && (
             <NotificationCenter
               notifications={notifications}
@@ -62,18 +71,23 @@ export default function Topbar() {
             />
           )}
 
-          {/* User Menu */}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center gap-2 rounded-btn border border-transparent p-1.5 transition-colors hover:border-border hover:bg-gray-50"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-btn bg-primary-50">
-                <User className="h-4 w-4 text-primary" />
-              </div>
+              {user?.avatar ? (
+                <img src={user.avatar} alt="Avatar" className="h-8 w-8 rounded-btn object-cover border border-border" />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-btn bg-primary-50">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+              )}
               <div className="hidden sm:block text-start">
                 <p className="text-sm font-medium text-text-primary leading-tight">{user?.name}</p>
-                <p className="text-[10px] text-text-secondary">{user?.role === 'admin' ? 'مسؤول' : 'موظف'}</p>
+                <p className="text-[10px] text-text-secondary">
+                  {user?.role === 'admin' ? t('common:role.admin') : t('common:role.employee')}
+                </p>
               </div>
             </button>
 
@@ -86,14 +100,14 @@ export default function Topbar() {
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-text-primary transition-colors hover:bg-gray-50"
                   >
                     <User className="w-4 h-4" />
-                    الملف الشخصي
+                    {t('common:topbar.profile')}
                   </button>
                   <button
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-danger transition-colors hover:bg-danger-50"
                   >
                     <LogOut className="w-4 h-4" />
-                    تسجيل الخروج
+                    {t('common:topbar.logout')}
                   </button>
                 </div>
               </>

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { Bell, Check } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import type { AppNotification } from '@/types';
 import dayjs from '@/lib/dayjs';
 
@@ -11,15 +12,16 @@ interface NotificationCenterProps {
 }
 
 export default function NotificationCenter({ notifications, onMarkRead, onMarkAllRead }: NotificationCenterProps) {
+  const { t } = useTranslation(['notifications']);
   const [isOpen, setIsOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="relative">
-      {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
+        aria-label={t('notifications:center.title')}
       >
         <Bell className="w-5 h-5 text-text-secondary" />
         {unreadCount > 0 && (
@@ -29,25 +31,24 @@ export default function NotificationCenter({ notifications, onMarkRead, onMarkAl
         )}
       </button>
 
-      {/* Dropdown */}
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           <div className="absolute end-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-80 bg-surface rounded-card shadow-dropdown border border-border z-50 overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-border">
-              <h3 className="font-semibold text-text-primary">الإشعارات</h3>
+              <h3 className="font-semibold text-text-primary">{t('notifications:center.title')}</h3>
               {unreadCount > 0 && (
                 <button
                   onClick={onMarkAllRead}
                   className="text-xs text-primary hover:underline"
                 >
-                  تحديد الكل كمقروء
+                  {t('notifications:center.markAllRead')}
                 </button>
               )}
             </div>
             <div className="max-h-80 overflow-y-auto divide-y divide-border/50">
               {notifications.length === 0 ? (
-                <p className="p-6 text-center text-sm text-text-secondary">لا توجد إشعارات</p>
+                <p className="p-6 text-center text-sm text-text-secondary">{t('notifications:center.empty')}</p>
               ) : (
                 notifications.slice(0, 8).map((notif) => (
                   <div

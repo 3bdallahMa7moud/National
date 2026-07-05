@@ -1,15 +1,9 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { AuditLogEntry } from '@/types';
 import dayjs from '@/lib/dayjs';
-
-const actionLabels: Record<string, string> = {
-  create: 'إنشاء',
-  update: 'تعديل',
-  delete: 'حذف',
-  bulk_update: 'تعديل جماعي',
-};
 
 const actionColors: Record<string, string> = {
   create: 'bg-success-50 text-success-600',
@@ -19,6 +13,7 @@ const actionColors: Record<string, string> = {
 };
 
 export default function AuditLogRow({ entry }: { entry: AuditLogEntry }) {
+  const { t } = useTranslation(['common']);
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -28,7 +23,7 @@ export default function AuditLogRow({ entry }: { entry: AuditLogEntry }) {
         onClick={() => setExpanded(!expanded)}
       >
         <span className={cn('px-2 py-0.5 rounded-pill text-[10px] font-semibold', actionColors[entry.action])}>
-          {actionLabels[entry.action]}
+          {t(`common:audit.actions.${entry.action}`)}
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-sm text-text-primary truncate">{entry.description}</p>
@@ -46,13 +41,13 @@ export default function AuditLogRow({ entry }: { entry: AuditLogEntry }) {
           <div className="bg-gray-50 rounded-btn p-3 text-xs space-y-1">
             {entry.oldValue && (
               <div className="flex gap-2">
-                <span className="text-danger font-medium">القديم:</span>
+                <span className="text-danger font-medium">{t('common:audit.oldValue')}</span>
                 <span className="text-text-secondary">{entry.oldValue}</span>
               </div>
             )}
             {entry.newValue && (
               <div className="flex gap-2">
-                <span className="text-success font-medium">الجديد:</span>
+                <span className="text-success font-medium">{t('common:audit.newValue')}</span>
                 <span className="text-text-primary">{entry.newValue}</span>
               </div>
             )}

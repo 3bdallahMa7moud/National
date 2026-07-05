@@ -1,0 +1,13 @@
+{
+  "title": "إدارة الأقسام",
+  "subtitle": "عرض وتعديل الهيكل التنظيمي لأقسام الأشعة",
+  "addDepartment": "إضافة قسم جديد",
+  "editDepartment": "تعديل بيانات القسم",
+  "departmentHead": "رئيس القسم",
+  "employeeCount": "عدد الموظفين",
+  "employeeCountBadge": "{{count}} موظفين",
+  "viewTeam": "عرض الطاقم ←",
+  "namePlaceholder": "مثال: قسم الأشعة المقطعية",
+  "descriptionPlaceholder": "وصف مهام وتخصص القسم...",
+  "updateSuccess": "تم تحديث بيانات القسم بنجاح"
+}

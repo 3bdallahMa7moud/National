@@ -1,0 +1,13 @@
+{
+  "title": "Department Management",
+  "subtitle": "View and edit the organizational structure of radiology departments",
+  "addDepartment": "Add New Department",
+  "editDepartment": "Edit Department",
+  "departmentHead": "Department Head",
+  "employeeCount": "Employee Count",
+  "employeeCountBadge": "{{count}} employees",
+  "viewTeam": "View team →",
+  "namePlaceholder": "e.g. CT Scan Department",
+  "descriptionPlaceholder": "Describe department duties and specialty...",
+  "updateSuccess": "Department updated successfully"
+}

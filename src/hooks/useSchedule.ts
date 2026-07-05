@@ -1,17 +1,23 @@
 import { useMemo } from 'react';
 import { useScheduleStore } from '@/stores/scheduleStore';
-import { mockShiftTypes } from '@/mocks/mockData';
-import type { Shift, ShiftType } from '@/types';
+import { useMockData } from '@/hooks/useMockData';
+import { resolveShift } from '@/mocks/resolveMockData';
 
 export function useSchedule(employeeId?: string, month?: number, year?: number) {
   const { shifts, addShift, updateShift, deleteShift, addShiftToCell, bulkUpdateShifts } = useScheduleStore();
-  
+  const { employees, shiftTypes, language } = useMockData();
+
   const now = new Date();
   const currentMonth = month ?? now.getMonth();
   const currentYear = year ?? now.getFullYear();
 
+  const localizedShifts = useMemo(
+    () => shifts.map((s) => resolveShift(s, language, employees)),
+    [shifts, language, employees],
+  );
+
   const filteredShifts = useMemo(() => {
-    let result = shifts;
+    let result = localizedShifts;
     if (employeeId) {
       result = result.filter((s) => s.employeeId === employeeId);
     }
@@ -19,9 +25,7 @@ export function useSchedule(employeeId?: string, month?: number, year?: number) 
     const prefix = `${currentYear}-${monthStr}`;
     result = result.filter((s) => s.date.startsWith(prefix));
     return result;
-  }, [shifts, employeeId, currentMonth, currentYear]);
-
-  const shiftTypes: ShiftType[] = mockShiftTypes;
+  }, [localizedShifts, employeeId, currentMonth, currentYear]);
 
   return {
     shifts: filteredShifts,
@@ -31,6 +35,6 @@ export function useSchedule(employeeId?: string, month?: number, year?: number) 
     deleteShift,
     addShiftToCell,
     bulkUpdateShifts,
-    allShifts: shifts,
+    allShifts: localizedShifts,
   };
 }
