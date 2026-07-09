@@ -33,7 +33,7 @@ export default function DataTable<T>({ columns, data, keyExtractor, emptyMessage
     <div className={cn('-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0', className)}>
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-border bg-gray-50/70">
+          <tr className="border-b border-border bg-surface-muted/70">
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -52,7 +52,7 @@ export default function DataTable<T>({ columns, data, keyExtractor, emptyMessage
             <tr
               key={keyExtractor(item)}
               className={cn(
-                'transition-colors hover:bg-gray-50',
+                'transition-colors hover:bg-hover',
                 onRowClick && 'cursor-pointer'
               )}
               onClick={() => onRowClick?.(item)}

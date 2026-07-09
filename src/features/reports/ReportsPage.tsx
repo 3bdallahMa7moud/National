@@ -134,7 +134,7 @@ export default function ReportsPage() {
                       <span className="font-semibold text-text-primary">{percentage}%</span>
                     </div>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-pill bg-gray-100">
+                  <div className="h-2 overflow-hidden rounded-pill bg-surface-muted">
                     <div className="h-full rounded-pill" style={{ width: `${percentage}%`, backgroundColor: item.color }} />
                   </div>
                 </div>

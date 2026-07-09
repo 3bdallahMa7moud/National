@@ -29,10 +29,10 @@ function DayHeaderRow({ daysInMonth, year, month }: DayHeaderRowProps) {
             key={day}
             className={cn(
               'flex flex-col items-center justify-center text-center select-none',
-              'border-b border-e border-gray-300',
+              'border-b border-e border-border',
               isWeekend && 'bg-[var(--weekend-tint)]',
               isToday && 'bg-[var(--today-tint)]',
-              !isWeekend && !isToday && 'bg-white',
+              !isWeekend && !isToday && 'bg-surface',
             )}
             style={{
               minWidth: 'var(--matrix-day-col)',
@@ -42,7 +42,7 @@ function DayHeaderRow({ daysInMonth, year, month }: DayHeaderRowProps) {
           >
             <span className={cn(
               'text-[10px] font-medium',
-              isToday ? 'text-primary-teal' : isWeekend ? 'text-alert-coral font-semibold' : 'text-slate-500',
+              isToday ? 'text-primary-teal' : isWeekend ? 'text-alert-coral font-semibold' : 'text-text-secondary',
             )}>
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dow]}
             </span>

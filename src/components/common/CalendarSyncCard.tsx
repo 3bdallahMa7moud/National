@@ -71,7 +71,7 @@ export default function CalendarSyncCard({ icalUrl }: CalendarSyncCardProps) {
                   'flex items-center gap-1.5 px-3 py-2 rounded-btn text-sm font-medium transition-colors',
                   activeTab === tabId
                     ? 'bg-primary text-white'
-                    : 'text-text-secondary hover:bg-gray-100'
+                    : 'text-text-secondary hover:bg-hover'
                 )}
               >
                 <Icon className="w-4 h-4" />

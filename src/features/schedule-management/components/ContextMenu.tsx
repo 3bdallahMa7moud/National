@@ -61,7 +61,7 @@ function ContextMenu({
                   onCopy(contextMenu.entry!.shiftCategory);
                   onClose();
                 }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-text-primary hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-text-primary hover:bg-hover dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Copy className="h-4 w-4 text-blue-500" />
                 Copy Shift
@@ -71,7 +71,7 @@ function ContextMenu({
                   // Swap logic
                   onClose();
                 }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-text-primary hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-text-primary hover:bg-hover dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <ArrowRightLeft className="h-4 w-4 text-amber-500" />
                 Swap Shift
@@ -95,7 +95,7 @@ function ContextMenu({
                   // Assign logic
                   onClose();
                 }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-text-primary hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-text-primary hover:bg-hover dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <CalendarPlus className="h-4 w-4 text-emerald-500" />
                 Assign Shift
@@ -109,8 +109,8 @@ function ContextMenu({
                 className={cn(
                   'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium',
                   clipboardCategory
-                    ? 'text-text-primary hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800'
-                    : 'text-text-secondary opacity-50 cursor-not-allowed dark:text-slate-500'
+                    ? 'text-text-primary hover:bg-hover dark:text-slate-200 dark:hover:bg-slate-800'
+                    : 'text-text-secondary opacity-50 cursor-not-allowed dark:text-text-secondary'
                 )}
               >
                 <ClipboardPaste className="h-4 w-4 text-primary" />

@@ -100,14 +100,14 @@ function EmployeeChip({
         <div
           className={cn(
             'absolute z-50 top-full mt-1 w-64 rounded-lg border shadow-dropdown p-3',
-            'bg-white border-gray-300 text-right',
+            'bg-surface border-border text-right',
           )}
           style={{ insetInlineStart: 0 }}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-sm font-bold text-ink truncate">{fullName || assignment.employeeCode}</p>
-              <div className="mt-1.5 space-y-1 text-[11px] text-slate-500">
+              <div className="mt-1.5 space-y-1 text-[11px] text-text-secondary">
                 <p>{shiftLabel} · {timeRange}</p>
                 <p dir="ltr" style={{ unicodeBidi: 'isolate' }}>{facilityName} / {unitName}</p>
               </div>
@@ -120,11 +120,11 @@ function EmployeeChip({
           </div>
 
           {lastHistory.length > 0 && (
-            <div className="mt-3 border-t border-gray-200 pt-2">
-              <p className="mb-1.5 text-[10px] font-bold text-slate-500">{t('schedule:employeeChip.recentChanges')}</p>
+            <div className="mt-3 border-t border-border pt-2">
+              <p className="mb-1.5 text-[10px] font-bold text-text-secondary">{t('schedule:employeeChip.recentChanges')}</p>
               <div className="space-y-1">
                 {lastHistory.map((entry) => (
-                  <div key={entry.id} className="rounded-md bg-slate-50 px-2 py-1 text-[10px] text-slate-600">
+                  <div key={entry.id} className="rounded-md bg-surface-muted px-2 py-1 text-[10px] text-text-secondary">
                     <span className="font-semibold text-ink">{entry.actorName}</span>
                     <span> · {entry.newValue}</span>
                   </div>

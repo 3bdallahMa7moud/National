@@ -56,7 +56,7 @@ export default function ScheduleCalendar({
   }, [shifts]);
 
   const header = (
-    <div className="mb-4 flex items-center justify-between rounded-card border border-border bg-gray-50 px-2 py-2">
+    <div className="mb-4 flex items-center justify-between rounded-card border border-border bg-surface-muted px-2 py-2">
       <Button variant="ghost" size="sm" onClick={onPrevMonth} icon={<ChevronRight className="w-4 h-4 rtl:rotate-180" />}>
         {t('common:calendar.prev')}
       </Button>
@@ -77,7 +77,7 @@ export default function ScheduleCalendar({
         {header}
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-card border border-border bg-border">
           {[0, 1, 2, 3, 4, 5, 6].map((dayIndex) => (
-            <div key={dayIndex} className="bg-gray-50 py-2 text-center text-xs font-semibold text-text-secondary">
+            <div key={dayIndex} className="bg-surface-muted py-2 text-center text-xs font-semibold text-text-secondary">
               {t(`common:calendar.weekdays.${dayIndex}`)}
             </div>
           ))}
@@ -98,7 +98,7 @@ export default function ScheduleCalendar({
                 className={cn(
                   'min-h-[70px] bg-surface p-1 transition-colors sm:min-h-[100px] sm:p-1.5',
                   isToday && 'bg-primary-50/30',
-                  isFriday && 'bg-gray-50/50'
+                  isFriday && 'bg-surface-muted/50'
                 )}
               >
                 <span className={cn(
@@ -133,7 +133,7 @@ export default function ScheduleCalendar({
         <table className="w-full min-w-[650px] border-collapse text-xs sm:min-w-[800px]">
           <thead>
             <tr>
-              <th className="sticky start-0 z-10 min-w-[110px] border-b border-e border-border bg-gray-50 px-2 py-2 text-start font-semibold text-text-secondary sm:min-w-[140px] sm:px-3">
+              <th className="sticky start-0 z-10 min-w-[110px] border-b border-e border-border bg-surface-muted px-2 py-2 text-start font-semibold text-text-secondary sm:min-w-[140px] sm:px-3">
                 {t('common:calendar.employee')}
               </th>
               {days.map((date) => {
@@ -145,7 +145,7 @@ export default function ScheduleCalendar({
                     key={dateStr}
                     className={cn(
                       'px-1 py-2 text-center border-b border-border min-w-[60px]',
-                      isToday ? 'bg-primary-50' : isFriday ? 'bg-gray-100' : 'bg-gray-50'
+                      isToday ? 'bg-primary-50' : isFriday ? 'bg-surface-muted' : 'bg-surface-muted'
                     )}
                   >
                     <div className="text-[10px] text-text-secondary">{getDayName(date)}</div>
@@ -159,7 +159,7 @@ export default function ScheduleCalendar({
           </thead>
           <tbody>
             {(employees || []).map((emp) => (
-              <tr key={emp.id} className="transition-colors hover:bg-gray-50/40">
+              <tr key={emp.id} className="transition-colors hover:bg-hover/40">
                 <td className="sticky start-0 z-10 border-b border-e border-border bg-surface px-3 py-2">
                   <div className="font-medium text-text-primary text-sm truncate">{emp.name}</div>
                   <div className="text-[10px] text-text-secondary">{emp.position}</div>
@@ -180,7 +180,7 @@ export default function ScheduleCalendar({
                         isToday && 'bg-primary-50/20',
                         isSelected && 'bg-primary-100 ring-2 ring-primary ring-inset',
                         hasConflict && 'ring-2 ring-danger ring-inset',
-                        editable && 'hover:bg-gray-100'
+                        editable && 'hover:bg-hover'
                       )}
                       onClick={() => {
                         if (!editable) return;

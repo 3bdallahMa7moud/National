@@ -22,10 +22,11 @@ html {
 }
 
 body {
-  background-color: #F8FAFC;
-  color: #0F172A;
+  background-color: rgb(var(--color-background));
+  color: rgb(var(--color-text-primary));
   min-height: 100vh;
   line-height: 1.5;
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
 /* Scrollbar styling */
@@ -39,12 +40,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: rgb(var(--color-border));
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background: rgb(var(--color-text-muted));
 }
 
 /* Print styles */
@@ -62,13 +63,168 @@ body {
   }
 }
 
+@layer base {
+  html.dark .bg-white {
+    background-color: rgb(var(--color-surface));
+  }
+
+  html.dark .bg-gray-50,
+  html.dark .bg-gray-100,
+  html.dark .bg-slate-50,
+  html.dark .bg-slate-100 {
+    background-color: rgb(var(--color-surface-muted));
+  }
+
+  html.dark .bg-gray-50\/50,
+  html.dark .bg-gray-50\/70,
+  html.dark .bg-gray-50\/80,
+  html.dark .bg-slate-50\/50,
+  html.dark .bg-slate-50\/60,
+  html.dark .bg-slate-50\/80,
+  html.dark .bg-slate-50\/95,
+  html.dark .bg-slate-100\/80 {
+    background-color: rgb(var(--color-surface-muted) / 0.82);
+  }
+
+  html.dark .bg-gray-200,
+  html.dark .bg-slate-200,
+  html.dark .bg-gray-300,
+  html.dark .bg-slate-300 {
+    background-color: rgb(var(--color-border));
+  }
+
+  html.dark .bg-red-50,
+  html.dark .bg-rose-50 {
+    background-color: rgb(var(--color-danger-50));
+  }
+
+  html.dark .bg-amber-50,
+  html.dark .bg-yellow-50,
+  html.dark .bg-orange-50 {
+    background-color: rgb(var(--color-warning-50));
+  }
+
+  html.dark .bg-green-50,
+  html.dark .bg-emerald-50 {
+    background-color: rgb(var(--color-success-50));
+  }
+
+  html.dark .bg-blue-50,
+  html.dark .bg-cyan-50,
+  html.dark .bg-indigo-50,
+  html.dark .bg-pink-50,
+  html.dark .bg-violet-50 {
+    background-color: rgb(var(--color-primary-50));
+  }
+
+  html.dark .border-gray-100,
+  html.dark .border-gray-200,
+  html.dark .border-gray-300,
+  html.dark .border-slate-200,
+  html.dark .border-slate-300,
+  html.dark .border-slate-400 {
+    border-color: rgb(var(--color-border));
+  }
+
+  html.dark .border-red-200,
+  html.dark .border-red-300,
+  html.dark .border-rose-200,
+  html.dark .border-rose-300,
+  html.dark .border-amber-200,
+  html.dark .border-amber-300,
+  html.dark .border-yellow-200,
+  html.dark .border-orange-200,
+  html.dark .border-orange-300,
+  html.dark .border-blue-200,
+  html.dark .border-blue-300,
+  html.dark .border-cyan-200,
+  html.dark .border-green-200,
+  html.dark .border-emerald-200,
+  html.dark .border-violet-200,
+  html.dark .border-indigo-200,
+  html.dark .border-pink-200 {
+    border-color: rgb(var(--color-border));
+  }
+
+  html.dark .text-gray-400,
+  html.dark .text-gray-500,
+  html.dark .text-gray-600,
+  html.dark .text-slate-400,
+  html.dark .text-slate-500,
+  html.dark .text-slate-600 {
+    color: rgb(var(--color-text-secondary));
+  }
+
+  html.dark .text-gray-700,
+  html.dark .text-gray-800,
+  html.dark .text-slate-700,
+  html.dark .text-slate-800,
+  html.dark .text-ink {
+    color: rgb(var(--color-text-primary));
+  }
+
+  html.dark .text-blue-700,
+  html.dark .text-cyan-700,
+  html.dark .text-indigo-700,
+  html.dark .text-violet-700,
+  html.dark .text-pink-700 {
+    color: rgb(var(--color-primary));
+  }
+
+  html.dark .text-green-700,
+  html.dark .text-emerald-700 {
+    color: rgb(var(--color-success));
+  }
+
+  html.dark .text-amber-700,
+  html.dark .text-amber-800,
+  html.dark .text-amber-950,
+  html.dark .text-yellow-700,
+  html.dark .text-orange-700 {
+    color: rgb(var(--color-warning));
+  }
+
+  html.dark .text-red-600,
+  html.dark .text-red-700,
+  html.dark .text-rose-700 {
+    color: rgb(var(--color-danger));
+  }
+
+  html.dark .hover\:bg-gray-50:hover,
+  html.dark .hover\:bg-gray-100:hover,
+  html.dark .hover\:bg-slate-50:hover,
+  html.dark .hover\:bg-slate-100:hover,
+  html.dark .hover\:bg-white\/50:hover,
+  html.dark .hover\:bg-white\/60:hover {
+    background-color: rgb(var(--color-hover));
+  }
+
+  html.dark .hover\:bg-red-50:hover,
+  html.dark .hover\:bg-red-100:hover,
+  html.dark .hover\:bg-rose-50:hover {
+    background-color: rgb(var(--color-danger-50));
+  }
+
+  html.dark .hover\:bg-amber-50:hover,
+  html.dark .hover\:bg-amber-100:hover,
+  html.dark .hover\:bg-orange-50:hover {
+    background-color: rgb(var(--color-warning-50));
+  }
+
+  html.dark input,
+  html.dark select,
+  html.dark textarea {
+    color-scheme: dark;
+  }
+}
+
 @layer components {
   .btn-primary {
     @apply bg-primary text-white rounded-btn px-4 py-2 font-medium transition-colors duration-150 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed;
   }
   
   .btn-secondary {
-    @apply bg-white text-text-primary border border-border rounded-btn px-4 py-2 font-medium transition-colors duration-150 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply bg-surface text-text-primary border border-border rounded-btn px-4 py-2 font-medium transition-colors duration-150 hover:bg-hover disabled:opacity-40 disabled:cursor-not-allowed;
   }
   
   .btn-danger {
@@ -80,6 +236,6 @@ body {
   }
   
   .input-field {
-    @apply w-full rounded-btn border border-border bg-white px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary transition-colors duration-150;
+    @apply w-full rounded-btn border border-border bg-surface px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors duration-150;
   }
 }

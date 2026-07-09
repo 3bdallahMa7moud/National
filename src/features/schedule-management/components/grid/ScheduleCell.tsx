@@ -53,7 +53,7 @@ function ScheduleCell({
       <div
         className={cn(
           'flex h-full items-center justify-center',
-          isWeekend && 'bg-slate-50/60 dark:bg-slate-800/30',
+          isWeekend && 'bg-surface-muted/60 dark:bg-slate-800/30',
           isToday && 'bg-primary-50/30 dark:bg-primary-900/10'
         )}
         onContextMenu={handleContext}
@@ -69,7 +69,7 @@ function ScheduleCell({
     <div
       className={cn(
         'flex h-full items-center justify-center px-0.5',
-        isWeekend && 'bg-slate-50/60 dark:bg-slate-800/30',
+        isWeekend && 'bg-surface-muted/60 dark:bg-slate-800/30',
         isToday && 'bg-primary-50/40 dark:bg-primary-900/15',
         isHighlighted && 'ring-2 ring-primary ring-inset'
       )}

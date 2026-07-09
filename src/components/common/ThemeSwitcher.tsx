@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Sun, Moon, Monitor, Check } from 'lucide-react';
+import { Check, Monitor, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme, type ThemeMode } from '@/hooks/useTheme';
 
@@ -20,8 +20,8 @@ export default function ThemeSwitcher({ className, variant = 'icon' }: ThemeSwit
 
   useEffect(() => {
     if (!isOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -33,16 +33,16 @@ export default function ThemeSwitcher({ className, variant = 'icon' }: ThemeSwit
         type="button"
         onClick={toggleTheme}
         className={cn(
-          'relative rounded-xl p-2 transition-colors hover:bg-hover text-text-secondary hover:text-text-primary',
+          'relative rounded-xl p-2 text-text-secondary transition-colors hover:bg-hover hover:text-text-primary',
           className,
         )}
         aria-label={t('theme.toggle', 'تبديل المظهر')}
         title={t('theme.toggle', 'تبديل المظهر')}
       >
         {resolvedTheme === 'dark' ? (
-          <Sun className="h-5 w-5 text-amber-400" />
+          <Sun className="h-5 w-5 text-warning" />
         ) : (
-          <Moon className="h-5 w-5 text-text-secondary" />
+          <Moon className="h-5 w-5" />
         )}
       </button>
     );
@@ -62,34 +62,45 @@ export default function ThemeSwitcher({ className, variant = 'icon' }: ThemeSwit
         className="relative flex items-center gap-2 rounded-btn border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-hover"
         aria-label={t('theme.switch', 'المظهر')}
         aria-expanded={isOpen}
+        aria-haspopup="listbox"
       >
-        {resolvedTheme === 'dark' ? <Moon className="h-4 w-4 text-primary-teal" /> : <Sun className="h-4 w-4 text-amber-500" />}
-        <span>{options.find((o) => o.value === theme)?.label}</span>
+        {resolvedTheme === 'dark' ? (
+          <Moon className="h-4 w-4 text-primary" />
+        ) : (
+          <Sun className="h-4 w-4 text-warning" />
+        )}
+        <span>{options.find((option) => option.value === theme)?.label}</span>
       </button>
 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} aria-hidden />
-          <div className="absolute end-0 top-full z-50 mt-2 min-w-[9rem] overflow-hidden rounded-card border border-border bg-surface shadow-dropdown">
+          <div
+            role="listbox"
+            aria-label={t('theme.switch', 'المظهر')}
+            className="absolute end-0 top-full z-50 mt-2 min-w-[9rem] overflow-hidden rounded-card border border-border bg-surface shadow-dropdown"
+          >
             <div className="py-1">
-              {options.map((opt) => {
-                const Icon = opt.icon;
+              {options.map((option) => {
+                const Icon = option.icon;
                 return (
                   <button
-                    key={opt.value}
+                    key={option.value}
                     type="button"
+                    role="option"
+                    aria-selected={theme === option.value}
                     onClick={() => {
-                      setTheme(opt.value);
+                      setTheme(option.value);
                       setIsOpen(false);
                     }}
                     className={cn(
                       'flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors hover:bg-hover',
-                      theme === opt.value ? 'font-semibold text-primary' : 'text-text-primary',
+                      theme === option.value ? 'font-semibold text-primary' : 'text-text-primary',
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1 text-start">{opt.label}</span>
-                    {theme === opt.value && <Check className="h-4 w-4 shrink-0" />}
+                    <span className="flex-1 text-start">{option.label}</span>
+                    {theme === option.value && <Check className="h-4 w-4 shrink-0" />}
                   </button>
                 );
               })}

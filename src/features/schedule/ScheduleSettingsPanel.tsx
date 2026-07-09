@@ -59,18 +59,18 @@ function ScheduleSettingsPanel({
   if (!facility || !settings) return null;
 
   return (
-    <section className="rounded-lg border border-gray-300 bg-white px-4 py-3 shadow-soft">
+    <section className="rounded-lg border border-border bg-surface px-4 py-3 shadow-soft">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Settings2 className="h-4 w-4 text-primary-teal" />
         <h2 className="text-sm font-bold text-ink">{t('schedule:settingsPanel.title')}</h2>
-        <div className="ms-auto flex rounded-lg border border-gray-300 bg-slate-50 p-0.5">
+        <div className="ms-auto flex rounded-lg border border-border bg-surface-muted p-0.5">
           {data.facilities.map((item) => (
             <button
               key={item.id}
               onClick={() => setFacilityId(item.id)}
               className={cn(
                 'rounded-md px-3 py-1.5 text-xs font-bold transition-colors',
-                item.id === facility.id ? 'bg-white text-primary-teal shadow-sm' : 'text-slate-600 hover:bg-white/60',
+                item.id === facility.id ? 'bg-surface text-primary-teal shadow-sm' : 'text-text-secondary hover:bg-hover',
               )}
             >
               {item.name}
@@ -81,7 +81,7 @@ function ScheduleSettingsPanel({
           onClick={onToggleColorblindMode}
           className={cn(
             'rounded-lg border px-3 py-1.5 text-xs font-bold',
-            colorblindMode ? 'border-primary-teal bg-primary-teal text-white' : 'border-gray-300 bg-white text-slate-700',
+            colorblindMode ? 'border-primary-teal bg-primary-teal text-white' : 'border-border bg-surface text-text-primary',
           )}
         >
           {t('schedule:settingsPanel.colorBlindMode')}
@@ -91,32 +91,32 @@ function ScheduleSettingsPanel({
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-slate-500" />
+            <Clock3 className="h-4 w-4 text-text-secondary" />
             <h3 className="text-xs font-bold text-ink">{t('schedule:settingsPanel.shiftsSection')}</h3>
-            <span className="text-[10px] text-slate-500">{t('schedule:settingsPanel.shiftsSubtitle')}</span>
+            <span className="text-[10px] text-text-secondary">{t('schedule:settingsPanel.shiftsSubtitle')}</span>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-gray-300">
+          <div className="overflow-hidden rounded-lg border border-border">
             {settings.shiftDefinitions.map((shift) => (
-              <div key={shift.id} className={cn('grid grid-cols-[1fr_130px_110px_auto] gap-2 border-b border-gray-200 p-2 last:border-b-0', shift.archived && 'bg-slate-50 opacity-60')}>
+              <div key={shift.id} className={cn('grid grid-cols-[1fr_130px_110px_auto] gap-2 border-b border-border p-2 last:border-b-0', shift.archived && 'bg-surface-muted opacity-60')}>
                 <input
                   value={shift.label}
                   disabled={shift.archived}
                   onChange={(event) => onUpdateShift(facility.id, shift.id, { label: event.target.value })}
-                  className="h-8 rounded-md border border-gray-300 px-2 text-xs font-semibold text-ink focus:border-primary-teal focus:outline-none"
+                  className="h-8 rounded-md border border-border px-2 text-xs font-semibold text-ink focus:border-primary-teal focus:outline-none"
                 />
                 <input
                   value={shift.timeRange}
                   disabled={shift.archived}
                   onChange={(event) => onUpdateShift(facility.id, shift.id, { timeRange: event.target.value })}
-                  className="h-8 rounded-md border border-gray-300 px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
+                  className="h-8 rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
                   dir="ltr"
                 />
                 <select
                   value={shift.colorKey}
                   disabled={shift.archived}
                   onChange={(event) => onUpdateShift(facility.id, shift.id, { colorKey: event.target.value as ShiftColorKey })}
-                  className="h-8 rounded-md border border-gray-300 px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
+                  className="h-8 rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
                 >
                   {COLOR_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -125,7 +125,7 @@ function ScheduleSettingsPanel({
                 <button
                   onClick={() => onArchiveShift(facility.id, shift.id)}
                   disabled={shift.archived}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-hover disabled:opacity-30"
                   aria-label={t('schedule:settingsPanel.archive')}
                 >
                   <Archive className="h-3.5 w-3.5" />
@@ -139,17 +139,17 @@ function ScheduleSettingsPanel({
               value={newShiftLabel}
               onChange={(event) => setNewShiftLabel(event.target.value)}
               placeholder={t('schedule:settingsPanel.shiftNamePlaceholder')}
-              className="h-8 rounded-md border border-gray-300 px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
+              className="h-8 rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
             />
             <input
               value={newShiftRange}
               onChange={(event) => setNewShiftRange(event.target.value)}
-              className="h-8 rounded-md border border-gray-300 px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
+              className="h-8 rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
             />
             <select
               value={newShiftColor}
               onChange={(event) => setNewShiftColor(event.target.value as ShiftColorKey)}
-              className="h-8 rounded-md border border-gray-300 px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
+              className="h-8 rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
             >
               {COLOR_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -176,23 +176,23 @@ function ScheduleSettingsPanel({
 
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Save className="h-4 w-4 text-slate-500" />
+            <Save className="h-4 w-4 text-text-secondary" />
             <h3 className="text-xs font-bold text-ink">{t('schedule:settingsPanel.unitsSection')}</h3>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-gray-300">
+          <div className="overflow-hidden rounded-lg border border-border">
             {settings.units.map((unit) => (
-              <div key={unit.id} className={cn('grid grid-cols-[1fr_auto] gap-2 border-b border-gray-200 p-2 last:border-b-0', unit.archived && 'bg-slate-50 opacity-60')}>
+              <div key={unit.id} className={cn('grid grid-cols-[1fr_auto] gap-2 border-b border-border p-2 last:border-b-0', unit.archived && 'bg-surface-muted opacity-60')}>
                 <input
                   value={unit.name}
                   disabled={unit.archived}
                   onChange={(event) => onRenameUnit(facility.id, unit.id, event.target.value)}
-                  className="h-8 rounded-md border border-gray-300 px-2 text-xs font-semibold text-ink focus:border-primary-teal focus:outline-none"
+                  className="h-8 rounded-md border border-border px-2 text-xs font-semibold text-ink focus:border-primary-teal focus:outline-none"
                 />
                 <button
                   onClick={() => onArchiveUnit(facility.id, unit.id)}
                   disabled={unit.archived}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-hover disabled:opacity-30"
                   aria-label={t('schedule:settingsPanel.archive')}
                 >
                   <Archive className="h-3.5 w-3.5" />
@@ -206,7 +206,7 @@ function ScheduleSettingsPanel({
               value={newUnitName}
               onChange={(event) => setNewUnitName(event.target.value)}
               placeholder={t('schedule:settingsPanel.unitNamePlaceholder')}
-              className="h-8 rounded-md border border-gray-300 px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
+              className="h-8 rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
             />
             <button
               onClick={() => {

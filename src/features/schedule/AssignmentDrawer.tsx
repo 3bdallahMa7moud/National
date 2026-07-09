@@ -218,7 +218,7 @@ function AssignmentDrawer({
       <div
         className={cn(
           'fixed top-0 z-50 h-full w-full max-w-md overflow-y-auto',
-          'bg-white border-s border-gray-300 shadow-2xl',
+          'bg-surface border-s border-border shadow-2xl',
           'inset-inline-end-0',
           'animate-slideIn',
         )}
@@ -227,11 +227,11 @@ function AssignmentDrawer({
         aria-label={t('schedule:assignment.assignTitle')}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-300 bg-white px-5 py-3.5 shadow-sm">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface px-5 py-3.5 shadow-sm">
           <h2 className="text-sm font-bold text-ink">{t('schedule:assignment.assignTitle')}</h2>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-secondary hover:bg-hover transition-colors"
             aria-label={t('schedule:assignment.close')}
           >
             <X className="h-4 w-4" />
@@ -240,19 +240,19 @@ function AssignmentDrawer({
 
         <div className="p-5 space-y-5">
           {/* Cell context */}
-          <div className="rounded-lg bg-slate-50 border border-gray-200 p-3 space-y-1.5">
+          <div className="rounded-lg bg-surface-muted border border-border p-3 space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">{t('schedule:assignment.drawerDay')}</span>
+              <span className="text-xs text-text-secondary">{t('schedule:assignment.drawerDay')}</span>
               <span className="text-xs font-bold text-ink">{cell.day}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">{t('schedule:assignment.drawerFacility')}</span>
+              <span className="text-xs text-text-secondary">{t('schedule:assignment.drawerFacility')}</span>
               <span className="text-xs font-bold text-ink">
                 {cell.facilityName} / {cell.unitName}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">{t('schedule:assignment.drawerShift')}</span>
+              <span className="text-xs text-text-secondary">{t('schedule:assignment.drawerShift')}</span>
               <span className="text-xs font-bold text-ink">
                 {cell.shiftLabel} ({cell.timeRange})
               </span>
@@ -260,7 +260,7 @@ function AssignmentDrawer({
           </div>
 
           {/* Shift Type Control Panel */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 space-y-2">
+          <div className="rounded-lg border border-border bg-surface-muted/80 p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-ink">
                 اختر نوع الشفت (النهار، الليل، الإجازة، On-call، ...):
@@ -290,7 +290,7 @@ function AssignmentDrawer({
                       'rounded-md px-2 py-1.5 text-[11px] font-bold border transition-all truncate text-center',
                       isSelected
                         ? cn(item.active, 'shadow-sm scale-[1.02]')
-                        : 'bg-white text-slate-700 border-gray-200 hover:bg-slate-100 hover:border-gray-300',
+                        : 'bg-surface text-text-primary border-border hover:bg-hover hover:border-border',
                     )}
                   >
                     {item.label}
@@ -302,24 +302,24 @@ function AssignmentDrawer({
 
           {/* Selected employees */}
           <div className="space-y-2">
-            <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+            <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">
               {t('schedule:assignment.selectedEmployees')}
             </label>
             <div className="flex gap-2">
               {/* Primary slot */}
               <div className={cn(
                 'flex-1 rounded-lg border-2 p-2.5 text-center text-xs transition-all',
-                primary ? 'border-primary-teal bg-primary-teal/5 shadow-sm' : 'border-dashed border-gray-300 bg-slate-50/50',
+                primary ? 'border-primary-teal bg-primary-teal/5 shadow-sm' : 'border-dashed border-border bg-surface-muted/50',
               )}>
                 {primary ? (
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-ink">{primary}</span>
-                    <button onClick={handleRemovePrimary} className="text-slate-400 hover:text-alert-coral">
+                    <button onClick={handleRemovePrimary} className="text-text-muted hover:text-alert-coral">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ) : (
-                  <span className="text-slate-400">{t('schedule:assignment.primary')}</span>
+                  <span className="text-text-muted">{t('schedule:assignment.primary')}</span>
                 )}
                 {primaryConflict && !primaryConflict.ok && (
                   <div className="mt-1 text-[10px] text-alert-coral flex items-center gap-1">
@@ -331,7 +331,7 @@ function AssignmentDrawer({
                   <select
                     value={primaryColorKey}
                     onChange={(e) => setPrimaryColorKey(e.target.value as ShiftColorKey)}
-                    className="h-7 w-full rounded border border-gray-300 bg-white px-2 text-[11px] font-bold text-ink focus:border-primary-teal focus:outline-none"
+                    className="h-7 w-full rounded border border-border bg-surface px-2 text-[11px] font-bold text-ink focus:border-primary-teal focus:outline-none"
                   >
                     {SHIFT_COLOR_KEYS.map((key) => (
                       <option key={key} value={key}>{t(`schedule:shiftColors.${key}`)}</option>
@@ -342,17 +342,17 @@ function AssignmentDrawer({
               {/* Secondary slot */}
               <div className={cn(
                 'flex-1 rounded-lg border-2 p-2.5 text-center text-xs transition-all',
-                secondary ? 'border-primary-teal bg-primary-teal/5 shadow-sm' : 'border-dashed border-gray-300 bg-slate-50/50',
+                secondary ? 'border-primary-teal bg-primary-teal/5 shadow-sm' : 'border-dashed border-border bg-surface-muted/50',
               )}>
                 {secondary ? (
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-ink">{secondary}</span>
-                    <button onClick={handleRemoveSecondary} className="text-slate-400 hover:text-alert-coral">
+                    <button onClick={handleRemoveSecondary} className="text-text-muted hover:text-alert-coral">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ) : (
-                  <span className="text-slate-400">{t('schedule:assignment.secondary')}</span>
+                  <span className="text-text-muted">{t('schedule:assignment.secondary')}</span>
                 )}
                 {secondaryConflict && !secondaryConflict.ok && (
                   <div className="mt-1 text-[10px] text-alert-coral flex items-center gap-1">
@@ -364,7 +364,7 @@ function AssignmentDrawer({
                   <select
                     value={secondaryColorKey}
                     onChange={(e) => setSecondaryColorKey(e.target.value as ShiftColorKey)}
-                    className="h-7 w-full rounded border border-gray-300 bg-white px-2 text-[11px] font-bold text-ink focus:border-primary-teal focus:outline-none"
+                    className="h-7 w-full rounded border border-border bg-surface px-2 text-[11px] font-bold text-ink focus:border-primary-teal focus:outline-none"
                   >
                     {SHIFT_COLOR_KEYS.map((key) => (
                       <option key={key} value={key}>{t(`schedule:shiftColors.${key}`)}</option>
@@ -377,7 +377,7 @@ function AssignmentDrawer({
 
           {/* Search */}
           <div className="relative">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted" />
             <input
               ref={searchRef}
               type="text"
@@ -385,16 +385,16 @@ function AssignmentDrawer({
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('schedule:assignment.searchPlaceholder')}
               className={cn(
-                'w-full h-9 rounded-lg border border-gray-300 bg-white shadow-inner',
+                'w-full h-9 rounded-lg border border-border bg-surface shadow-inner',
                 'ps-9 pe-3 text-xs text-ink',
                 'focus:outline-none focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15',
-                'placeholder:text-slate-400',
+                'placeholder:text-text-muted',
               )}
             />
           </div>
 
           {/* Employee list */}
-          <div ref={listRef} className="max-h-[40vh] overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-sm">
+          <div ref={listRef} className="max-h-[40vh] overflow-y-auto rounded-lg border border-border bg-surface shadow-sm">
             {filtered.map((emp) => {
               const isSelected = primary === emp.code || secondary === emp.code;
               const result = validate(emp.code);
@@ -406,11 +406,11 @@ function AssignmentDrawer({
                   onClick={() => handleSelectEmployee(emp.code)}
                   className={cn(
                     'flex items-center gap-3 w-full px-3 py-2.5 text-right',
-                    'border-b border-gray-200 last:border-b-0',
+                    'border-b border-border last:border-b-0',
                     'transition-colors duration-100',
                     isSelected
                       ? 'bg-primary-teal/10 font-semibold'
-                      : 'hover:bg-slate-50',
+                      : 'hover:bg-hover',
                     hasIssue && !isSelected && 'opacity-60',
                   )}
                 >
@@ -419,7 +419,7 @@ function AssignmentDrawer({
                       'text-xs font-bold px-1.5 py-0.5 rounded min-w-[28px] text-center shrink-0 border',
                       isSelected
                         ? 'bg-primary-teal text-white border-primary-teal'
-                        : 'bg-slate-100 border-slate-200 text-ink',
+                        : 'bg-surface-muted border-border text-ink',
                     )}
                   >
                     {emp.code}
@@ -433,14 +433,14 @@ function AssignmentDrawer({
               );
             })}
             {filtered.length === 0 && (
-              <div className="py-8 text-center text-xs text-slate-400">
+              <div className="py-8 text-center text-xs text-text-muted">
                 {t('schedule:assignment.noResults')}
               </div>
             )}
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2 pt-2 border-t border-gray-200">
+          <div className="flex gap-2 pt-2 border-t border-border">
             <button
               onClick={handleSave}
               className={cn(
@@ -461,7 +461,7 @@ function AssignmentDrawer({
             </button>
             <button
               onClick={onClose}
-              className="rounded-lg px-4 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors border border-gray-200"
+              className="rounded-lg px-4 py-2.5 text-xs font-bold text-text-secondary bg-surface-muted hover:bg-hover transition-colors border border-border"
             >
               {t('schedule:assignment.cancel')}
             </button>

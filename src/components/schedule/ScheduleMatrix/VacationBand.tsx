@@ -42,7 +42,7 @@ function VacationBand({
         <div
           className={cn(
             'facility-vertical-label shrink-0 sticky z-10 flex items-center justify-center',
-            'bg-slate-200 text-slate-800 border-e border-slate-300',
+            'bg-surface-muted text-text-primary border-e border-border',
           )}
           style={{
             width: 'var(--matrix-facility-col)',
@@ -62,8 +62,8 @@ function VacationBand({
               <div
                 className={cn(
                   'flex flex-col justify-center px-2 shrink-0 sticky z-10',
-                  'border-b border-e border-gray-300',
-                  'bg-slate-50',
+                  'border-b border-e border-border',
+                  'bg-surface-muted',
                 )}
                 style={{
                   width: 'var(--matrix-label-col)',
@@ -75,7 +75,7 @@ function VacationBand({
                 <span className="text-[11px] font-bold text-ink truncate">
                   {vac.fullName}
                 </span>
-                <span dir="ltr" className="text-[10px] font-semibold text-slate-500 truncate" style={{ unicodeBidi: 'isolate' }}>
+                <span dir="ltr" className="text-[10px] font-semibold text-text-secondary truncate" style={{ unicodeBidi: 'isolate' }}>
                   {vac.employeeCode}
                 </span>
               </div>
@@ -94,7 +94,7 @@ function VacationBand({
                     key={day}
                     className={cn(
                       'flex items-center justify-center',
-                      'border-b border-e border-gray-300',
+                      'border-b border-e border-border',
                       'transition-colors duration-100',
                       isWeekend && 'bg-[var(--weekend-tint)]',
                       isToday && 'bg-[var(--today-tint)]',
@@ -125,7 +125,7 @@ function VacationBand({
                         className={cn(
                           'text-[11px] font-bold',
                           'text-[var(--chip-vacation-text)]',
-                          'bg-[var(--chip-vacation-bg)] border border-gray-200 rounded px-1.5 py-0.5',
+                          'bg-[var(--chip-vacation-bg)] border border-border rounded px-1.5 py-0.5',
                         )}
                         title={vac.type ? (vacationTypeLabel[vac.type] || t('schedule:matrix.vacation')) : t('schedule:matrix.vacation')}
                       >

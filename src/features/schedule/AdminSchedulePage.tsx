@@ -6,7 +6,7 @@
 // management, shift definition settings, bulk actions, undo/redo,
 // search, and cross-facility conflict verification.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useScheduleMatrix } from '@/hooks/useScheduleMatrix';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
@@ -18,12 +18,6 @@ import FullscreenMatrixModal from './FullscreenMatrixModal';
 import VacationManagementPanel from './VacationManagementPanel';
 import ScheduleSettingsPanel from './ScheduleSettingsPanel';
 import CellContextMenu from './CellContextMenu';
-import {
-  buildScheduleMatrixExportLabels,
-  exportScheduleMatrixToExcel,
-  getEnglishMonthName,
-  printScheduleMatrixPdf,
-} from '@/lib/scheduleMatrixExport';
 import type { MatrixCellRef, Assignment, ShiftColorKey } from '@/types/scheduleMatrix';
 
 export default function AdminSchedulePage() {
@@ -76,21 +70,6 @@ export default function AdminSchedulePage() {
     updateMatrixRow,
   } = store;
 
-  const exportLabels = useMemo(
-    () => buildScheduleMatrixExportLabels(t, months[data?.month ?? month] || '', data?.year ?? year),
-    [t, months, data?.month, data?.year, month, year],
-  );
-
-  const exportOptions = useMemo(
-    () => ({
-      facilityFilter: facilityFilter || undefined,
-      dir: 'ltr' as const,
-      monthName: getEnglishMonthName(data?.month ?? month),
-      year: data?.year ?? year,
-    }),
-    [facilityFilter, data?.month, data?.year, month, year],
-  );
-
   const { addToast } = useToast();
 
   // Local state for toolbar filtering & search
@@ -99,6 +78,7 @@ export default function AdminSchedulePage() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isFullscreenModalOpen, setIsFullscreenModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [shiftFilter, setShiftFilter] = useState<ShiftColorKey | ''>('');
   const [conflictsOnly, setConflictsOnly] = useState(false);
   const [brushColorKey, setBrushColorKey] = useState<ShiftColorKey>('morning');
@@ -272,7 +252,7 @@ export default function AdminSchedulePage() {
         defaultColorKey,
       });
     },
-    [data, isBulkSelecting, adminMode, brushEmployeeCodes, store, assignCell, openDrawer, addToast, t, getCellAssignments],
+    [data, isBulkSelecting, adminMode, brushEmployeeCodes, brushColorKey, store, assignCell, openDrawer, addToast, t, getCellAssignments],
   );
 
   const handleChipClick = useCallback(
@@ -390,13 +370,13 @@ export default function AdminSchedulePage() {
   );
 
   const searchMatches = useMemo(() => {
-    if (!data || !searchQuery.trim()) return [];
-    const query = searchQuery.trim().toLowerCase();
+    if (!data || !deferredSearchQuery.trim()) return [];
+    const query = deferredSearchQuery.trim().toLowerCase();
     const matchedEmps = data.legend.filter(
       (e) => e.code.toLowerCase().includes(query) || e.fullName.toLowerCase().includes(query),
     );
     return matchedEmps;
-  }, [data, searchQuery]);
+  }, [data, deferredSearchQuery]);
 
   const handleJumpToSearchMatch = useCallback(() => {
     if (searchMatches.length > 0) {
@@ -412,47 +392,71 @@ export default function AdminSchedulePage() {
   // Filtered display data (search & shift filter & conflict filter applied)
   const displayData = useMemo(() => {
     if (!data) return null;
-    const cloned = JSON.parse(JSON.stringify(data)) as typeof data;
 
-    // Filter by facility
-    if (facilityFilter) {
-      cloned.facilities = cloned.facilities.filter((f) => f.id === facilityFilter);
-    }
+    const facilities = data.facilities
+      .filter((facility) => !facilityFilter || facility.id === facilityFilter)
+      .map((facility) => {
+        const units = facility.units
+          .filter((unit) => !unit.archived)
+          .map((unit) => {
+            let rows = unit.rows;
 
-    // Filter units & rows
-    cloned.facilities.forEach((f) => {
-      f.units = f.units.filter((u) => !u.archived);
-      f.units.forEach((u) => {
-        if (shiftFilter) {
-          u.rows = u.rows.filter((r) => r.colorKey === shiftFilter);
-        }
-        if (conflictsOnly) {
-          u.rows = u.rows.filter((r) =>
-            Object.values(r.cellsByDay).some((arr) => arr.some((a) => a.hasConflict)),
-          );
-        }
+            if (shiftFilter) {
+              rows = rows.filter((row) => row.colorKey === shiftFilter);
+            }
+
+            if (conflictsOnly) {
+              rows = rows.filter((row) =>
+                Object.values(row.cellsByDay).some((assignments) =>
+                  assignments.some((assignment) => assignment.hasConflict),
+                ),
+              );
+            }
+
+            return rows === unit.rows ? unit : { ...unit, rows };
+          })
+          .filter((unit) => unit.rows.length > 0);
+
+        return units === facility.units ? facility : { ...facility, units };
       });
-      // Remove units that have no rows left after filter
-      f.units = f.units.filter((u) => u.rows.length > 0);
-    });
 
-    return cloned;
+    return facilities === data.facilities ? data : { ...data, facilities };
   }, [data, facilityFilter, shiftFilter, conflictsOnly]);
 
-  const handleExportMatrix = useCallback(() => {
+  const handleExportMatrix = useCallback(async () => {
     if (!displayData) return;
-    exportScheduleMatrixToExcel(displayData, exportLabels, exportOptions);
-  }, [displayData, exportLabels, exportOptions]);
+    const exportModule = await import('@/lib/scheduleMatrixExport');
+    const matrixMonth = data?.month ?? month;
+    const matrixYear = data?.year ?? year;
+    const exportLabels = exportModule.buildScheduleMatrixExportLabels(t, months[matrixMonth] || '', matrixYear);
+    const exportOptions = {
+      facilityFilter: facilityFilter || undefined,
+      dir: 'ltr' as const,
+      monthName: exportModule.getEnglishMonthName(matrixMonth),
+      year: matrixYear,
+    };
+    exportModule.exportScheduleMatrixToExcel(displayData, exportLabels, exportOptions);
+  }, [displayData, data?.month, data?.year, month, year, t, months, facilityFilter]);
 
-  const handleExportMatrixPdf = useCallback(() => {
+  const handleExportMatrixPdf = useCallback(async () => {
     if (!displayData) return;
-    printScheduleMatrixPdf(displayData, exportLabels, exportOptions);
+    const exportModule = await import('@/lib/scheduleMatrixExport');
+    const matrixMonth = data?.month ?? month;
+    const matrixYear = data?.year ?? year;
+    const exportLabels = exportModule.buildScheduleMatrixExportLabels(t, months[matrixMonth] || '', matrixYear);
+    const exportOptions = {
+      facilityFilter: facilityFilter || undefined,
+      dir: 'ltr' as const,
+      monthName: exportModule.getEnglishMonthName(matrixMonth),
+      year: matrixYear,
+    };
+    exportModule.printScheduleMatrixPdf(displayData, exportLabels, exportOptions);
     addToast({
       type: 'info',
       title: t('schedule:toast.exportPdfTitle'),
       message: t('schedule:toast.exportPdfMsg'),
     });
-  }, [displayData, exportLabels, exportOptions, addToast, t]);
+  }, [displayData, data?.month, data?.year, month, year, t, months, facilityFilter, addToast]);
 
   // Current assignments for active drawer cell
   const drawerCurrentAssignments = useMemo(() => {
@@ -480,7 +484,7 @@ export default function AdminSchedulePage() {
   return (
     <div className={cn(
       "space-y-4 pb-8 transition-all duration-200",
-      isExpanded && "fixed inset-0 z-[100] bg-slate-100 p-4 sm:p-6 overflow-auto w-screen h-screen"
+      isExpanded && "fixed inset-0 z-[100] bg-surface-muted p-4 sm:p-6 overflow-auto w-screen h-screen"
     )}>
       {/* ── Toolbar ── */}
       <div className="print:hidden">
@@ -590,7 +594,7 @@ export default function AdminSchedulePage() {
               });
             }}
           />
-          <div className="pt-4 border-t border-gray-200">
+          <div className="pt-4 border-t border-border">
             <h3 className="text-sm font-bold text-ink mb-2">{t('schedule:vacationPanel.bandTitle')}</h3>
             <ScheduleMatrix
               data={displayData}

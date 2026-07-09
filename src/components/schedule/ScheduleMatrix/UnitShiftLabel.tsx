@@ -35,8 +35,8 @@ function UnitShiftLabel({
     <div
       className={cn(
         'group/label relative flex flex-col justify-center px-2.5 py-1',
-        'border-b border-e border-gray-300',
-        isOverflowRow ? 'bg-slate-100/80' : 'bg-slate-50',
+        'border-b border-e border-border',
+        isOverflowRow ? 'bg-surface-muted/80' : 'bg-surface-muted',
       )}
       style={{
         width: 'var(--matrix-label-col)',
@@ -53,7 +53,7 @@ function UnitShiftLabel({
           }}
           className={cn(
             'absolute top-1 end-1 flex h-6 w-6 items-center justify-center rounded-md',
-            'border border-gray-300 bg-white text-slate-500 shadow-sm',
+            'border border-border bg-surface text-text-secondary shadow-sm',
             'opacity-0 transition-opacity group-hover/label:opacity-100 focus:opacity-100',
             'hover:border-primary-teal hover:text-primary-teal',
           )}
@@ -68,7 +68,7 @@ function UnitShiftLabel({
       <span dir="ltr" className="text-[11px] font-semibold text-primary-teal truncate leading-tight mt-0.5" style={{ unicodeBidi: 'isolate' }}>
         {shiftLabel}
       </span>
-      <span dir="ltr" className="text-[10px] font-medium text-slate-500 truncate leading-tight" style={{ unicodeBidi: 'isolate' }}>
+      <span dir="ltr" className="text-[10px] font-medium text-text-secondary truncate leading-tight" style={{ unicodeBidi: 'isolate' }}>
         {weekendOnly ? 'Fri/Sat · ' : ''}{timeRange}
       </span>
     </div>

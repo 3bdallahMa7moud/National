@@ -71,7 +71,7 @@ export default function EmployeesPage() {
       className: 'w-24',
       render: (emp: Employee) => (
         <div className="flex gap-1">
-          <button onClick={() => handleEdit(emp)} className="p-1.5 rounded hover:bg-gray-100 text-text-secondary">
+          <button onClick={() => handleEdit(emp)} className="p-1.5 rounded hover:bg-hover text-text-secondary">
             <Edit2 className="w-4 h-4" />
           </button>
           <button onClick={() => setDeleteDialog(emp.id)} className="p-1.5 rounded hover:bg-danger-50 text-danger">

@@ -139,13 +139,13 @@ function ConflictPanel({ data, onJumpToCell }: ConflictPanelProps) {
               <span dir="ltr" className="font-bold text-ink shrink-0" style={{ unicodeBidi: 'isolate' }}>
                 {c.employeeCode}
               </span>
-              <span className="text-slate-500">—</span>
+              <span className="text-text-secondary">—</span>
               <span className="text-ink">{t('schedule:conflict.dayLabel', { day: c.day })}</span>
-              <span className="text-slate-500">—</span>
+              <span className="text-text-secondary">—</span>
               <span dir="ltr" className="text-alert-coral font-medium" style={{ unicodeBidi: 'isolate' }}>
                 {c.facilityA}/{c.unitA}/{c.shiftA}
               </span>
-              <span className="text-slate-500">vs</span>
+              <span className="text-text-secondary">vs</span>
               <span dir="ltr" className="text-alert-coral font-medium" style={{ unicodeBidi: 'isolate' }}>
                 {c.facilityB}/{c.unitB}/{c.shiftB}
               </span>

@@ -25,7 +25,7 @@ function Legend() {
         'dark:bg-slate-900 dark:border-slate-800'
       )}
     >
-      <span className="text-xs font-semibold text-text-secondary dark:text-slate-400 mr-1">
+      <span className="text-xs font-semibold text-text-secondary dark:text-text-muted mr-1">
         Legend:
       </span>
       {LEGEND_ITEMS.map((category) => {
@@ -41,7 +41,7 @@ function Legend() {
             >
               {theme.label}
             </span>
-            <span className="text-[11px] text-text-secondary dark:text-slate-400">
+            <span className="text-[11px] text-text-secondary dark:text-text-muted">
               {theme.fullLabel}
             </span>
           </div>

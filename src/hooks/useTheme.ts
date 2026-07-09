@@ -58,7 +58,7 @@ function applyDOMTheme(theme: ResolvedTheme) {
   const root = document.documentElement;
   root.setAttribute('data-theme', theme);
   root.style.colorScheme = theme;
-  root.classList.remove('dark');
+  root.classList.toggle('dark', theme === 'dark');
 }
 
 interface ThemeProviderProps {

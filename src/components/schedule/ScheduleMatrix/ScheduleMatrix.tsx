@@ -149,7 +149,7 @@ function ScheduleMatrix({
   return (
     <div className="flex gap-3 items-start">
       {/* ── Main Grid ── */}
-      <div className="flex-1 min-w-0 overflow-hidden rounded-lg border border-gray-300 bg-white shadow-soft">
+      <div className="flex-1 min-w-0 overflow-hidden rounded-lg border border-border bg-surface shadow-soft">
         {/* Scroll container */}
         <div
           ref={scrollRef}
@@ -170,7 +170,7 @@ function ScheduleMatrix({
             >
               {/* Corner: facility col placeholder */}
               <div
-                className="shrink-0 sticky z-30 bg-slate-50 border-b border-e border-gray-300"
+                className="shrink-0 sticky z-30 bg-surface-muted border-b border-e border-border"
                 style={{
                   width: 'var(--matrix-facility-col)',
                   minWidth: 'var(--matrix-facility-col)',
@@ -180,7 +180,7 @@ function ScheduleMatrix({
               />
               {/* Corner: label col placeholder */}
               <div
-                className="shrink-0 sticky z-30 bg-slate-50 border-b border-e border-gray-300 flex items-center px-2"
+                className="shrink-0 sticky z-30 bg-surface-muted border-b border-e border-border flex items-center px-2"
                 style={{
                   width: 'var(--matrix-label-col)',
                   minWidth: 'var(--matrix-label-col)',
@@ -188,7 +188,7 @@ function ScheduleMatrix({
                   insetInlineStart: 'var(--matrix-facility-col)',
                 }}
               >
-                <span className="text-[10px] font-semibold text-slate-600">
+                <span className="text-[10px] font-semibold text-text-secondary">
                   {t('schedule:matrix.unitShiftLabel')}
                 </span>
               </div>
@@ -222,7 +222,7 @@ function ScheduleMatrix({
                           style={{ insetInlineStart: 'var(--matrix-facility-col)' }}
                         >
                           <div
-                            className="flex items-center px-3 text-xs font-bold text-primary-teal bg-slate-50 border-b border-e border-gray-300"
+                            className="flex items-center px-3 text-xs font-bold text-primary-teal bg-surface-muted border-b border-e border-border"
                             style={{
                               width: 'var(--matrix-label-col)',
                               minWidth: 'var(--matrix-label-col)',
@@ -233,7 +233,7 @@ function ScheduleMatrix({
                           </div>
                         </div>
                         <div
-                          className="flex items-center px-4 text-xs text-slate-500 bg-white border-b border-e border-gray-300"
+                          className="flex items-center px-4 text-xs text-text-secondary bg-surface border-b border-e border-border"
                           style={{
                             width: `calc(var(--matrix-day-col) * ${daysInMonth})`,
                             height: 'var(--matrix-row-height)',

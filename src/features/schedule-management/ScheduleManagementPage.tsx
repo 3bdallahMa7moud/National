@@ -2,10 +2,10 @@
 // ScheduleManagementPage — The Main Assembled Page
 // ============================================================
 
-import { useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useDeferredValue } from 'react';
 import { useScheduleManagementStore } from './hooks/useScheduleManagementStore';
 import { useScheduleData } from './hooks/useScheduleData';
+import type { ScheduleEmployee, ScheduleEntry } from './types/schedule';
 
 // Components
 import ScheduleToolbar from './components/ScheduleToolbar';
@@ -17,18 +17,17 @@ import SideDrawer from './components/SideDrawer';
 import ContextMenu from './components/ContextMenu';
 
 export default function ScheduleManagementPage() {
-  const { t } = useTranslation(['schedule', 'common']);
-
   // Store state
   const {
-    year, month, setYear, setMonth, goToPrevMonth, goToNextMonth, goToToday,
+    year, month, goToPrevMonth, goToNextMonth, goToToday,
     filters, setFilter, resetFilters,
     searchQuery, setSearchQuery, highlightedEmployeeId,
     collapsedDepartments, toggleDepartment,
     drawer, openDrawer, closeDrawer,
     contextMenu, openContextMenu, closeContextMenu,
-    clipboard, copyToClipboard, clearClipboard,
+    clipboard, copyToClipboard,
   } = useScheduleManagementStore();
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   // Data fetching & prep
   const {
@@ -36,11 +35,11 @@ export default function ScheduleManagementPage() {
     gridRows,
     stats,
     monthDays,
-  } = useScheduleData(year, month, filters, collapsedDepartments, searchQuery);
+  } = useScheduleData(year, month, filters, collapsedDepartments, deferredSearchQuery);
 
   // Handlers
   const handleContextMenu = useCallback(
-    (e: React.MouseEvent, entry: any, employee: any, date: string) => {
+    (e: React.MouseEvent, entry: ScheduleEntry | null, employee: ScheduleEmployee, date: string) => {
       // Keep menu within screen bounds
       const x = Math.min(e.clientX, window.innerWidth - 200);
       const y = Math.min(e.clientY, window.innerHeight - 200);

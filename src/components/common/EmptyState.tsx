@@ -13,7 +13,7 @@ export default function EmptyState({ title, message, icon, action }: EmptyStateP
 
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="p-4 rounded-full bg-gray-100 mb-4">
+      <div className="p-4 rounded-full bg-surface-muted mb-4">
         {icon || <Inbox className="w-10 h-10 text-text-secondary" />}
       </div>
       <h3 className="text-lg font-semibold text-text-primary mb-1">

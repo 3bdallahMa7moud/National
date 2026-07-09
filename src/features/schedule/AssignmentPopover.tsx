@@ -166,7 +166,7 @@ function AssignmentPopover({
         type="button"
       />
       <div
-        className="fixed z-[230] w-[320px] rounded-lg border border-gray-300 bg-white p-3 text-start shadow-2xl"
+        className="fixed z-[230] w-[320px] rounded-lg border border-border bg-surface p-3 text-start shadow-2xl"
         style={{ top, left }}
         role="dialog"
         aria-label={t('schedule:assignment.editAssignment')}
@@ -176,13 +176,13 @@ function AssignmentPopover({
             <h2 className="text-sm font-bold text-ink">
               {hasCurrentAssignments ? t('schedule:assignment.editTitle') : t('schedule:assignment.assignTitle')}
             </h2>
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] text-text-secondary">
               {t('schedule:matrix.day', { day: cell.day })} · {cell.shiftLabel} · <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{cell.facilityName}/{cell.unitName}</span>
             </p>
           </div>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-secondary hover:bg-hover"
             aria-label={t('schedule:assignment.close')}
           >
             <X className="h-4 w-4" />
@@ -190,7 +190,7 @@ function AssignmentPopover({
         </div>
 
         <div className="mb-3 space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
             {t('schedule:assignment.selectedEmployees')}
           </p>
           {[0, 1].map((slot) => {
@@ -200,15 +200,15 @@ function AssignmentPopover({
                 key={slot}
                 className={cn(
                   'rounded-md border px-2 py-2',
-                  code ? 'border-primary-teal bg-primary-teal/5' : 'border-dashed border-gray-300 bg-slate-50',
+                  code ? 'border-primary-teal bg-primary-teal/5' : 'border-dashed border-border bg-surface-muted',
                 )}
               >
                 <div className="flex min-h-7 items-center justify-between gap-2">
-                  <span dir="ltr" className={cn('text-xs font-bold', !code && 'text-slate-400')} style={{ unicodeBidi: 'isolate' }}>
+                  <span dir="ltr" className={cn('text-xs font-bold', !code && 'text-text-muted')} style={{ unicodeBidi: 'isolate' }}>
                     {code || t(`schedule:assignment.${slot === 0 ? 'primary' : 'secondary'}`)}
                   </span>
                   {code && (
-                    <button type="button" onClick={() => toggleEmployee(code)} className="text-slate-400 hover:text-alert-coral">
+                    <button type="button" onClick={() => toggleEmployee(code)} className="text-text-muted hover:text-alert-coral">
                       <X className="h-3.5 w-3.5" />
                     </button>
                   )}
@@ -217,7 +217,7 @@ function AssignmentPopover({
                   <select
                     value={colorKeysByCode[code] || cell.defaultColorKey}
                     onChange={(e) => setEmployeeColorKey(code, e.target.value as ShiftColorKey)}
-                    className="mt-1.5 h-7 w-full rounded border border-gray-300 bg-white px-2 text-[11px] text-ink focus:border-primary-teal focus:outline-none"
+                    className="mt-1.5 h-7 w-full rounded border border-border bg-surface px-2 text-[11px] text-ink focus:border-primary-teal focus:outline-none"
                   >
                     {SHIFT_COLOR_KEYS.map((key) => (
                       <option key={key} value={key}>
@@ -239,17 +239,17 @@ function AssignmentPopover({
         )}
 
         <div className="relative mb-2">
-          <Search className="absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
           <input
             ref={searchRef}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t('schedule:assignment.searchPlaceholder')}
-            className="h-9 w-full rounded-lg border border-gray-300 bg-white ps-9 pe-3 text-xs text-ink shadow-inner focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
+            className="h-9 w-full rounded-lg border border-border bg-surface ps-9 pe-3 text-xs text-ink shadow-inner focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
           />
         </div>
 
-        <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-300">
+        <div className="max-h-52 overflow-y-auto rounded-lg border border-border">
           {filteredLegend.map((employee) => {
             const selected = selectedCodes.includes(employee.code);
             return (
@@ -257,15 +257,15 @@ function AssignmentPopover({
                 key={employee.employeeId}
                 onClick={() => toggleEmployee(employee.code)}
                 className={cn(
-                  'flex w-full items-center gap-2 border-b border-gray-200 px-2.5 py-2 text-start last:border-b-0',
-                  selected ? 'bg-primary-teal/10' : 'hover:bg-slate-50',
+                  'flex w-full items-center gap-2 border-b border-border px-2.5 py-2 text-start last:border-b-0',
+                  selected ? 'bg-primary-teal/10' : 'hover:bg-hover',
                 )}
               >
                 <span
                   dir="ltr"
                   className={cn(
                     'min-w-8 rounded border px-1.5 py-0.5 text-center text-xs font-bold',
-                    selected ? 'border-primary-teal bg-primary-teal text-white' : 'border-slate-200 bg-slate-100 text-ink',
+                    selected ? 'border-primary-teal bg-primary-teal text-white' : 'border-border bg-surface-muted text-ink',
                   )}
                   style={{ unicodeBidi: 'isolate' }}
                 >
@@ -277,17 +277,17 @@ function AssignmentPopover({
             );
           })}
           {filteredLegend.length === 0 && (
-            <div className="px-3 py-8 text-center text-xs text-slate-400">{t('schedule:assignment.noResults')}</div>
+            <div className="px-3 py-8 text-center text-xs text-text-muted">{t('schedule:assignment.noResults')}</div>
           )}
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-200 pt-3">
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
           <button
             onClick={handleSave}
             disabled={!validation.ok}
             className={cn(
               'flex-1 rounded-lg px-3 py-2 text-xs font-bold text-white transition-colors',
-              !validation.ok ? 'bg-slate-300' : 'bg-primary-teal hover:bg-primary-teal/90',
+              !validation.ok ? 'bg-surface-muted text-text-muted' : 'bg-primary-teal hover:bg-primary-teal/90',
             )}
           >
             {hasCurrentAssignments ? t('schedule:assignment.reassign') : t('schedule:assignment.save')}
@@ -303,7 +303,7 @@ function AssignmentPopover({
               </button>
               <button
                 onClick={() => onMarkVacation(cell.rowId, cell.day, currentAssignments[0]?.employeeId)}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface-muted px-3 py-2 text-xs font-bold text-text-primary hover:bg-hover"
               >
                 <CalendarOff className="h-3.5 w-3.5" />
                 {t('schedule:assignment.vacation')}

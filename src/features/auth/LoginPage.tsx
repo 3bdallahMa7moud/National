@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import HospitalLogo from '@/components/common/HospitalLogo';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
+import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
@@ -49,11 +50,14 @@ export default function LoginPage() {
       <aside className="relative hidden overflow-hidden border-s border-primary-700 bg-primary text-white lg:flex lg:flex-col lg:justify-between lg:p-6 lg:py-8">
         <div className="absolute inset-0 z-0">
           <img
-            src="/saudi-hospital.png"
+            src="/saudi-hospital.webp"
             alt={t('common:hospital.imageAlt')}
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
             className="h-full w-full object-cover object-center transform scale-105 transition-transform duration-1000"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-primary-950/95 via-primary-900/80 to-primary-800/75 backdrop-blur-[1px]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#06131b]/95 via-[#083d48]/88 to-[#0b7285]/76 backdrop-blur-[1px]" />
         </div>
 
         <div className="relative z-10">
@@ -63,9 +67,9 @@ export default function LoginPage() {
               <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
               <span>{t('common:hospital.location')}</span>
             </div>
-            <p className="text-sm font-medium text-primary-100">{t('common:hospital.name')}</p>
+            <p className="text-sm font-medium text-white/90 drop-shadow-sm">{t('common:hospital.name')}</p>
             <h1 className="mt-1 max-w-sm text-2xl font-bold leading-snug text-white drop-shadow-sm">{t('auth:login.heroTitle')}</h1>
-            <p className="mt-2 max-w-sm text-xs leading-5 text-primary-100 font-light">
+            <p className="mt-2 max-w-sm text-xs leading-5 text-white/82 drop-shadow-sm">
               {t('auth:login.heroDescription')}
             </p>
           </div>
@@ -76,15 +80,16 @@ export default function LoginPage() {
             <ShieldCheck className="h-4 w-4 text-accent" />
             {t('auth:login.secureAccessTitle')}
           </div>
-          <p className="text-[11px] leading-5 text-primary-100/95 font-light">
+          <p className="text-[11px] leading-5 text-white/82 font-light">
             {t('auth:login.secureAccessDescription')}
           </p>
         </div>
       </aside>
 
       <main className="relative flex min-h-screen items-center justify-center p-3 sm:p-6 overflow-hidden">
-        <div className="absolute top-4 end-4 z-10">
+        <div className="absolute top-4 end-4 z-10 flex items-center gap-2">
           <LanguageSwitcher variant="popover" />
+          <ThemeSwitcher variant="icon" />
         </div>
 
         <div className="w-full max-w-[420px] my-auto">
@@ -138,11 +143,11 @@ export default function LoginPage() {
             <div className="mt-3 border-t border-border pt-2.5">
               <p className="mb-1.5 text-center text-[11px] font-semibold text-text-secondary">{t('auth:login.demoAccounts')}</p>
               <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div className="rounded-lg border border-border bg-gray-50/80 p-1.5 flex flex-col items-center">
+                <div className="rounded-lg border border-border bg-surface-muted/80 p-1.5 flex flex-col items-center">
                   <span className="font-bold text-primary"> admin@hospital.sa</span>
                   <span className="text-text-secondary font-mono text-[10px]" dir="ltr">123456</span>
                 </div>
-                <div className="rounded-lg border border-border bg-gray-50/80 p-1.5 flex flex-col items-center">
+                <div className="rounded-lg border border-border bg-surface-muted/80 p-1.5 flex flex-col items-center">
                   <span className="font-bold text-primary"> employee@hospital.sa</span>
                   <span className="text-text-secondary font-mono text-[10px]" dir="ltr">123456</span>
                 </div>

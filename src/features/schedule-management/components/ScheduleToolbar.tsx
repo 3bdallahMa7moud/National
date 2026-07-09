@@ -64,8 +64,8 @@ function ScheduleToolbar({
 
   const navBtnClasses = cn(
     'flex h-9 w-9 items-center justify-center rounded-lg border border-border',
-    'bg-surface text-text-secondary hover:bg-gray-50 hover:text-text-primary',
-    'dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400',
+    'bg-surface text-text-secondary hover:bg-hover hover:text-text-primary',
+    'dark:bg-slate-900 dark:border-slate-700 dark:text-text-muted',
     'dark:hover:bg-slate-800 dark:hover:text-slate-200',
     'transition-all duration-150 active:scale-95'
   );
@@ -87,7 +87,7 @@ function ScheduleToolbar({
           <h1 className="text-lg font-bold text-text-primary dark:text-white tracking-tight">
             Schedule Management
           </h1>
-          <p className="text-xs text-text-secondary dark:text-slate-400">
+          <p className="text-xs text-text-secondary dark:text-text-muted">
             Hospital Employee Scheduling
           </p>
         </div>
@@ -104,7 +104,7 @@ function ScheduleToolbar({
           <div
             className={cn(
               'flex items-center gap-2 rounded-lg border border-border px-4 py-1.5',
-              'bg-white dark:bg-slate-800 dark:border-slate-700',
+              'bg-surface dark:bg-slate-800 dark:border-slate-700',
               'min-w-[160px] justify-center'
             )}
           >
@@ -158,7 +158,7 @@ function ScheduleToolbar({
                   onChange={(e) => onSearchChange(e.target.value)}
                   placeholder="Search employee..."
                   className={cn(
-                    'h-9 w-full rounded-lg border border-border bg-white pl-8 pr-8 text-xs',
+                    'h-9 w-full rounded-lg border border-border bg-surface pl-8 pr-8 text-xs',
                     'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary',
                     'dark:bg-slate-800 dark:border-slate-700 dark:text-white',
                     'placeholder:text-text-secondary'
@@ -214,7 +214,7 @@ function ScheduleToolbar({
                   onClick={() => setExportOpen(false)}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium',
-                    'text-text-primary hover:bg-gray-50 transition-colors',
+                    'text-text-primary hover:bg-hover transition-colors',
                     'dark:text-slate-200 dark:hover:bg-slate-800'
                   )}
                 >
@@ -225,7 +225,7 @@ function ScheduleToolbar({
                   onClick={() => setExportOpen(false)}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium',
-                    'text-text-primary hover:bg-gray-50 transition-colors',
+                    'text-text-primary hover:bg-hover transition-colors',
                     'dark:text-slate-200 dark:hover:bg-slate-800'
                   )}
                 >
@@ -240,7 +240,7 @@ function ScheduleToolbar({
                   }}
                   className={cn(
                     'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium',
-                    'text-text-primary hover:bg-gray-50 transition-colors',
+                    'text-text-primary hover:bg-hover transition-colors',
                     'dark:text-slate-200 dark:hover:bg-slate-800'
                   )}
                 >
@@ -261,7 +261,7 @@ function ScheduleToolbar({
         <div
           className={cn(
             'flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-3 py-1.5',
-            'bg-white dark:bg-slate-800 dark:border-slate-700'
+            'bg-surface dark:bg-slate-800 dark:border-slate-700'
           )}
         >
           <CalendarDays className="h-4 w-4 text-primary" />

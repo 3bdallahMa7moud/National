@@ -99,7 +99,7 @@ export default function DashboardPage() {
               </thead>
               <tbody className="divide-y divide-border/60">
                 {(todayShifts.length > 0 ? todayShifts : shifts.slice(0, 5)).map((shift) => (
-                  <tr key={shift.id} className="transition-colors hover:bg-gray-50">
+                  <tr key={shift.id} className="transition-colors hover:bg-hover">
                     <td className="py-3 font-medium text-text-primary">{shift.employeeName}</td>
                     <td className="py-3 text-xs text-text-secondary">{t('dashboard:todayRoster.defaultPosition')}</td>
                     <td className="py-3 text-center">

@@ -61,7 +61,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
             {showClose && (
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-lg hover:bg-gray-100 text-text-secondary transition-colors"
+                className="p-1.5 rounded-lg hover:bg-hover text-text-secondary transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>

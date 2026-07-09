@@ -4,9 +4,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff, ShieldCheck, UserCheck, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, UserCheck, ArrowRight } from 'lucide-react';
 import HospitalLogo from '@/components/common/HospitalLogo';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
+import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
@@ -81,11 +82,14 @@ export default function RegisterPage() {
       <aside className="relative hidden overflow-hidden border-s border-primary-700 bg-primary text-white lg:flex lg:flex-col lg:justify-between lg:p-6 lg:py-8">
         <div className="absolute inset-0 z-0">
           <img
-            src="/saudi-hospital.png"
+            src="/saudi-hospital.webp"
             alt={t('common:hospital.imageAlt')}
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
             className="h-full w-full object-cover object-center transform scale-105 transition-transform duration-1000"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-primary-950/95 via-primary-900/80 to-primary-800/75 backdrop-blur-[1px]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#06131b]/95 via-[#083d48]/88 to-[#0b7285]/76 backdrop-blur-[1px]" />
         </div>
 
         <div className="relative z-10">
@@ -95,9 +99,9 @@ export default function RegisterPage() {
               <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
               <span>{t('common:hospital.location')}</span>
             </div>
-            <p className="text-sm font-medium text-primary-100">{t('common:hospital.name')}</p>
+            <p className="text-sm font-medium text-white/90 drop-shadow-sm">{t('common:hospital.name')}</p>
             <h1 className="mt-1 max-w-sm text-2xl font-bold leading-snug text-white drop-shadow-sm">{t('auth:register.heroTitle')}</h1>
-            <p className="mt-2 max-w-sm text-xs leading-5 text-primary-100 font-light">
+            <p className="mt-2 max-w-sm text-xs leading-5 text-white/82 drop-shadow-sm">
               {t('auth:register.heroDescription')}
             </p>
           </div>
@@ -108,15 +112,16 @@ export default function RegisterPage() {
             <UserCheck className="h-4 w-4 text-accent" />
             {t('auth:register.verificationTitle')}
           </div>
-          <p className="text-[11px] leading-5 text-primary-100/95 font-light">
+          <p className="text-[11px] leading-5 text-white/82 font-light">
             {t('auth:register.verificationDescription')}
           </p>
         </div>
       </aside>
 
       <main className="relative flex min-h-screen items-center justify-center p-3 sm:p-6 overflow-hidden">
-        <div className="absolute top-4 end-4 z-10">
+        <div className="absolute top-4 end-4 z-10 flex items-center gap-2">
           <LanguageSwitcher variant="popover" />
+          <ThemeSwitcher variant="icon" />
         </div>
 
         <div className="w-full max-w-[460px] my-auto">

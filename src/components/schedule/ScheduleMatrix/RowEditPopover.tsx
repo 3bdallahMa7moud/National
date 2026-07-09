@@ -78,7 +78,7 @@ function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
         onClick={onClose}
       />
       <div
-        className="fixed z-[250] w-[300px] rounded-lg border border-gray-300 bg-white p-3 shadow-2xl"
+        className="fixed z-[250] w-[300px] rounded-lg border border-border bg-surface p-3 shadow-2xl"
         style={{ top, left }}
         role="dialog"
         aria-label={t('schedule:rowEdit.title')}
@@ -88,7 +88,7 @@ function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
           <button
             type="button"
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-secondary hover:bg-hover"
             aria-label={t('schedule:rowEdit.cancel')}
           >
             <X className="h-4 w-4" />
@@ -97,44 +97,44 @@ function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
 
         <div className="space-y-2.5">
           <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
               {t('schedule:rowEdit.rowLabel')}
             </span>
             <input
               value={rowLabel}
               onChange={(e) => setRowLabel(e.target.value)}
-              className="h-8 w-full rounded-md border border-gray-300 px-2 text-xs font-semibold text-ink focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
+              className="h-8 w-full rounded-md border border-border px-2 text-xs font-semibold text-ink focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
               {t('schedule:rowEdit.shiftLabel')}
             </span>
             <input
               value={shiftLabel}
               onChange={(e) => setShiftLabel(e.target.value)}
-              className="h-8 w-full rounded-md border border-gray-300 px-2 text-xs text-ink focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
+              className="h-8 w-full rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
               {t('schedule:rowEdit.timeRange')}
             </span>
             <input
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
               dir="ltr"
-              className="h-8 w-full rounded-md border border-gray-300 px-2 text-xs text-ink focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
+              className="h-8 w-full rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
               {t('schedule:rowEdit.shiftType')}
             </span>
             <select
               value={colorKey}
               onChange={(e) => setColorKey(e.target.value as ShiftColorKey)}
-              className="h-8 w-full rounded-md border border-gray-300 px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
+              className="h-8 w-full rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
             >
               {SHIFT_COLOR_KEYS.map((key) => (
                 <option key={key} value={key}>
@@ -148,13 +148,13 @@ function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
               type="checkbox"
               checked={weekendOnly}
               onChange={(e) => setWeekendOnly(e.target.checked)}
-              className="rounded border-gray-300 text-primary-teal focus:ring-primary-teal"
+              className="rounded border-border text-primary-teal focus:ring-primary-teal"
             />
-            <span className="text-xs font-medium text-slate-600">{t('schedule:rowEdit.weekendOnly')}</span>
+            <span className="text-xs font-medium text-text-secondary">{t('schedule:rowEdit.weekendOnly')}</span>
           </label>
         </div>
 
-        <div className="mt-3 flex gap-2 border-t border-gray-200 pt-3">
+        <div className="mt-3 flex gap-2 border-t border-border pt-3">
           <button
             type="button"
             onClick={handleSave}
@@ -166,7 +166,7 @@ function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
             type="button"
             onClick={onClose}
             className={cn(
-              'rounded-lg border border-gray-300 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100',
+              'rounded-lg border border-border bg-surface-muted px-3 py-2 text-xs font-bold text-text-secondary hover:bg-hover',
             )}
           >
             {t('schedule:rowEdit.cancel')}

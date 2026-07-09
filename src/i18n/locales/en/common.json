@@ -144,5 +144,12 @@
     "switchTo": "Switch to {{lang}}",
     "en": "English",
     "ar": "Arabic"
+  },
+  "theme": {
+    "switch": "Appearance",
+    "toggle": "Toggle appearance",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
   }
 }

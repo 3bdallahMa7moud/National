@@ -68,11 +68,11 @@ export default function NotificationsPage() {
               className={`flex items-center gap-1.5 whitespace-nowrap rounded-btn px-3 py-1.5 text-xs font-semibold transition-colors ${
                 filter === tab.id
                   ? 'bg-primary-50 text-primary ring-1 ring-primary/15'
-                  : 'bg-gray-100 text-text-secondary hover:bg-gray-200'
+                  : 'bg-surface-muted text-text-secondary hover:bg-surface-muted'
               }`}
             >
               <span>{tab.label}</span>
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filter === tab.id ? 'bg-white text-primary' : 'bg-gray-200 text-gray-700'}`}>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${filter === tab.id ? 'bg-surface text-primary' : 'bg-surface-muted text-text-primary'}`}>
                 {tab.count}
               </span>
             </button>
@@ -82,7 +82,7 @@ export default function NotificationsPage() {
         <div className="divide-y divide-border/60">
           {filtered.length === 0 ? (
             <div className="py-12 text-center text-text-secondary">
-              <Bell className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+              <Bell className="w-10 h-10 mx-auto text-text-muted mb-2" />
               <p className="text-base font-medium">{t('notifications:page.empty')}</p>
             </div>
           ) : (
@@ -91,7 +91,7 @@ export default function NotificationsPage() {
                 key={notif.id}
                 onClick={() => !notif.isRead && handleMarkRead(notif.id)}
                 className={`flex cursor-pointer items-start justify-between gap-4 rounded-card px-3 py-4 transition-colors ${
-                  !notif.isRead ? 'bg-primary-50/40 font-medium' : 'hover:bg-gray-50'
+                  !notif.isRead ? 'bg-primary-50/40 font-medium' : 'hover:bg-hover'
                 } ${notif.isUrgent && !notif.isRead ? 'border-s-4 border-danger bg-danger-50/30' : ''}`}
               >
                 <div className="flex items-start gap-3 flex-1">
@@ -115,7 +115,7 @@ export default function NotificationsPage() {
                     <p className="text-xs text-text-secondary mt-1 leading-relaxed">{notif.message}</p>
 
                     {(notif.oldShiftType || notif.newShiftType) && (
-                      <div className="flex items-center gap-2 mt-2 text-xs bg-white p-2 rounded border border-border/60 w-fit">
+                      <div className="flex items-center gap-2 mt-2 text-xs bg-surface p-2 rounded border border-border/60 w-fit">
                         {notif.oldShiftType && <span className="text-text-secondary font-medium">{t('common:labels.from')} {notif.oldShiftType}</span>}
                         {notif.oldShiftType && notif.newShiftType && <span className="text-text-secondary">←</span>}
                         {notif.newShiftType && <span className="text-primary font-bold">{t('common:labels.to')} {notif.newShiftType}</span>}

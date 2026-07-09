@@ -41,7 +41,7 @@ export default function BulkEditPanel({ isOpen, onClose, selectedCount, onApply 
                 className={`flex items-center gap-2 p-3 rounded-btn border-2 transition-all ${
                   selectedShift === st.id
                     ? 'border-primary bg-primary-50'
-                    : 'border-border hover:border-gray-300'
+                    : 'border-border hover:border-primary/40'
                 }`}
               >
                 <ShiftBadge type={st.key as ShiftTypeKey} size="sm" />

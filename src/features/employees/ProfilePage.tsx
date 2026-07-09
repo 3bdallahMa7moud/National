@@ -357,7 +357,7 @@ export default function ProfilePage() {
                   {initials}
                 </div>
               )}
-              <label className="absolute bottom-0 end-0 p-1.5 bg-white border border-border rounded-full shadow-sm cursor-pointer hover:bg-gray-50 transition-colors">
+              <label className="absolute bottom-0 end-0 p-1.5 bg-surface border border-border rounded-full shadow-sm cursor-pointer hover:bg-hover transition-colors">
                 <Camera className="w-4 h-4 text-text-secondary" />
                 <input type="file" className="hidden" accept="image/*" onChange={handleAvatarChange} />
               </label>

@@ -1,13 +1,62 @@
 /* ============================================================
-   Schedule Matrix — Design Tokens
-   ============================================================
-   Core brand palette, facility bands, and shift-chip color pairs.
-   These CSS custom properties are consumed by Tailwind config
-   and directly in components via var().
+   Schedule Matrix and App Theme Tokens
    ============================================================ */
 
 :root {
-  /* ── Core brand tokens ─────────────────────────────────── */
+  color-scheme: light;
+
+  /* App theme RGB tokens consumed by Tailwind. */
+  --color-background: 246 248 248;
+  --color-surface: 255 255 255;
+  --color-surface-muted: 246 245 241;
+  --color-surface-elevated: 255 255 255;
+  --color-text-primary: 16 27 45;
+  --color-text-secondary: 91 100 114;
+  --color-text-muted: 119 132 146;
+  --color-border: 218 226 230;
+  --color-hover: 232 244 246;
+  --color-ring: 11 114 133;
+  --color-shadow: 15 23 42;
+
+  --color-primary: 11 114 133;
+  --color-primary-50: 232 248 250;
+  --color-primary-100: 205 239 243;
+  --color-primary-200: 154 221 228;
+  --color-primary-300: 99 199 210;
+  --color-primary-400: 46 169 184;
+  --color-primary-500: 17 139 158;
+  --color-primary-600: 11 114 133;
+  --color-primary-700: 9 92 108;
+  --color-primary-800: 12 73 86;
+  --color-primary-900: 13 56 69;
+  --color-primary-950: 7 37 47;
+
+  --color-secondary: 34 211 216;
+  --color-accent: 34 197 94;
+  --color-success: 34 197 94;
+  --color-success-50: 240 253 244;
+  --color-success-500: 34 197 94;
+  --color-success-600: 22 163 74;
+  --color-warning: 245 158 11;
+  --color-warning-50: 255 251 235;
+  --color-warning-500: 245 158 11;
+  --color-warning-600: 217 119 6;
+  --color-danger: 226 87 43;
+  --color-danger-50: 254 242 240;
+  --color-danger-500: 226 87 43;
+  --color-danger-600: 194 65 30;
+  --color-info: 11 114 133;
+  --color-info-50: 232 248 250;
+  --color-info-500: 11 114 133;
+  --color-info-600: 9 92 108;
+  --color-ink: 16 27 45;
+  --color-primary-teal: 11 114 133;
+  --color-signal-cyan: 34 211 216;
+  --color-warm-surface: 246 245 241;
+  --color-slate-brand: 91 100 114;
+  --color-alert-coral: 226 87 43;
+
+  /* Core brand hex tokens used directly by schedule CSS. */
   --ink:            #101B2D;
   --primary-teal:   #0B7285;
   --signal-cyan:    #22D3D8;
@@ -15,12 +64,12 @@
   --slate:          #5B6472;
   --alert-coral:    #E2572B;
 
-  /* ── Facility band colors ──────────────────────────────── */
-  --facility-kamc:  #101B2D;   /* ink */
-  --facility-kasch: #0B7285;   /* primary-teal */
-  --facility-whh:   #453653;   /* plum-slate */
+  /* Facility band colors. */
+  --facility-kamc:  #101B2D;
+  --facility-kasch: #0B7285;
+  --facility-whh:   #453653;
 
-  /* ── Shift chip colors — LIGHT mode ────────────────────── */
+  /* Shift chip colors. */
   --chip-morning-bg:       #FDF1DC;
   --chip-morning-text:     #8A5A0F;
   --chip-evening-bg:       #EDECFB;
@@ -34,7 +83,6 @@
   --chip-vacation-bg:      #EEF0F2;
   --chip-vacation-text:    #4B535D;
 
-  /* ── Shift chip colors — DARK mode ─────────────────────── */
   --chip-morning-bg-dark:    #3A2E12;
   --chip-morning-text-dark:  #E8B767;
   --chip-evening-bg-dark:    #241F52;
@@ -48,31 +96,106 @@
   --chip-vacation-bg-dark:   #232A33;
   --chip-vacation-text-dark: #B7C0C9;
 
-  /* ── Grid layout constants ─────────────────────────────── */
+  /* Grid layout constants. */
   --matrix-facility-col:  40px;
   --matrix-label-col:    190px;
   --matrix-day-col:       56px;
   --matrix-row-height:    56px;
   --matrix-header-height: 50px;
 
-  /* ── Weekend / today tints ─────────────────────────────── */
-  --weekend-tint:   #F8FAFC;
+  --weekend-tint:   #F6F5F1;
   --today-tint:     rgba(11, 114, 133, 0.08);
   --empty-cell-bg:  #FFFFFF;
 }
 
-/* Dark mode overrides */
-.dark {
-  --warm-surface: #0F1419;
-  --weekend-tint: rgba(91, 100, 114, 0.12);
-  --today-tint:   rgba(34, 211, 216, 0.08);
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-background: 8 13 20;
+  --color-surface: 15 22 32;
+  --color-surface-muted: 20 29 41;
+  --color-surface-elevated: 18 27 39;
+  --color-text-primary: 232 241 244;
+  --color-text-secondary: 151 164 177;
+  --color-text-muted: 119 132 146;
+  --color-border: 45 59 72;
+  --color-hover: 22 42 51;
+  --color-ring: 34 211 216;
+  --color-shadow: 0 0 0;
+
+  --color-primary: 34 211 216;
+  --color-primary-50: 8 47 57;
+  --color-primary-100: 10 61 72;
+  --color-primary-200: 12 77 91;
+  --color-primary-300: 18 115 132;
+  --color-primary-400: 34 211 216;
+  --color-primary-500: 45 194 201;
+  --color-primary-600: 34 160 174;
+  --color-primary-700: 26 129 143;
+  --color-primary-800: 17 92 108;
+  --color-primary-900: 11 69 84;
+  --color-primary-950: 6 37 47;
+
+  --color-secondary: 34 211 216;
+  --color-accent: 74 222 128;
+  --color-success: 74 222 128;
+  --color-success-50: 7 46 28;
+  --color-success-500: 74 222 128;
+  --color-success-600: 34 197 94;
+  --color-warning: 251 191 36;
+  --color-warning-50: 69 47 12;
+  --color-warning-500: 251 191 36;
+  --color-warning-600: 245 158 11;
+  --color-danger: 248 113 82;
+  --color-danger-50: 72 31 23;
+  --color-danger-500: 248 113 82;
+  --color-danger-600: 226 87 43;
+  --color-info: 34 211 216;
+  --color-info-50: 8 47 57;
+  --color-info-500: 34 211 216;
+  --color-info-600: 34 160 174;
+  --color-ink: 232 241 244;
+  --color-primary-teal: 34 211 216;
+  --color-signal-cyan: 103 232 249;
+  --color-warm-surface: 20 29 41;
+  --color-slate-brand: 151 164 177;
+  --color-alert-coral: 248 113 82;
+
+  --ink:            #E8F1F4;
+  --primary-teal:   #22D3D8;
+  --signal-cyan:    #67E8F9;
+  --warm-surface:   #141D29;
+  --slate:          #97A4B1;
+  --alert-coral:    #F87152;
+
+  --facility-kamc:  #0B1220;
+  --facility-kasch: #0F6675;
+  --facility-whh:   #392F48;
+
+  --chip-morning-bg:       #3A2E12;
+  --chip-morning-text:     #E8B767;
+  --chip-evening-bg:       #241F52;
+  --chip-evening-text:     #B9B4F2;
+  --chip-night-bg:         #1C1740;
+  --chip-night-text:       #A9A2D9;
+  --chip-oncall-bg:        #3A2318;
+  --chip-oncall-text:      #F0A583;
+  --chip-overtime-bg:      #401B2C;
+  --chip-overtime-text:    #F0A8C6;
+  --chip-vacation-bg:      #232A33;
+  --chip-vacation-text:    #B7C0C9;
+
+  --weekend-tint: rgba(91, 100, 114, 0.14);
+  --today-tint:   rgba(34, 211, 216, 0.10);
   --empty-cell-bg: rgba(91, 100, 114, 0.08);
 }
 
-/* ── Utility: edge-fade shadow for scroll containers ────── */
+/* Utility: edge-fade shadow for scroll containers. */
 .matrix-scroll-container {
   position: relative;
 }
+
 .matrix-scroll-container::after {
   content: '';
   position: absolute;
@@ -86,16 +209,17 @@
   opacity: 0;
   transition: opacity 0.2s;
 }
+
 [dir="rtl"] .matrix-scroll-container::after {
   left: auto;
   right: 0;
   background: linear-gradient(to left, rgba(0,0,0,0.06), transparent);
 }
+
 .matrix-scroll-container.is-scrolled::after {
   opacity: 1;
 }
 
-/* ── Facility vertical label ─────────────────────────────── */
 .facility-vertical-label {
   writing-mode: vertical-rl;
   text-orientation: mixed;

@@ -19,7 +19,7 @@ export default function AuditLogRow({ entry }: { entry: AuditLogEntry }) {
   return (
     <div className="border-b border-border/50 last:border-0">
       <div
-        className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50/50 cursor-pointer transition-colors"
+        className="flex items-center gap-4 px-4 py-3 hover:bg-hover cursor-pointer transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         <span className={cn('px-2 py-0.5 rounded-pill text-[10px] font-semibold', actionColors[entry.action])}>
@@ -38,7 +38,7 @@ export default function AuditLogRow({ entry }: { entry: AuditLogEntry }) {
 
       {expanded && (entry.oldValue || entry.newValue) && (
         <div className="px-4 pb-3 me-10">
-          <div className="bg-gray-50 rounded-btn p-3 text-xs space-y-1">
+          <div className="bg-surface-muted rounded-btn p-3 text-xs space-y-1">
             {entry.oldValue && (
               <div className="flex gap-2">
                 <span className="text-danger font-medium">{t('common:audit.oldValue')}</span>

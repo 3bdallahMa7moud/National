@@ -57,7 +57,7 @@ export default function DepartmentsPage() {
                   </div>
                   <button
                     onClick={() => handleEdit(dept)}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 text-text-secondary transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-hover text-text-secondary transition-colors"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>

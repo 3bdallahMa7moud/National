@@ -11,10 +11,10 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants = {
   primary: 'bg-primary text-white hover:bg-primary-700 focus:ring-primary/25',
-  secondary: 'bg-white text-text-primary border border-border hover:bg-gray-50 focus:ring-gray-200',
+  secondary: 'bg-surface text-text-primary border border-border hover:bg-hover focus:ring-primary/20',
   danger: 'bg-danger text-white hover:bg-danger-600 focus:ring-danger/25',
-  ghost: 'bg-transparent text-text-secondary hover:bg-gray-100 hover:text-text-primary',
-  outline: 'bg-white text-primary border border-primary/30 hover:bg-primary-50 focus:ring-primary/20',
+  ghost: 'bg-transparent text-text-secondary hover:bg-hover hover:text-text-primary',
+  outline: 'bg-surface text-primary border border-primary/30 hover:bg-primary-50 focus:ring-primary/20',
 };
 
 const sizes = {

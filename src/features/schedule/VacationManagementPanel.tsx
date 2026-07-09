@@ -90,26 +90,26 @@ function VacationManagementPanel({
   };
 
   return (
-    <section className="rounded-lg border border-gray-300 bg-white px-4 py-4 shadow-soft space-y-4">
+    <section className="rounded-lg border border-border bg-surface px-4 py-4 shadow-soft space-y-4">
       {/* Top Header & Mode Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-3">
         <div className="flex items-center gap-2">
           <CalendarOff className="h-5 w-5 text-primary-teal" />
           <h2 className="text-base font-bold text-ink">{t('schedule:vacationsPanel.title')}</h2>
           {selectedVacation && selectedVacation.daysOff.length > 0 && (
-            <span className="text-xs text-slate-700 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full font-bold">
+            <span className="text-xs text-text-primary bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full font-bold">
               {t('schedule:vacationsPanel.registeredDays', { count: selectedVacation.daysOff.length })}
             </span>
           )}
         </div>
 
         {/* Mode Switcher Tabs */}
-        <div className="flex rounded-lg border border-gray-200 bg-slate-50 p-0.5">
+        <div className="flex rounded-lg border border-border bg-surface-muted p-0.5">
           <button
             onClick={() => setMode('range')}
             className={cn(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-bold transition-all',
-              mode === 'range' ? 'bg-white text-primary-teal shadow-sm' : 'text-slate-600 hover:bg-white/50',
+              mode === 'range' ? 'bg-surface text-primary-teal shadow-sm' : 'text-text-secondary hover:bg-hover',
             )}
           >
             <CalendarRange className="h-3 w-3" />
@@ -119,7 +119,7 @@ function VacationManagementPanel({
             onClick={() => setMode('dates')}
             className={cn(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-bold transition-all',
-              mode === 'dates' ? 'bg-white text-primary-teal shadow-sm' : 'text-slate-600 hover:bg-white/50',
+              mode === 'dates' ? 'bg-surface text-primary-teal shadow-sm' : 'text-text-secondary hover:bg-hover',
             )}
           >
             <CalendarDays className="h-3 w-3" />
@@ -132,11 +132,11 @@ function VacationManagementPanel({
       <div className="grid gap-3 md:grid-cols-[1.4fr_1.6fr_1fr_auto] items-start">
         {/* Employee selector */}
         <label className="space-y-1">
-          <span className="text-[11px] font-bold text-slate-500">{t('schedule:vacationsPanel.employee')}</span>
+          <span className="text-[11px] font-bold text-text-secondary">{t('schedule:vacationsPanel.employee')}</span>
           <select
             value={employeeId}
             onChange={(event) => setEmployeeId(event.target.value)}
-            className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-xs text-ink font-semibold focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
+            className="h-9 w-full rounded-lg border border-border bg-surface px-3 text-xs text-ink font-semibold focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
           >
             {data.legend.map((employee) => (
               <option key={employee.employeeId} value={employee.employeeId}>
@@ -150,32 +150,32 @@ function VacationManagementPanel({
         {mode === 'range' ? (
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1">
-              <span className="text-[11px] font-bold text-slate-500">{t('schedule:vacationsPanel.fromDay')}</span>
+              <span className="text-[11px] font-bold text-text-secondary">{t('schedule:vacationsPanel.fromDay')}</span>
               <input
                 type="number"
                 min={1}
                 max={daysInMonth}
                 value={startDay}
                 onChange={(event) => setStartDay(Number(event.target.value))}
-                className="h-9 w-full rounded-lg border border-gray-300 px-3 text-xs text-ink font-semibold focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
+                className="h-9 w-full rounded-lg border border-border px-3 text-xs text-ink font-semibold focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
               />
             </label>
             <label className="space-y-1">
-              <span className="text-[11px] font-bold text-slate-500">{t('schedule:vacationsPanel.toDay')}</span>
+              <span className="text-[11px] font-bold text-text-secondary">{t('schedule:vacationsPanel.toDay')}</span>
               <input
                 type="number"
                 min={1}
                 max={daysInMonth}
                 value={endDay}
                 onChange={(event) => setEndDay(Number(event.target.value))}
-                className="h-9 w-full rounded-lg border border-gray-300 px-3 text-xs text-ink font-semibold focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
+                className="h-9 w-full rounded-lg border border-border px-3 text-xs text-ink font-semibold focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
               />
             </label>
           </div>
         ) : (
           <div className="space-y-1">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-bold text-slate-500">{t('schedule:vacationsPanel.selectedDays')}</span>
+              <span className="text-[11px] font-bold text-text-secondary">{t('schedule:vacationsPanel.selectedDays')}</span>
               {selectedDates.length > 0 && (
                 <span className="text-[10px] text-primary-teal font-bold">
                   {t('schedule:vacationsPanel.daysCount', { count: selectedDates.length })}
@@ -187,22 +187,22 @@ function VacationManagementPanel({
               placeholder={t('schedule:vacationsPanel.datesPlaceholder')}
               value={datesInputText}
               onChange={(e) => handleInputTextChange(e.target.value)}
-              className="h-9 w-full rounded-lg border border-gray-300 px-3 text-xs text-ink font-semibold placeholder:text-slate-400 focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
+              className="h-9 w-full rounded-lg border border-border px-3 text-xs text-ink font-semibold placeholder:text-text-muted focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
             />
           </div>
         )}
 
         {/* Vacation Type */}
         <div className="space-y-1">
-          <span className="text-[11px] font-bold text-slate-500">{t('schedule:vacationsPanel.type')}</span>
-          <div className="flex rounded-lg border border-gray-300 bg-slate-50 p-0.5">
+          <span className="text-[11px] font-bold text-text-secondary">{t('schedule:vacationsPanel.type')}</span>
+          <div className="flex rounded-lg border border-border bg-surface-muted p-0.5">
             {vacationTypes.map((item) => (
               <button
                 key={item.value}
                 onClick={() => setType(item.value)}
                 className={cn(
                   'flex-1 rounded-md px-2 py-1.5 text-[11px] font-bold transition-colors',
-                  type === item.value ? 'bg-white text-primary-teal shadow-sm' : 'text-slate-600 hover:bg-white/60',
+                  type === item.value ? 'bg-surface text-primary-teal shadow-sm' : 'text-text-secondary hover:bg-hover',
                 )}
               >
                 {item.label}
@@ -219,7 +219,7 @@ function VacationManagementPanel({
             className={cn(
               'inline-flex h-9 items-center gap-1.5 rounded-lg px-4 text-xs font-bold text-white transition-all',
               mode === 'dates' && selectedDates.length === 0
-                ? 'bg-gray-300 cursor-not-allowed'
+                ? 'bg-surface-muted text-text-muted cursor-not-allowed'
                 : 'bg-primary-teal hover:bg-primary-teal/90 shadow-sm',
             )}
           >
@@ -231,10 +231,10 @@ function VacationManagementPanel({
 
       {/* Clickable Days Pills for Specific Dates Mode */}
       {mode === 'dates' && (
-        <div className="pt-3 border-t border-gray-100">
+        <div className="pt-3 border-t border-border/50">
           <div className="flex justify-between items-center mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-600">{t('schedule:vacationsPanel.quickCalendarTitle')}</span>
+              <span className="text-[11px] font-bold text-text-secondary">{t('schedule:vacationsPanel.quickCalendarTitle')}</span>
               <span className="text-[10px] text-amber-700 font-medium bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
                 💡 الأيام باللون الأصفر إجازة مسجلة (اضغط على اليوم الأصفر لحذفه فوراً)
               </span>
@@ -272,7 +272,7 @@ function VacationManagementPanel({
                       ? 'bg-primary-teal text-white border-primary-teal shadow-sm scale-105'
                       : isAlreadyVacation
                         ? 'bg-amber-100 text-amber-900 border-amber-400 hover:bg-red-100 hover:text-red-700 hover:border-red-400'
-                        : 'bg-slate-50 text-slate-700 border-gray-200 hover:bg-slate-100 hover:border-gray-300',
+                        : 'bg-surface-muted text-text-primary border-border hover:bg-hover hover:border-border',
                   )}
                   title={
                     isAlreadyVacation
@@ -317,7 +317,7 @@ function VacationManagementPanel({
                 {selectedVacation.ranges.map((range) => (
                   <div
                     key={range.id}
-                    className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-bold text-amber-950 shadow-2xs"
+                    className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-surface px-3 py-1 text-xs font-bold text-amber-950 shadow-2xs"
                   >
                     <Calendar className="h-3.5 w-3.5 text-amber-700" />
                     <span>
@@ -326,7 +326,7 @@ function VacationManagementPanel({
                     {onRemoveVacationRange && (
                       <button
                         onClick={() => onRemoveVacationRange(employeeId, range.id)}
-                        className="ml-1 rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        className="ml-1 rounded p-0.5 text-text-muted hover:bg-red-50 hover:text-red-600 transition-colors"
                         title="إزالة هذه الفترة"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -345,13 +345,13 @@ function VacationManagementPanel({
               {selectedVacation.daysOff.map((day) => (
                 <span
                   key={day}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-bold text-amber-950 shadow-2xs"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-surface px-2.5 py-1 text-xs font-bold text-amber-950 shadow-2xs"
                 >
                   <span>يوم {day}</span>
                   {onRemoveVacationDay && (
                     <button
                       onClick={() => onRemoveVacationDay(employeeId, day)}
-                      className="rounded-full hover:bg-red-100 hover:text-red-700 text-slate-500 transition-colors p-0.5"
+                      className="rounded-full hover:bg-red-100 hover:text-red-700 text-text-secondary transition-colors p-0.5"
                       title={`حذف إجازة يوم ${day}`}
                     >
                       <X className="h-3 w-3" />
@@ -366,13 +366,13 @@ function VacationManagementPanel({
 
       {/* All Active Vacations Table across Employees */}
       {activeVacationsList.length > 0 && (
-        <div className="pt-3 border-t border-gray-200">
-          <h3 className="text-xs font-bold text-slate-700 mb-2">
+        <div className="pt-3 border-t border-border">
+          <h3 className="text-xs font-bold text-text-primary mb-2">
             جميع الموظفين الحاصلين على إجازات في هذا الشهر ({activeVacationsList.length} موظف):
           </h3>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-gray-200">
+              <thead className="bg-surface-muted text-text-secondary font-bold border-b border-border">
                 <tr>
                   <th className="py-2 px-3">كود الموظف</th>
                   <th className="py-2 px-3">اسم الموظف</th>
@@ -381,23 +381,23 @@ function VacationManagementPanel({
                   <th className="py-2 px-3 text-right">إجراءات</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
+              <tbody className="divide-y divide-gray-100 bg-surface">
                 {activeVacationsList.map((vac) => (
                   <tr
                     key={vac.employeeId}
-                    className={cn('hover:bg-slate-50 transition-colors', vac.employeeId === employeeId && 'bg-primary-teal/5 font-semibold')}
+                    className={cn('hover:bg-hover transition-colors', vac.employeeId === employeeId && 'bg-primary-teal/5 font-semibold')}
                   >
-                    <td className="py-2 px-3 font-mono text-slate-600">{vac.employeeCode}</td>
+                    <td className="py-2 px-3 font-mono text-text-secondary">{vac.employeeCode}</td>
                     <td className="py-2 px-3 font-bold text-ink">{vac.fullName}</td>
                     <td className="py-2 px-3 font-semibold text-amber-800">{vac.daysOff.length} يوم</td>
-                    <td className="py-2 px-3 text-slate-600">
+                    <td className="py-2 px-3 text-text-secondary">
                       <span className="line-clamp-1">{vac.daysOff.join(', ')}</span>
                     </td>
                     <td className="py-2 px-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => setEmployeeId(vac.employeeId)}
-                          className="rounded border border-gray-200 bg-white px-2 py-1 text-[11px] font-bold text-primary-teal hover:bg-primary-teal hover:text-white transition-colors"
+                          className="rounded border border-border bg-surface px-2 py-1 text-[11px] font-bold text-primary-teal hover:bg-primary-teal hover:text-white transition-colors"
                         >
                           إدارة إجازاته
                         </button>

@@ -106,7 +106,7 @@ export default function HospitalLogo({
             className={cn(
               'mt-1 font-medium tracking-wide truncate transition-colors',
               subClass,
-              isWhite ? 'text-primary-100' : 'text-primary-600 font-semibold'
+              isWhite ? 'text-white/78 drop-shadow-sm' : 'text-primary-600 font-semibold'
             )}
           >
             {displaySubtitle}

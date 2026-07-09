@@ -151,17 +151,17 @@ function FullscreenMatrixModal({
 
   const toolbar = (
     <div
-      className="flex items-center gap-2 flex-wrap bg-white border-b border-gray-200 px-4 py-2 shadow-sm shrink-0"
+      className="flex items-center gap-2 flex-wrap bg-surface border-b border-border px-4 py-2 shadow-sm shrink-0"
     >
       {/* Title + month */}
       <span className="text-sm font-bold text-ink">
         {t('schedule:toolbar.title')} - {months[month] || ''} {year}
       </span>
 
-      <div className="w-px h-5 bg-gray-300 mx-1" />
+      <div className="w-px h-5 bg-border mx-1" />
 
       {/* Mode tabs */}
-      <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5 border border-gray-200">
+      <div className="flex items-center gap-0.5 rounded-lg bg-surface-muted p-0.5 border border-border">
         {modeConfig.map(({ mode, label, icon }) => (
           <button
             key={mode}
@@ -169,8 +169,8 @@ function FullscreenMatrixModal({
             className={cn(
               'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all duration-150',
               adminMode === mode
-                ? 'bg-white text-primary-teal shadow-sm border border-gray-200'
-                : 'text-slate-600 hover:text-ink hover:bg-slate-50',
+                ? 'bg-surface text-primary-teal shadow-sm border border-border'
+                : 'text-text-secondary hover:text-ink hover:bg-hover',
             )}
           >
             {icon}
@@ -179,7 +179,7 @@ function FullscreenMatrixModal({
         ))}
       </div>
 
-      <div className="w-px h-5 bg-gray-300 mx-1" />
+      <div className="w-px h-5 bg-border mx-1" />
 
       {/* Facility filter */}
       <div className="flex items-center gap-1">
@@ -191,7 +191,7 @@ function FullscreenMatrixModal({
               'rounded-md px-2.5 py-1 text-xs font-semibold transition-colors duration-150',
               facilityFilter === tab.id
                 ? 'bg-primary-teal text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100',
+                : 'text-text-secondary hover:bg-hover',
             )}
           >
             {tab.label}
@@ -227,7 +227,7 @@ function FullscreenMatrixModal({
       {onExportPDF && (
         <button
           onClick={onExportPDF}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-400 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-700 hover:text-white transition-all shadow-sm mx-1"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-muted px-2.5 py-1 text-[11px] font-bold text-text-primary hover:border-primary hover:bg-primary hover:text-white transition-all shadow-sm mx-1"
           title={t('schedule:toolbar.exportPDF')}
         >
           <Printer className="h-3.5 w-3.5" />
@@ -236,11 +236,11 @@ function FullscreenMatrixModal({
       )}
 
       {/* Zoom controls */}
-      <div className="flex items-center gap-0.5 rounded-lg border border-gray-300 bg-slate-50 p-0.5">
+      <div className="flex items-center gap-0.5 rounded-lg border border-border bg-surface-muted p-0.5">
         <button
           onClick={() => handleZoomStep('out')}
           disabled={zoomLevel <= 0.7}
-          className="flex h-6 w-6 items-center justify-center rounded bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+          className="flex h-6 w-6 items-center justify-center rounded bg-surface text-text-primary hover:bg-hover disabled:opacity-40 transition-colors"
           title={t('schedule:toolbar.zoomOut')}
         >
           <ZoomOut className="h-3.5 w-3.5 text-primary-teal" />
@@ -255,19 +255,19 @@ function FullscreenMatrixModal({
         <button
           onClick={() => handleZoomStep('in')}
           disabled={zoomLevel >= 2.0}
-          className="flex h-6 w-6 items-center justify-center rounded bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+          className="flex h-6 w-6 items-center justify-center rounded bg-surface text-text-primary hover:bg-hover disabled:opacity-40 transition-colors"
           title={t('schedule:toolbar.zoomIn')}
         >
           <ZoomIn className="h-3.5 w-3.5 text-primary-teal" />
         </button>
       </div>
 
-      <div className="w-px h-5 bg-gray-300 mx-1" />
+      <div className="w-px h-5 bg-border mx-1" />
 
       {/* Close fullscreen */}
       <button
         onClick={onClose}
-        className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all shadow-sm"
+        className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-bold text-text-primary hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-all shadow-sm"
         title={t('schedule:toolbar.exitFullscreen')}
       >
         <Minimize2 className="h-4 w-4" />
@@ -279,7 +279,7 @@ function FullscreenMatrixModal({
   return createPortal(
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[200] flex flex-col bg-slate-100"
+      className="fixed inset-0 z-[200] flex flex-col bg-surface-muted"
       role="dialog"
       aria-modal="true"
       aria-label={t('schedule:toolbar.fullscreenAria')}
@@ -289,7 +289,7 @@ function FullscreenMatrixModal({
 
       {/* ── Full-height scrollable matrix ── */}
       <div className="flex-1 overflow-hidden px-4 pb-4 pt-2">
-        <div className="h-full rounded-lg border border-gray-300 bg-white shadow-soft overflow-hidden">
+        <div className="h-full rounded-lg border border-border bg-surface shadow-soft overflow-hidden">
           <ScheduleMatrix
             data={displayData}
             editable={adminMode === 'edit'}

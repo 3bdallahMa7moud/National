@@ -20,7 +20,7 @@ export default function NotificationCenter({ notifications, onMarkRead, onMarkAl
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
+        className="relative p-2 rounded-xl hover:bg-hover transition-colors"
         aria-label={t('notifications:center.title')}
       >
         <Bell className="w-5 h-5 text-text-secondary" />
@@ -54,7 +54,7 @@ export default function NotificationCenter({ notifications, onMarkRead, onMarkAl
                   <div
                     key={notif.id}
                     className={cn(
-                      'p-3 hover:bg-gray-50 cursor-pointer transition-colors',
+                      'p-3 hover:bg-hover cursor-pointer transition-colors',
                       !notif.isRead && 'bg-primary-50/30',
                       notif.isUrgent && !notif.isRead && 'bg-danger-50/30 border-s-2 border-danger'
                     )}
@@ -69,7 +69,7 @@ export default function NotificationCenter({ notifications, onMarkRead, onMarkAl
                         {(notif.oldShiftType || notif.newShiftType) && (
                           <div className="flex items-center gap-1 mt-1 text-[10px]">
                             {notif.oldShiftType && (
-                              <span className="px-1.5 py-0.5 rounded bg-gray-100 text-text-secondary">{notif.oldShiftType}</span>
+                              <span className="px-1.5 py-0.5 rounded bg-surface-muted text-text-secondary">{notif.oldShiftType}</span>
                             )}
                             {notif.oldShiftType && notif.newShiftType && <span className="text-text-secondary">←</span>}
                             {notif.newShiftType && (

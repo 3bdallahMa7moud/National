@@ -42,7 +42,7 @@ export default function Sidebar() {
             <HospitalLogo size="sm" showText={true} subtitle={t('common:sidebar.subtitle')} />
             <button
               onClick={toggleSidebarCollapse}
-              className="hidden lg:flex items-center justify-center rounded-btn p-1.5 text-text-secondary transition-colors hover:bg-gray-100 hover:text-text-primary"
+              className="hidden lg:flex items-center justify-center rounded-btn p-1.5 text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
               title={t('common:sidebar.collapse')}
             >
               <Menu className="h-5 w-5" />
@@ -51,14 +51,14 @@ export default function Sidebar() {
         ) : (
           <button
             onClick={toggleSidebarCollapse}
-            className="hidden lg:flex items-center justify-center rounded-btn p-2 text-text-secondary transition-colors hover:bg-gray-100 hover:text-text-primary"
+            className="hidden lg:flex items-center justify-center rounded-btn p-2 text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
             title={t('common:sidebar.expand')}
           >
             <Menu className="h-6 w-6 text-primary" />
           </button>
         )}
         <button
-          className="ms-auto rounded-btn p-1.5 text-text-secondary transition-colors hover:bg-gray-100 hover:text-text-primary lg:hidden"
+          className="ms-auto rounded-btn p-1.5 text-text-secondary transition-colors hover:bg-hover hover:text-text-primary lg:hidden"
           onClick={() => setSidebarOpen(false)}
         >
           <X className="h-5 w-5" />
@@ -79,7 +79,7 @@ export default function Sidebar() {
                 'flex items-center gap-3 rounded-btn px-3 py-2.5 text-sm font-medium transition-colors duration-150',
                 isActive
                   ? 'bg-primary-50 text-primary ring-1 ring-primary/15'
-                  : 'text-text-secondary hover:bg-gray-100 hover:text-text-primary',
+                  : 'text-text-secondary hover:bg-hover hover:text-text-primary',
                 isCollapsed && 'justify-center px-2'
               )}
               title={isCollapsed ? label : undefined}

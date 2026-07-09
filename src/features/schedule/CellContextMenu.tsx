@@ -42,11 +42,11 @@ function CellContextMenu({
   const top = Math.min(position.y, window.innerHeight - 240);
   const left = Math.min(position.x, window.innerWidth - 230);
 
-  const itemClass = 'flex w-full items-center gap-2 px-3 py-2 text-start text-xs font-semibold transition-colors hover:bg-slate-50';
+  const itemClass = 'flex w-full items-center gap-2 px-3 py-2 text-start text-xs font-semibold transition-colors hover:bg-hover';
 
   return (
     <div
-      className="fixed z-[240] w-56 overflow-hidden rounded-lg border border-gray-300 bg-white py-1.5 text-ink shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+      className="fixed z-[240] w-56 overflow-hidden rounded-lg border border-border bg-surface py-1.5 text-ink shadow-2xl animate-in fade-in zoom-in-95 duration-150"
       style={{ top, left }}
       role="menu"
     >
@@ -67,11 +67,11 @@ function CellContextMenu({
         onClick={hasAssignments ? onMarkVacation : undefined}
         role="menuitem"
       >
-        <CalendarOff className="h-4 w-4 text-slate-600 shrink-0" />
+        <CalendarOff className="h-4 w-4 text-text-secondary shrink-0" />
         <span>{t('schedule:matrix.convertToVacation')}</span>
       </button>
       <button className={itemClass} onClick={onHistory} role="menuitem">
-        <History className="h-4 w-4 text-slate-600 shrink-0" />
+        <History className="h-4 w-4 text-text-secondary shrink-0" />
         <span>{t('schedule:matrix.auditLog')}</span>
       </button>
       <button

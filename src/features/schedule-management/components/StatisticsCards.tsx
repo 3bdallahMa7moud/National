@@ -52,7 +52,7 @@ function StatCard({ icon, label, value, color, bgColor, delay }: StatCardProps) 
           <span className={color}>{icon}</span>
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-medium text-text-secondary dark:text-slate-400 truncate">
+          <p className="text-xs font-medium text-text-secondary dark:text-text-muted truncate">
             {label}
           </p>
           <p className={cn('text-xl font-bold tracking-tight', color)}>

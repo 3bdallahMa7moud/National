@@ -131,12 +131,12 @@ function ShiftRowCells({
             data-row-id={row.id}
             className={cn(
               'group relative flex flex-col items-center justify-center gap-1 px-[2px]',
-              'border-b border-e border-gray-300 outline-none',
+              'border-b border-e border-border outline-none',
               'transition-colors duration-100',
               isWeekend && 'bg-[var(--weekend-tint)]',
               isToday && 'bg-[var(--today-tint)]',
               !isWeekend && !isToday && assignments.length === 0 && 'bg-[var(--empty-cell-bg)]',
-              !isWeekend && !isToday && assignments.length > 0 && 'bg-white',
+              !isWeekend && !isToday && assignments.length > 0 && 'bg-surface',
               selected && 'ring-2 ring-inset ring-signal-cyan bg-signal-cyan/10',
               isFillTarget && 'ring-2 ring-inset ring-primary-teal bg-primary-teal/10',
               canEditCell && 'cursor-pointer hover:bg-primary-teal/10',

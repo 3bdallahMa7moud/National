@@ -79,7 +79,7 @@ export default function CellEditModal({ isOpen, onClose, employee, dateStr }: Ce
               <p className="text-xs text-text-secondary">{employee.position}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-white px-3 py-1.5 rounded-btn border border-primary/20 w-fit">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-surface px-3 py-1.5 rounded-btn border border-primary/20 w-fit">
             <Calendar className="w-4 h-4" />
             <span>{formattedDate}</span>
           </div>
@@ -90,7 +90,7 @@ export default function CellEditModal({ isOpen, onClose, employee, dateStr }: Ce
             {t('schedule:cellEdit.currentShifts')}
           </h4>
           {currentShifts.length === 0 ? (
-            <div className="bg-gray-50 border border-dashed border-border rounded-btn p-4 text-center text-sm text-text-secondary">
+            <div className="bg-surface-muted border border-dashed border-border rounded-btn p-4 text-center text-sm text-text-secondary">
               {t('schedule:cellEdit.noShifts')}
             </div>
           ) : (

@@ -86,8 +86,8 @@ function ScheduleTable({
           key={`dept-${row.departmentId}`}
           className={cn(
             'absolute left-0 flex items-center gap-2 px-4',
-            'bg-slate-50 dark:bg-slate-800/80 border-b border-border dark:border-slate-700',
-            'cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800',
+            'bg-surface-muted dark:bg-slate-800/80 border-b border-border dark:border-slate-700',
+            'cursor-pointer select-none hover:bg-hover dark:hover:bg-slate-800',
             'transition-colors duration-150'
           )}
           style={{
@@ -110,16 +110,16 @@ function ScheduleTable({
             animate={{ rotate: isCollapsed ? -90 : 0 }}
             transition={{ duration: 0.2 }}
           >
-            <ChevronDown className="h-4 w-4 text-text-secondary dark:text-slate-400" />
+            <ChevronDown className="h-4 w-4 text-text-secondary dark:text-text-muted" />
           </motion.div>
 
           <span className="text-sm font-semibold text-text-primary dark:text-white">
             {row.departmentName}
           </span>
 
-          <div className="flex items-center gap-1 ml-2 rounded-full bg-white dark:bg-slate-700 border border-border dark:border-slate-600 px-2 py-0.5">
-            <Users className="h-3 w-3 text-text-secondary dark:text-slate-400" />
-            <span className="text-[10px] font-medium text-text-secondary dark:text-slate-400">
+          <div className="flex items-center gap-1 ml-2 rounded-full bg-surface dark:bg-slate-700 border border-border dark:border-slate-600 px-2 py-0.5">
+            <Users className="h-3 w-3 text-text-secondary dark:text-text-muted" />
+            <span className="text-[10px] font-medium text-text-secondary dark:text-text-muted">
               {rows.filter(
                 (r) => r.type === 'employee' && r.departmentId === row.departmentId
               ).length}
@@ -143,7 +143,7 @@ function ScheduleTable({
           className={cn(
             'absolute left-0 flex border-b border-border/50 dark:border-slate-800',
             isHighlighted && 'bg-primary-50/50 dark:bg-primary-900/20',
-            !isHighlighted && 'bg-white dark:bg-slate-900'
+            !isHighlighted && 'bg-surface dark:bg-slate-900'
           )}
           style={{
             top: 0,
@@ -158,7 +158,7 @@ function ScheduleTable({
           <div
             className={cn(
               'sticky left-0 z-20 flex items-center gap-2.5 px-3 border-r border-border/50',
-              'bg-white dark:bg-slate-900',
+              'bg-surface dark:bg-slate-900',
               isHighlighted && 'bg-primary-50/50 dark:bg-primary-900/20'
             )}
             style={{ width: GRID_CONFIG.EMPLOYEE_COL_WIDTH, minWidth: GRID_CONFIG.EMPLOYEE_COL_WIDTH }}
@@ -185,7 +185,7 @@ function ScheduleTable({
               <p className="text-xs font-semibold text-text-primary dark:text-white truncate leading-tight">
                 {emp.name}
               </p>
-              <p className="text-[10px] text-text-secondary dark:text-slate-500 truncate leading-tight">
+              <p className="text-[10px] text-text-secondary dark:text-text-secondary truncate leading-tight">
                 {emp.roomName}
               </p>
             </div>
@@ -253,7 +253,7 @@ function ScheduleTable({
           <div
             className={cn(
               'sticky top-0 z-30 flex border-b border-border',
-              'bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm'
+              'bg-surface-muted/95 dark:bg-slate-800/95 backdrop-blur-sm'
             )}
             style={{ height: GRID_CONFIG.HEADER_HEIGHT, width: totalWidth }}
             role="row"
@@ -262,8 +262,8 @@ function ScheduleTable({
             <div
               className={cn(
                 'sticky left-0 z-40 flex items-center justify-center border-r border-border',
-                'bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm',
-                'text-xs font-semibold text-text-secondary dark:text-slate-400'
+                'bg-surface-muted/95 dark:bg-slate-800/95 backdrop-blur-sm',
+                'text-xs font-semibold text-text-secondary dark:text-text-muted'
               )}
               style={{ width: GRID_CONFIG.EMPLOYEE_COL_WIDTH, minWidth: GRID_CONFIG.EMPLOYEE_COL_WIDTH }}
               role="columnheader"
@@ -298,7 +298,7 @@ function ScheduleTable({
                         ? 'text-primary dark:text-primary-400'
                         : meta.isWeekend
                           ? 'text-amber-600 dark:text-amber-400'
-                          : 'text-text-secondary dark:text-slate-400'
+                          : 'text-text-secondary dark:text-text-muted'
                     )}
                   >
                     {meta.dayName}

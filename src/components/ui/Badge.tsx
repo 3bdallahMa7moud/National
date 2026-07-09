@@ -7,7 +7,7 @@ interface BadgeProps {
 }
 
 const variantClasses = {
-  default: 'bg-gray-100 text-gray-700 ring-gray-200',
+  default: 'bg-surface-muted text-text-secondary ring-border',
   success: 'bg-success-50 text-success-600 ring-success/15',
   warning: 'bg-warning-50 text-warning-600 ring-warning/15',
   danger: 'bg-danger-50 text-danger-600 ring-danger/15',

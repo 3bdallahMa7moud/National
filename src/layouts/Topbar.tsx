@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import NotificationCenter from '@/components/common/NotificationCenter';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
+import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import { useMockData } from '@/hooks/useMockData';
 import type { AppNotification } from '@/types';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -51,17 +52,18 @@ export default function Topbar() {
         <div className="flex items-center gap-3">
           <button
             onClick={toggleSidebar}
-            className="rounded-btn p-2 transition-colors hover:bg-gray-100 lg:hidden"
+            className="rounded-btn p-2 transition-colors hover:bg-hover lg:hidden"
           >
             <Menu className="h-5 w-5 text-text-secondary" />
           </button>
           <div className="hidden sm:block">
-            <p className="rounded-pill border border-border bg-gray-50 px-3 py-1 text-xs text-text-secondary">{today}</p>
+            <p className="rounded-pill border border-border bg-surface-muted px-3 py-1 text-xs text-text-secondary">{today}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <LanguageSwitcher variant="icon" />
+          <ThemeSwitcher variant="icon" />
 
           {user?.role !== 'admin' && (
             <NotificationCenter
@@ -74,7 +76,7 @@ export default function Topbar() {
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 rounded-btn border border-transparent p-1.5 transition-colors hover:border-border hover:bg-gray-50"
+              className="flex items-center gap-2 rounded-btn border border-transparent p-1.5 transition-colors hover:border-border hover:bg-hover"
             >
               {user?.avatar ? (
                 <img src={user.avatar} alt="Avatar" className="h-8 w-8 rounded-btn object-cover border border-border" />
@@ -97,7 +99,7 @@ export default function Topbar() {
                 <div className="absolute end-0 top-full z-50 mt-2 w-48 max-w-[calc(100vw-2rem)] overflow-hidden rounded-card border border-border bg-surface shadow-dropdown">
                   <button
                     onClick={() => { navigate('/profile'); setShowUserMenu(false); }}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-text-primary transition-colors hover:bg-gray-50"
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-text-primary transition-colors hover:bg-hover"
                   >
                     <User className="w-4 h-4" />
                     {t('common:topbar.profile')}

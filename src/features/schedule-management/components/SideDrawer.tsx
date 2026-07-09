@@ -68,8 +68,8 @@ function SideDrawer({ drawer, onClose }: SideDrawerProps) {
                 onClick={onClose}
                 className={cn(
                   'flex h-8 w-8 items-center justify-center rounded-lg',
-                  'text-text-secondary hover:bg-gray-100 hover:text-text-primary',
-                  'dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white',
+                  'text-text-secondary hover:bg-hover hover:text-text-primary',
+                  'dark:text-text-muted dark:hover:bg-slate-800 dark:hover:text-white',
                   'transition-colors duration-150'
                 )}
                 aria-label="Close drawer"
@@ -96,7 +96,7 @@ function SideDrawer({ drawer, onClose }: SideDrawerProps) {
                       <p className="text-sm font-bold text-text-primary dark:text-white">
                         {theme.fullLabel}
                       </p>
-                      <p className="text-xs text-text-secondary dark:text-slate-400">
+                      <p className="text-xs text-text-secondary dark:text-text-muted">
                         {entry.startTime} — {entry.endTime} ({entry.hours}h)
                       </p>
                     </div>
@@ -106,10 +106,10 @@ function SideDrawer({ drawer, onClose }: SideDrawerProps) {
 
               {/* Employee Info */}
               <div className="space-y-3">
-                <h3 className="text-xs font-semibold text-text-secondary dark:text-slate-400 uppercase tracking-wider">
+                <h3 className="text-xs font-semibold text-text-secondary dark:text-text-muted uppercase tracking-wider">
                   Employee Information
                 </h3>
-                <div className="rounded-xl border border-border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 p-4 space-y-3">
+                <div className="rounded-xl border border-border dark:border-slate-800 bg-surface-muted/50 dark:bg-slate-800/50 p-4 space-y-3">
                   <InfoRow icon={<User className="h-4 w-4" />} label="Name" value={employee.name} />
                   <InfoRow icon={<Building2 className="h-4 w-4" />} label="Department" value={employee.departmentName} />
                   <InfoRow icon={<MapPin className="h-4 w-4" />} label="Room" value={employee.roomName} />
@@ -123,7 +123,7 @@ function SideDrawer({ drawer, onClose }: SideDrawerProps) {
 
               {/* Actions */}
               <div className="space-y-3">
-                <h3 className="text-xs font-semibold text-text-secondary dark:text-slate-400 uppercase tracking-wider">
+                <h3 className="text-xs font-semibold text-text-secondary dark:text-text-muted uppercase tracking-wider">
                   Actions
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
@@ -156,10 +156,10 @@ function SideDrawer({ drawer, onClose }: SideDrawerProps) {
 
               {/* Shift History Placeholder */}
               <div className="space-y-3">
-                <h3 className="text-xs font-semibold text-text-secondary dark:text-slate-400 uppercase tracking-wider">
+                <h3 className="text-xs font-semibold text-text-secondary dark:text-text-muted uppercase tracking-wider">
                   Shift History
                 </h3>
-                <div className="rounded-xl border border-border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 p-4">
+                <div className="rounded-xl border border-border dark:border-slate-800 bg-surface-muted/50 dark:bg-slate-800/50 p-4">
                   <div className="space-y-2">
                     <HistoryItem
                       action="Shift assigned"
@@ -195,9 +195,9 @@ function SideDrawer({ drawer, onClose }: SideDrawerProps) {
 function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="text-text-secondary dark:text-slate-500">{icon}</span>
+      <span className="text-text-secondary dark:text-text-secondary">{icon}</span>
       <div className="min-w-0 flex-1">
-        <span className="text-[10px] text-text-secondary dark:text-slate-500 block">{label}</span>
+        <span className="text-[10px] text-text-secondary dark:text-text-secondary block">{label}</span>
         <span className="text-xs font-medium text-text-primary dark:text-white">{value}</span>
       </div>
     </div>
@@ -246,7 +246,7 @@ function HistoryItem({
       <div className={cn('mt-1 h-1.5 w-1.5 rounded-full flex-shrink-0', color.replace('text-', 'bg-'))} />
       <div className="min-w-0 flex-1">
         <p className="text-xs text-text-primary dark:text-slate-200">{action}</p>
-        <p className="text-[10px] text-text-secondary dark:text-slate-500">
+        <p className="text-[10px] text-text-secondary dark:text-text-secondary">
           by {by} · {time}
         </p>
       </div>
