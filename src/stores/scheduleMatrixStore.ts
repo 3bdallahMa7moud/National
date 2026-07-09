@@ -26,6 +26,7 @@ import type {
   ShiftRow,
   Unit,
   UnitDefinition,
+  VacationRange,
   VacationType,
   ValidateResult,
 } from '@/types/scheduleMatrix';
