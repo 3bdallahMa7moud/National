@@ -233,7 +233,13 @@
     "saveTitle": "Save changes",
     "cancel": "Cancel",
     "shiftType": "Shift type",
-    "shiftTypeHint": "Chip color in the grid (morning, night, on-call, …)"
+    "shiftTypeHint": "Default chip color for both selected employees.",
+    "selectedCount": "{{count}} / 2 selected",
+    "emptySlot": "Choose from the employee list",
+    "slotShift": "Assigned shift color",
+    "employeeList": "Employee list",
+    "employeesFound": "{{count}} employees",
+    "cannotSaveConflict": "Resolve conflict before saving"
   },
   "shiftColors": {
     "morning": "Morning",

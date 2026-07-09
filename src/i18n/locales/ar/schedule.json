@@ -265,7 +265,13 @@
     "saveTitle": "حفظ التعديلات",
     "cancel": "إلغاء",
     "shiftType": "نوع الشيفت",
-    "shiftTypeHint": "لون الشريحة في الجدول (صباحي، ليلي، on-call، …)"
+    "shiftTypeHint": "لون الشريحة الافتراضي للموظفين المحددين.",
+    "selectedCount": "{{count}} / 2 محدد",
+    "emptySlot": "اختر من قائمة الموظفين",
+    "slotShift": "لون الشيفت",
+    "employeeList": "قائمة الموظفين",
+    "employeesFound": "{{count}} موظف",
+    "cannotSaveConflict": "حل التعارض قبل الحفظ"
   },
   "shiftColors": {
     "morning": "صباحي",
