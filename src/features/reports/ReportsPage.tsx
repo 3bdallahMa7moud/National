@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Legend
@@ -9,7 +8,7 @@ import {
 import { useMockData } from '@/hooks/useMockData';
 import { mockShifts } from '@/mocks/sources';
 import { getShiftLabel } from '@/i18n/helpers';
-import { Download, Calendar, TrendingUp, Clock, Phone } from 'lucide-react';
+import { Calendar, TrendingUp, Clock, Phone } from 'lucide-react';
 
 export default function ReportsPage() {
   const { t } = useTranslation(['reports', 'common']);
@@ -41,10 +40,6 @@ export default function ReportsPage() {
   const totalOnCall = mockShifts.filter((s) => s.shiftType === 'oncall').length;
   const totalOvertime = mockShifts.filter((s) => s.shiftType === 'overtime').length;
 
-  const handleExport = () => {
-    window.print();
-  };
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -65,9 +60,6 @@ export default function ReportsPage() {
               <option value="2026-05">{t('reports:months.2026-05')}</option>
             </select>
           </div>
-          <Button variant="outline" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
-            {t('reports:export')}
-          </Button>
         </div>
       </div>
 

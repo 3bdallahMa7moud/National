@@ -101,6 +101,7 @@ export default function AdminSchedulePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [shiftFilter, setShiftFilter] = useState<ShiftColorKey | ''>('');
   const [conflictsOnly, setConflictsOnly] = useState(false);
+  const [brushColorKey, setBrushColorKey] = useState<ShiftColorKey>('morning');
 
   // Right-click context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -194,7 +195,12 @@ export default function AdminSchedulePage() {
             cellFull = true;
             break;
           }
-          merged.push({ employeeId: emp.employeeId, employeeCode: emp.code, status: 'draft' });
+          merged.push({
+            employeeId: emp.employeeId,
+            employeeCode: emp.code,
+            status: 'draft',
+            colorKey: brushColorKey,
+          });
           changed = true;
         }
 
@@ -498,6 +504,8 @@ export default function AdminSchedulePage() {
         onClearSelection={clearSelection}
         brushEmployeeCodes={brushEmployeeCodes}
         onClearBrush={clearBrushEmployees}
+        brushColorKey={brushColorKey}
+        onBrushColorKeyChange={setBrushColorKey}
         isBulkSelecting={isBulkSelecting || selectedCells.length > 0}
         onToggleBulkSelect={() => {
           if (selectedCells.length > 0) {
@@ -555,6 +563,30 @@ export default function AdminSchedulePage() {
                 type: 'success',
                 title: t('schedule:vacationPanel.toastSuccessTitle'),
                 message: t('schedule:vacationPanel.toastDatesMessage', { days: days.join(', ') }),
+              });
+            }}
+            onRemoveVacationDay={(empId, day) => {
+              store.removeVacationDay(empId, day);
+              addToast({
+                type: 'info',
+                title: 'تم إزالة الإجازة',
+                message: `تم إزالة يوم الإجازة (${day}) بنجاح`,
+              });
+            }}
+            onRemoveVacationRange={(empId, rangeId) => {
+              store.removeVacationRange(empId, rangeId);
+              addToast({
+                type: 'info',
+                title: 'تم إزالة الإجازة',
+                message: 'تم إزالة فترة الإجازة بنجاح',
+              });
+            }}
+            onClearEmployeeVacations={(empId) => {
+              store.clearEmployeeVacations(empId);
+              addToast({
+                type: 'info',
+                title: 'تم مسح الإجازات',
+                message: 'تم مسح جميع إجازات الموظف بنجاح',
               });
             }}
           />

@@ -98,6 +98,9 @@ interface ScheduleMatrixState {
   toggleVacation: (employeeId: string, day: number) => void;
   addVacationRange: (employeeId: string, startDay: number, endDay: number, type: VacationType) => void;
   addVacationDays: (employeeId: string, days: number[], type: VacationType) => void;
+  removeVacationDay: (employeeId: string, day: number) => void;
+  removeVacationRange: (employeeId: string, rangeId: string) => void;
+  clearEmployeeVacations: (employeeId: string) => void;
   markCellVacation: (rowId: string, day: number, employeeId?: string) => void;
 
   publishDrafts: () => PublishResult;
@@ -599,6 +602,109 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     set({
       data,
       draftCellKeys: draftWith(state.draftCellKeys, `vac|${employeeId}|${sorted.join(',')}`),
+      undoStack: pushUndo(state),
+    });
+  },
+
+  removeVacationDay: (employeeId, day) => {
+    const state = get();
+    if (!state.data) return;
+    const data = cloneData(state.data);
+    const vacationIndex = data.vacations.findIndex((row) => row.employeeId === employeeId);
+    if (vacationIndex === -1) return;
+
+    const vacation = data.vacations[vacationIndex];
+    if (!vacation.daysOff.includes(day)) return;
+
+    vacation.daysOff = vacation.daysOff.filter((d) => d !== day);
+    if (vacation.ranges) {
+      vacation.ranges = vacation.ranges
+        .map((r) => {
+          if (day >= r.startDay && day <= r.endDay) {
+            if (r.startDay === r.endDay) return null;
+            if (day === r.startDay) return { ...r, startDay: r.startDay + 1 };
+            if (day === r.endDay) return { ...r, endDay: r.endDay - 1 };
+          }
+          return r;
+        })
+        .filter(Boolean) as VacationRange[];
+    }
+
+    if (vacation.daysOff.length === 0) {
+      data.vacations.splice(vacationIndex, 1);
+    }
+
+    addAudit(data, state.locale, {
+      action: 'vacation',
+      day,
+      oldValue: vacation.employeeCode,
+      newValue: getMatrixStoreText(state.locale, 'removeVacation'),
+    });
+    recalculateAllConflicts(data);
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `vac|${employeeId}|remove-${day}`),
+      undoStack: pushUndo(state),
+    });
+  },
+
+  removeVacationRange: (employeeId, rangeId) => {
+    const state = get();
+    if (!state.data) return;
+    const data = cloneData(state.data);
+    const vacationIndex = data.vacations.findIndex((row) => row.employeeId === employeeId);
+    if (vacationIndex === -1) return;
+
+    const vacation = data.vacations[vacationIndex];
+    const targetRange = vacation.ranges?.find((r) => r.id === rangeId);
+    if (!targetRange) return;
+
+    const daysToRemove = new Set<number>();
+    for (let d = targetRange.startDay; d <= targetRange.endDay; d++) {
+      daysToRemove.add(d);
+    }
+
+    vacation.ranges = (vacation.ranges || []).filter((r) => r.id !== rangeId);
+    vacation.daysOff = vacation.daysOff.filter((d) => !daysToRemove.has(d));
+
+    if (vacation.daysOff.length === 0) {
+      data.vacations.splice(vacationIndex, 1);
+    }
+
+    addAudit(data, state.locale, {
+      action: 'vacation',
+      day: targetRange.startDay,
+      oldValue: vacation.employeeCode,
+      newValue: getMatrixStoreText(state.locale, 'removeVacation'),
+    });
+    recalculateAllConflicts(data);
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `vac|${employeeId}|remove-range-${rangeId}`),
+      undoStack: pushUndo(state),
+    });
+  },
+
+  clearEmployeeVacations: (employeeId) => {
+    const state = get();
+    if (!state.data) return;
+    const data = cloneData(state.data);
+    const vacationIndex = data.vacations.findIndex((row) => row.employeeId === employeeId);
+    if (vacationIndex === -1) return;
+
+    const vacation = data.vacations[vacationIndex];
+    data.vacations.splice(vacationIndex, 1);
+
+    addAudit(data, state.locale, {
+      action: 'vacation',
+      day: 1,
+      oldValue: vacation.employeeCode,
+      newValue: getMatrixStoreText(state.locale, 'removeVacation'),
+    });
+    recalculateAllConflicts(data);
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `vac|${employeeId}|clear`),
       undoStack: pushUndo(state),
     });
   },

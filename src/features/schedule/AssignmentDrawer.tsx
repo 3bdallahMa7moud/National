@@ -259,6 +259,47 @@ function AssignmentDrawer({
             </div>
           </div>
 
+          {/* Shift Type Control Panel */}
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-ink">
+                اختر نوع الشفت (النهار، الليل، الإجازة، On-call، ...):
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(
+                [
+                  { key: 'morning', label: t('schedule:shiftColors.morning'), active: 'bg-emerald-600 text-white border-emerald-600' },
+                  { key: 'evening', label: t('schedule:shiftColors.evening'), active: 'bg-amber-600 text-white border-amber-600' },
+                  { key: 'night', label: t('schedule:shiftColors.night'), active: 'bg-purple-600 text-white border-purple-600' },
+                  { key: 'onCall', label: t('schedule:shiftColors.onCall'), active: 'bg-blue-600 text-white border-blue-600' },
+                  { key: 'vacation', label: t('schedule:shiftColors.vacation'), active: 'bg-yellow-500 text-white border-yellow-600' },
+                  { key: 'overtime', label: t('schedule:shiftColors.overtime'), active: 'bg-slate-700 text-white border-slate-700' },
+                ] as const
+              ).map((item) => {
+                const isSelected = primaryColorKey === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      setPrimaryColorKey(item.key);
+                      setSecondaryColorKey(item.key);
+                    }}
+                    className={cn(
+                      'rounded-md px-2 py-1.5 text-[11px] font-bold border transition-all truncate text-center',
+                      isSelected
+                        ? cn(item.active, 'shadow-sm scale-[1.02]')
+                        : 'bg-white text-slate-700 border-gray-200 hover:bg-slate-100 hover:border-gray-300',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Selected employees */}
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
@@ -267,8 +308,8 @@ function AssignmentDrawer({
             <div className="flex gap-2">
               {/* Primary slot */}
               <div className={cn(
-                'flex-1 rounded-lg border-2 border-dashed p-2.5 text-center text-xs',
-                primary ? 'border-primary-teal bg-primary-teal/5' : 'border-gray-300 bg-slate-50/50',
+                'flex-1 rounded-lg border-2 p-2.5 text-center text-xs transition-all',
+                primary ? 'border-primary-teal bg-primary-teal/5 shadow-sm' : 'border-dashed border-gray-300 bg-slate-50/50',
               )}>
                 {primary ? (
                   <div className="flex items-center justify-between">
@@ -286,22 +327,22 @@ function AssignmentDrawer({
                     {t('schedule:assignment.conflictWith', { facility: primaryConflict.conflict.facility, unit: primaryConflict.conflict.unit, shift: primaryConflict.conflict.shiftLabel })}
                   </div>
                 )}
-                {primary && (
+                <div className="mt-2">
                   <select
                     value={primaryColorKey}
                     onChange={(e) => setPrimaryColorKey(e.target.value as ShiftColorKey)}
-                    className="mt-2 h-7 w-full rounded border border-gray-300 bg-white px-2 text-[11px] focus:border-primary-teal focus:outline-none"
+                    className="h-7 w-full rounded border border-gray-300 bg-white px-2 text-[11px] font-bold text-ink focus:border-primary-teal focus:outline-none"
                   >
                     {SHIFT_COLOR_KEYS.map((key) => (
                       <option key={key} value={key}>{t(`schedule:shiftColors.${key}`)}</option>
                     ))}
                   </select>
-                )}
+                </div>
               </div>
               {/* Secondary slot */}
               <div className={cn(
-                'flex-1 rounded-lg border-2 border-dashed p-2.5 text-center text-xs',
-                secondary ? 'border-primary-teal bg-primary-teal/5' : 'border-gray-300 bg-slate-50/50',
+                'flex-1 rounded-lg border-2 p-2.5 text-center text-xs transition-all',
+                secondary ? 'border-primary-teal bg-primary-teal/5 shadow-sm' : 'border-dashed border-gray-300 bg-slate-50/50',
               )}>
                 {secondary ? (
                   <div className="flex items-center justify-between">
@@ -319,17 +360,17 @@ function AssignmentDrawer({
                     {t('schedule:assignment.conflictWith', { facility: secondaryConflict.conflict.facility, unit: secondaryConflict.conflict.unit, shift: secondaryConflict.conflict.shiftLabel })}
                   </div>
                 )}
-                {secondary && (
+                <div className="mt-2">
                   <select
                     value={secondaryColorKey}
                     onChange={(e) => setSecondaryColorKey(e.target.value as ShiftColorKey)}
-                    className="mt-2 h-7 w-full rounded border border-gray-300 bg-white px-2 text-[11px] focus:border-primary-teal focus:outline-none"
+                    className="h-7 w-full rounded border border-gray-300 bg-white px-2 text-[11px] font-bold text-ink focus:border-primary-teal focus:outline-none"
                   >
                     {SHIFT_COLOR_KEYS.map((key) => (
                       <option key={key} value={key}>{t(`schedule:shiftColors.${key}`)}</option>
                     ))}
                   </select>
-                )}
+                </div>
               </div>
             </div>
           </div>

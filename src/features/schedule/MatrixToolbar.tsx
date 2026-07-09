@@ -25,6 +25,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import Button from '@/components/ui/Button';
+import { SHIFT_COLOR_KEYS } from '@/lib/shiftColorOptions';
 import type { MatrixAdminMode, ShiftColorKey } from '@/types/scheduleMatrix';
 
 interface MatrixToolbarProps {
@@ -47,6 +48,8 @@ interface MatrixToolbarProps {
   onClearSelection: () => void;
   brushEmployeeCodes: string[];
   onClearBrush: () => void;
+  brushColorKey?: ShiftColorKey;
+  onBrushColorKeyChange?: (key: ShiftColorKey) => void;
   isBulkSelecting?: boolean;
   onToggleBulkSelect?: () => void;
   isExpanded?: boolean;
@@ -119,6 +122,8 @@ function MatrixToolbar({
   onToggleColorblindMode,
   onUndo,
   canUndo = false,
+  brushColorKey = 'morning',
+  onBrushColorKeyChange,
 }: MatrixToolbarProps) {
   const { t, i18n } = useTranslation(['schedule', 'common']);
   const isRtl = i18n.dir() === 'rtl';
@@ -319,6 +324,21 @@ function MatrixToolbar({
             >
               {isBulkSelecting ? t('schedule:toolbar.bulkSelectActiveLabel') : t('schedule:toolbar.selectRangeLabel')}
             </button>
+          )}
+
+          {(adminMode === 'edit' || adminMode === 'brush') && onBrushColorKeyChange && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-primary-teal/30 bg-primary-teal/5 px-2.5 py-1">
+              <span className="text-[11px] font-bold text-primary-teal">نوع الشفت عند التعيين:</span>
+              <select
+                value={brushColorKey}
+                onChange={(e) => onBrushColorKeyChange(e.target.value as ShiftColorKey)}
+                className="h-7 rounded border border-primary-teal/40 bg-white px-2 text-xs font-bold text-ink focus:border-primary-teal focus:outline-none"
+              >
+                {SHIFT_COLOR_KEYS.map((key) => (
+                  <option key={key} value={key}>{t(`schedule:shiftColors.${key}`)}</option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
 

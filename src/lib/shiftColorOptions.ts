@@ -6,6 +6,7 @@ export const SHIFT_COLOR_KEYS: ShiftColorKey[] = [
   'night',
   'onCall',
   'overtime',
+  'vacation',
 ];
 
 export function resolveAssignmentColorKey(
