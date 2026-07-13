@@ -13,6 +13,7 @@ import StatisticsCards from './components/StatisticsCards';
 import Filters from './components/Filters';
 import Legend from './components/Legend';
 import ScheduleTable from './components/grid/ScheduleTable';
+import EmployeeLegendPanel from './components/EmployeeLegendPanel';
 import SideDrawer from './components/SideDrawer';
 import ContextMenu from './components/ContextMenu';
 
@@ -21,7 +22,7 @@ export default function ScheduleManagementPage() {
   const {
     year, month, goToPrevMonth, goToNextMonth, goToToday,
     filters, setFilter, resetFilters,
-    searchQuery, setSearchQuery, highlightedEmployeeId,
+    searchQuery, setSearchQuery, highlightedEmployeeId, setHighlightedEmployeeId,
     collapsedDepartments, toggleDepartment,
     drawer, openDrawer, closeDrawer,
     contextMenu, openContextMenu, closeContextMenu,
@@ -32,6 +33,7 @@ export default function ScheduleManagementPage() {
   // Data fetching & prep
   const {
     departments,
+    employees,
     gridRows,
     stats,
     monthDays,
@@ -79,16 +81,27 @@ export default function ScheduleManagementPage() {
         </div>
       </div>
 
-      {/* 4. The Grid */}
-      <ScheduleTable
-        rows={gridRows}
-        monthDays={monthDays}
-        highlightedEmployeeId={highlightedEmployeeId}
-        onToggleDepartment={toggleDepartment}
-        collapsedDepartments={collapsedDepartments}
-        onCellClick={openDrawer}
-        onContextMenu={handleContextMenu}
-      />
+      {/* 4. The Grid & Right-hand Employee Legend */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
+        <div className="xl:col-span-3">
+          <ScheduleTable
+            rows={gridRows}
+            monthDays={monthDays}
+            highlightedEmployeeId={highlightedEmployeeId}
+            onToggleDepartment={toggleDepartment}
+            collapsedDepartments={collapsedDepartments}
+            onCellClick={openDrawer}
+            onContextMenu={handleContextMenu}
+          />
+        </div>
+        <div className="xl:col-span-1">
+          <EmployeeLegendPanel
+            employees={employees}
+            highlightedEmployeeId={highlightedEmployeeId}
+            onEmployeeClick={setHighlightedEmployeeId}
+          />
+        </div>
+      </div>
 
       {/* Overlays */}
       <SideDrawer drawer={drawer} onClose={closeDrawer} />

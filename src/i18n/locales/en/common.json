@@ -21,9 +21,10 @@
   "nav": {
     "dashboard": "Dashboard",
     "scheduleAdmin": "Schedule Management",
+    "lateSchedule": "OT Schedule",
     "employees": "Employees",
     "departments": "Departments",
-    "reports": "Reports",
+    "reports": "Employee Analysis",
     "auditLog": "Audit Log",
     "mySchedule": "My Schedule",
     "departmentSchedule": "Department Schedule",
@@ -33,12 +34,16 @@
   },
   "topbar": {
     "profile": "Profile",
-    "logout": "Log Out"
+    "logout": "Log Out",
+    "openNavigation": "Open navigation menu",
+    "userMenu": "Open user menu"
   },
   "sidebar": {
     "subtitle": "CT Scan Scheduling",
     "collapse": "Collapse menu",
-    "expand": "Expand menu"
+    "expand": "Expand menu",
+    "close": "Close navigation menu",
+    "navigation": "Primary navigation"
   },
   "hospital": {
     "name": "National Guard Hospital",
@@ -48,7 +53,7 @@
     "imageAlt": "National Guard Hospital - King Abdulaziz Medical City"
   },
   "shifts": {
-    "morning": "Morning",
+    "morning": "Day Shift",
     "evening": "Evening",
     "night": "Night",
     "oncall": "On-Call",
@@ -144,6 +149,35 @@
     "switchTo": "Switch to {{lang}}",
     "en": "English",
     "ar": "Arabic"
+  },
+  "lateSchedule": {
+    "assignment": {
+      "selectedEmployees": "Selected employees",
+      "maxTwo": "Choose one or two employees",
+      "unresolved": "Unresolved legacy codes:",
+      "search": "Search by name or code",
+      "cancel": "Cancel",
+      "clear": "Clear assignment",
+      "save": "Save assignment"
+    },
+    "validation": {
+      "titleRequired": "Shift title is required",
+      "locationRequired": "Location is required",
+      "timeRequired": "Time range is required",
+      "hoursInvalid": "Hours must be greater than zero"
+    },
+    "form": {
+      "addTitle": "Add OT shift",
+      "editTitle": "Edit OT shift",
+      "title": "Shift title",
+      "location": "Location",
+      "timeRange": "Time range",
+      "hours": "Hours",
+      "archive": "Archive OT shift",
+      "archiveConfirmText": "Archive this shift?",
+      "confirmArchive": "Confirm archive",
+      "save": "Save OT shift"
+    }
   },
   "theme": {
     "switch": "Appearance",

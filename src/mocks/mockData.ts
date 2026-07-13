@@ -1,5 +1,6 @@
 import type { Shift } from '@/types';
 import { getStoredLanguage } from '@/i18n/constants';
+import { verifyEmployeePassword } from './mockPasswordStore';
 import {
   mockDepartmentsSource,
   mockShiftTypesSource,
@@ -55,10 +56,24 @@ export const mockNotifications = resolveAll().notifications;
 /** @deprecated Use useMockData() for language-aware data */
 export const mockAuditLog = resolveAll().auditLog;
 
-export function mockLogin(email: string, password: string) {
-  if (password !== '123456') return null;
-  const source = mockEmployeesSource.find((e) => e.email === email);
+export function mockLogin(identifier: string, password: string) {
+  const input = identifier.trim().toLowerCase();
+
+  // Find the matching employee by email, employee number, or name
+  const source = mockEmployeesSource.find((e) => {
+    const nameEn = typeof e.name === 'object' ? (e.name as { en: string; ar: string }).en : '';
+    const nameAr = typeof e.name === 'object' ? (e.name as { en: string; ar: string }).ar : '';
+    const emailMatch  = e.email !== '' && e.email.toLowerCase() === input;
+    const empNumMatch = e.employeeNumber.toLowerCase() === input;
+    const nameMatch   = nameEn.toLowerCase() === input || nameAr === input;
+    return emailMatch || empNumMatch || nameMatch;
+  });
+
   if (!source) return null;
+
+  // Verify password against the mock password store (default: '123456')
+  if (!verifyEmployeePassword(source.id, password)) return null;
+
   const lang = getStoredLanguage();
   return {
     user: resolveAuthUser(source, lang),

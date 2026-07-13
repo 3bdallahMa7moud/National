@@ -5,22 +5,26 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import {
   LayoutDashboard, Calendar, Users, Building2, BarChart3, FileText,
-  RefreshCw, Bell, User, Menu, X
+  RefreshCw, Bell, User, Menu, X, Clock,
 } from 'lucide-react';
 import HospitalLogo from '@/components/common/HospitalLogo';
 
 const adminLinks = [
   { to: '/admin/dashboard', icon: LayoutDashboard, labelKey: 'common:nav.dashboard' },
   { to: '/admin/schedule', icon: Calendar, labelKey: 'common:nav.scheduleAdmin' },
+  { to: '/admin/late-schedule', icon: Clock, labelKey: 'common:nav.lateSchedule' },
   { to: '/admin/employees', icon: Users, labelKey: 'common:nav.employees' },
-  { to: '/admin/departments', icon: Building2, labelKey: 'common:nav.departments' },
   { to: '/admin/reports', icon: BarChart3, labelKey: 'common:nav.reports' },
+  { to: '/admin/departments', icon: Building2, labelKey: 'common:nav.departments' },
   { to: '/admin/audit-log', icon: FileText, labelKey: 'common:nav.auditLog' },
+  { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
 ] as const;
 
 const employeeLinks = [
+  { to: '/employee/dashboard', icon: LayoutDashboard, labelKey: 'common:nav.dashboard' },
   { to: '/schedule/me', icon: Calendar, labelKey: 'common:nav.mySchedule' },
   { to: '/schedule/department', icon: Users, labelKey: 'common:nav.departmentSchedule' },
+  { to: '/late-schedule', icon: Clock, labelKey: 'common:nav.lateSchedule' },
   { to: '/calendar-sync', icon: RefreshCw, labelKey: 'common:nav.calendarSync' },
   { to: '/notifications', icon: Bell, labelKey: 'common:nav.notifications' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
@@ -44,6 +48,7 @@ export default function Sidebar() {
               onClick={toggleSidebarCollapse}
               className="hidden lg:flex items-center justify-center rounded-btn p-1.5 text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
               title={t('common:sidebar.collapse')}
+              aria-label={t('common:sidebar.collapse')}
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -51,15 +56,17 @@ export default function Sidebar() {
         ) : (
           <button
             onClick={toggleSidebarCollapse}
-            className="hidden lg:flex items-center justify-center rounded-btn p-2 text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
-            title={t('common:sidebar.expand')}
+              className="hidden lg:flex items-center justify-center rounded-btn p-2 text-text-secondary transition-colors hover:bg-hover hover:text-text-primary"
+              title={t('common:sidebar.expand')}
+              aria-label={t('common:sidebar.expand')}
           >
             <Menu className="h-6 w-6 text-primary" />
           </button>
         )}
         <button
-          className="ms-auto rounded-btn p-1.5 text-text-secondary transition-colors hover:bg-hover hover:text-text-primary lg:hidden"
+          className="ms-auto inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          aria-label={t('common:sidebar.close')}
         >
           <X className="h-5 w-5" />
         </button>
@@ -99,6 +106,7 @@ export default function Sidebar() {
         <div
           className="fixed inset-0 z-40 bg-black/30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
@@ -109,6 +117,7 @@ export default function Sidebar() {
           'lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full lg:translate-x-0 lg:rtl:translate-x-0'
         )}
+        aria-label={t('common:sidebar.navigation')}
       >
         {sidebarContent}
       </aside>

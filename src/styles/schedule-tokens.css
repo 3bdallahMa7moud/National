@@ -70,31 +70,27 @@
   --facility-whh:   #453653;
 
   /* Shift chip colors. */
-  --chip-morning-bg:       #FDF1DC;
-  --chip-morning-text:     #8A5A0F;
-  --chip-evening-bg:       #EDECFB;
-  --chip-evening-text:     #3F3A99;
-  --chip-night-bg:         #E7E5F2;
-  --chip-night-text:       #2A2358;
-  --chip-oncall-bg:        #FBE7E0;
-  --chip-oncall-text:      #9C3413;
+  --chip-morning-bg:       #D4E6E6;
+  --chip-morning-text:     #173952;
+  --chip-morning-border:   #4BB8AC;
+  --chip-evening-bg:       #F9E298;
+  --chip-evening-text:     #6B4A00;
+  --chip-evening-border:   #FDB153;
+  --chip-night-bg:         #C9EAF9;
+  --chip-night-text:       #174A67;
+  --chip-night-border:     #7DABCB;
+  --chip-oncall-bg:        #FECD00;
+  --chip-oncall-text:      #2B2100;
+  --chip-oncall-border:    #D6A522;
+  --chip-oncall-night-bg:  #96D4F1;
+  --chip-oncall-night-text: #123D58;
+  --chip-oncall-night-border: #4590BA;
   --chip-overtime-bg:      #F8E1EA;
   --chip-overtime-text:    #7A1940;
+  --chip-overtime-border:  #D89AB3;
   --chip-vacation-bg:      #EEF0F2;
   --chip-vacation-text:    #4B535D;
-
-  --chip-morning-bg-dark:    #3A2E12;
-  --chip-morning-text-dark:  #E8B767;
-  --chip-evening-bg-dark:    #241F52;
-  --chip-evening-text-dark:  #B9B4F2;
-  --chip-night-bg-dark:      #1C1740;
-  --chip-night-text-dark:    #A9A2D9;
-  --chip-oncall-bg-dark:     #3A2318;
-  --chip-oncall-text-dark:   #F0A583;
-  --chip-overtime-bg-dark:   #401B2C;
-  --chip-overtime-text-dark: #F0A8C6;
-  --chip-vacation-bg-dark:   #232A33;
-  --chip-vacation-text-dark: #B7C0C9;
+  --chip-vacation-border:    #B7C0C9;
 
   /* Grid layout constants. */
   --matrix-facility-col:  40px;
@@ -117,9 +113,9 @@
   --color-surface-muted: 20 29 41;
   --color-surface-elevated: 18 27 39;
   --color-text-primary: 232 241 244;
-  --color-text-secondary: 151 164 177;
-  --color-text-muted: 119 132 146;
-  --color-border: 45 59 72;
+  --color-text-secondary: 183 196 207;
+  --color-text-muted: 151 164 177;
+  --color-border: 62 79 94;
   --color-hover: 22 42 51;
   --color-ring: 34 211 216;
   --color-shadow: 0 0 0;
@@ -173,18 +169,27 @@
   --facility-kasch: #0F6675;
   --facility-whh:   #392F48;
 
-  --chip-morning-bg:       #3A2E12;
-  --chip-morning-text:     #E8B767;
-  --chip-evening-bg:       #241F52;
-  --chip-evening-text:     #B9B4F2;
-  --chip-night-bg:         #1C1740;
-  --chip-night-text:       #A9A2D9;
-  --chip-oncall-bg:        #3A2318;
-  --chip-oncall-text:      #F0A583;
+  --chip-morning-bg:       #17383D;
+  --chip-morning-text:     #BEE4E2;
+  --chip-morning-border:   #4BB8AC;
+  --chip-evening-bg:       #3A2E12;
+  --chip-evening-text:     #FBE39C;
+  --chip-evening-border:   #A97821;
+  --chip-night-bg:         #15384C;
+  --chip-night-text:       #BFE8FB;
+  --chip-night-border:     #5E9BC2;
+  --chip-oncall-bg:        #4A3A00;
+  --chip-oncall-text:      #FFE782;
+  --chip-oncall-border:    #B99100;
+  --chip-oncall-night-bg:  #163E56;
+  --chip-oncall-night-text: #BFE9FF;
+  --chip-oncall-night-border: #4D9BC5;
   --chip-overtime-bg:      #401B2C;
-  --chip-overtime-text:    #F0A8C6;
+  --chip-overtime-text:    #FFC1D9;
+  --chip-overtime-border:  #A75578;
   --chip-vacation-bg:      #232A33;
-  --chip-vacation-text:    #B7C0C9;
+  --chip-vacation-text:    #D5DCE3;
+  --chip-vacation-border:  #66717D;
 
   --weekend-tint: rgba(91, 100, 114, 0.14);
   --today-tint:   rgba(34, 211, 216, 0.10);
@@ -221,12 +226,15 @@
 }
 
 .facility-vertical-label {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
   white-space: nowrap;
   letter-spacing: 0.08em;
   font-weight: 700;
   font-size: 11px;
   text-transform: uppercase;
+}
+
+.facility-vertical-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
 }

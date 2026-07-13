@@ -4,6 +4,14 @@ import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
 export const ROW_LABEL_I18N: Record<string, { ar: string; en: string }> = {
   'فريق إضافي': { ar: 'فريق إضافي', en: 'Extra Team' },
   'احتياطي': { ar: 'احتياطي', en: 'Reserve' },
+  'Day Shift': { ar: 'الوردية النهارية', en: 'Day Shift' },
+  'Late Shift': { ar: 'الوردية المسائية', en: 'Late Shift' },
+  'Night Shift': { ar: 'الوردية الليلية', en: 'Night Shift' },
+  'IN-OnCall Day': { ar: 'استدعاء داخلي نهاري', en: 'IN On-call Day' },
+  'ER-OnCall Day': { ar: 'استدعاء الطوارئ نهاري', en: 'ER On-call Day' },
+  'Night OnCall': { ar: 'استدعاء ليلي', en: 'Night On-call' },
+  'Weekend Day': { ar: 'عطلة نهارية', en: 'Weekend Day' },
+  'Weekend Night': { ar: 'عطلة ليلية', en: 'Weekend Night' },
 };
 
 export function localizeRowLabel(label: string, lang: Language): string {
@@ -36,10 +44,24 @@ export function resolveScheduleMatrixLocale(
       ...facility,
       units: facility.units.map((unit) => ({
         ...unit,
+        name: localizeRowLabel(unit.name, lang),
         rows: unit.rows.map((row) => ({
           ...row,
+          unitLabel: localizeRowLabel(row.unitLabel, lang),
           rowLabel: localizeRowLabel(row.rowLabel, lang),
+          shiftLabel: localizeRowLabel(row.shiftLabel, lang),
         })),
+      })),
+    })),
+    settings: data.settings.map((setting) => ({
+      ...setting,
+      shiftDefinitions: setting.shiftDefinitions.map((shift) => ({
+        ...shift,
+        label: localizeRowLabel(shift.label, lang),
+      })),
+      units: setting.units.map((unit) => ({
+        ...unit,
+        name: localizeRowLabel(unit.name, lang),
       })),
     })),
     auditLog: data.auditLog.map((entry) => ({
@@ -143,7 +165,7 @@ export function formatVacationDaysMessage(
 
 export function formatSettingsMessage(
   lang: Language,
-  action: 'addShift' | 'updateShift' | 'addUnit' | 'renameUnit' | 'archiveUnit',
+  action: 'addShift' | 'updateShift' | 'addUnit' | 'renameUnit' | 'archiveUnit' | 'restoreUnit',
   value: string,
 ): string {
   const map = {
@@ -152,6 +174,7 @@ export function formatSettingsMessage(
     addUnit: { ar: `إضافة وحدة ${value}`, en: `Added unit ${value}` },
     renameUnit: { ar: `إعادة تسمية وحدة ${value}`, en: `Renamed unit ${value}` },
     archiveUnit: { ar: `أرشفة وحدة ${value}`, en: `Archived unit ${value}` },
+    restoreUnit: { ar: `استعادة وحدة ${value}`, en: `Restored unit ${value}` },
   };
   const entry = map[action];
   return lang === 'ar' ? entry.ar : entry.en;

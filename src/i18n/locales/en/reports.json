@@ -1,5 +1,5 @@
 {
-  "title": "Reports & Statistics",
+  "title": "Employee Analysis",
   "subtitle": "Performance analysis and shift distribution in the CT Scan department",
   "export": "Export Report",
   "months": {
@@ -25,11 +25,133 @@
   },
   "audit": {
     "title": "Audit Log",
-    "subtitle": "Complete tracking of all changes and actions on the schedule and system",
-    "realtimeActive": "Real-time tracking active",
-    "searchPlaceholder": "Search log (employee, description, value)...",
-    "filterAll": "All",
-    "noResults": "No entries match your search",
-    "noResultsHint": "Try changing search terms or resetting the action filter"
+    "subtitle": "A unified history of Schedule, OT, employee, profile, and settings changes.",
+    "matching_one": "{{count}} matching entry",
+    "matching_other": "{{count}} matching entries",
+    "noResults": "No audit entries match these filters",
+    "noResultsHint": "Change or reset the filters to view more activity.",
+    "filters": {
+      "title": "Filters",
+      "search": "Search audit log",
+      "from": "From date",
+      "to": "To date",
+      "actor": "Actor",
+      "action": "Action",
+      "module": "Module",
+      "allActors": "All actors",
+      "allActions": "All actions",
+      "allModules": "All modules",
+      "reset": "Reset filters"
+    },
+    "summary": {
+      "created_one": "{{count}} created",
+      "created_other": "{{count}} created",
+      "updated_one": "{{count}} updated",
+      "updated_other": "{{count}} updated",
+      "archived_one": "{{count}} archived or deleted",
+      "archived_other": "{{count}} archived or deleted",
+      "restored_one": "{{count}} restored",
+      "restored_other": "{{count}} restored"
+    },
+    "actions": {
+      "create": "Created",
+      "update": "Updated",
+      "delete": "Deleted",
+      "assign": "Assigned",
+      "clear": "Cleared",
+      "archive": "Archived",
+      "restore": "Restored",
+      "publish": "Published",
+      "discard": "Discarded",
+      "vacation": "Vacation",
+      "settings": "Settings",
+      "undo": "Undone"
+    },
+    "modules": {
+      "schedule": "Schedule",
+      "ot": "OT",
+      "employees": "Employees",
+      "profile": "Profile",
+      "settings": "Settings"
+    },
+    "details": {
+      "title": "Audit entry details",
+      "view": "View details for {{entity}}",
+      "close": "Close details",
+      "entity": "Affected item",
+      "actor": "Actor",
+      "action": "Action",
+      "timestamp": "Timestamp",
+      "before": "Before",
+      "after": "After",
+      "notAvailable": "Not available",
+      "facility": "Facility ID",
+      "unit": "Unit ID",
+      "row": "Row ID",
+      "day": "Day",
+      "openRelated": "Open related screen"
+    }
+  },
+  "analysis": {
+    "tabs": {
+      "overview": "Overview & Charts",
+      "workloadMatrix": "Employee Workload Table",
+      "equityReport": "Shift Equity & Fairness"
+    },
+    "actions": {
+      "exportExcel": "Export Excel",
+      "exportPdf": "PDF / Print",
+      "openSchedule": "Open Schedule Management",
+      "openOTSchedule": "Open OT Schedule"
+    },
+    "liveDataHint": "This analysis updates automatically from both schedule editors.",
+    "emptyLiveData": "No assignments in Schedule Management or OT Schedule for this period.",
+    "kpi": {
+      "fairnessTitle": "Shift Fairness Score",
+      "fairnessValue": "94% Balanced",
+      "fairnessHint": "Equitable night & weekend distribution across team"
+    },
+    "filters": {
+      "searchPlaceholder": "Search employee by name or code...",
+      "allWorkload": "All Workload Levels",
+      "balanced": "Balanced",
+      "high": "High Workload",
+      "under": "Under-utilized"
+    },
+    "table": {
+      "employee": "Employee",
+      "code": "Abbreviation",
+      "morning": "Day Shift",
+      "evening": "Evening",
+      "night": "Night",
+      "weekend": "Weekend",
+      "oncall": "On-Call",
+      "onCallDay": "On-call Day",
+      "onCallNight": "On-call Night",
+      "matrixOT": "Matrix OT",
+      "otScheduleShifts": "OT Schedule Shifts",
+      "otScheduleHours": "OT Hours",
+      "vacationDays": "Vacation Days",
+      "source": "Source",
+      "sources": {
+        "schedule": "Schedule Management",
+        "ot": "OT Schedule",
+        "both": "Both schedules",
+        "none": "No assignments"
+      },
+      "overtime": "Overtime",
+      "status": "Workload Status",
+      "totalShifts": "Total Shifts",
+      "noResults": "No employees found matching filter"
+    },
+    "equity": {
+      "title": "Shift Equity & Weekend Distribution Audit",
+      "subtitle": "Comparing night shifts and weekends per employee to ensure fair rotation",
+      "nightShare": "Night Shifts Share",
+      "weekendShare": "Weekend Coverage",
+      "equityStatus": "Fairness Audit",
+      "fair": "Optimal Rotation",
+      "review": "Needs Review"
+    }
   }
 }

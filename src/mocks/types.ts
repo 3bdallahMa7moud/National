@@ -25,16 +25,18 @@ export interface MockShiftTypeSource {
 export interface MockEmployeeSource {
   id: string;
   name: LocalizedText;
-  email: string;
+  email: string;       // can be empty string '' if employee hasn't set it yet
   phone: string;
   role: UserRole;
   departmentId: string;
   departmentName: LocalizedText;
   position: LocalizedText;
   employeeNumber: string;
+  code: string;        // الاختصار (abbreviation, e.g. AH, MK)
   avatar?: string;
   isActive: boolean;
   createdAt: string;
+  scheduleEmployeeId?: string;
 }
 
 export interface MockNotificationSource {

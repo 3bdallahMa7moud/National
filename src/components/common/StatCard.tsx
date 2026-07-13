@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface StatCardProps {
   title: string;
@@ -19,15 +20,18 @@ const colorMap = {
 };
 
 export default function StatCard({ title, value, icon: Icon, change, color = 'primary', className }: StatCardProps) {
+  const { i18n } = useTranslation();
   const colors = colorMap[color];
+  const formatter = new Intl.NumberFormat(i18n.language === 'ar' ? 'ar-SA' : 'en-US');
+  const displayedValue = typeof value === 'number' ? formatter.format(value) : value;
   return (
     <div className={cn('card flex min-h-[118px] items-start justify-between gap-4', className)}>
       <div className="min-w-0">
         <p className="text-xs font-medium text-text-secondary">{title}</p>
-        <p className="mt-2 text-2xl font-semibold leading-none text-text-primary">{value}</p>
+        <p className="mt-2 text-2xl font-semibold leading-none text-text-primary">{displayedValue}</p>
         {change && (
           <p className={cn('mt-3 text-xs font-medium', change.value >= 0 ? 'text-success' : 'text-danger')}>
-            {change.value >= 0 ? '↑' : '↓'} {Math.abs(change.value)}% {change.label}
+            {change.value >= 0 ? '↑' : '↓'} {formatter.format(Math.abs(change.value))}% {change.label}
           </p>
         )}
       </div>

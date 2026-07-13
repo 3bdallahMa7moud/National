@@ -4,14 +4,20 @@
 
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
+import type { HolidayRange } from '@/types/scheduleMatrix';
 
 interface DayHeaderRowProps {
   daysInMonth: number;
   year: number;
   month: number; // 0-indexed
+  holidays?: HolidayRange[];
 }
 
-function DayHeaderRow({ daysInMonth, year, month }: DayHeaderRowProps) {
+function DayHeaderRow({ daysInMonth, year, month, holidays = [] }: DayHeaderRowProps) {
+  const { i18n } = useTranslation();
+  const locale = i18n.language === 'ar' ? 'ar-SA-u-ca-gregory' : 'en-US';
+  const numberFormatter = new Intl.NumberFormat(locale, { useGrouping: false });
   const today = new Date();
   const todayDay = today.getFullYear() === year && today.getMonth() === month ? today.getDate() : -1;
 
@@ -23,16 +29,23 @@ function DayHeaderRow({ daysInMonth, year, month }: DayHeaderRowProps) {
         const dow = date.getDay();
         const isWeekend = dow === 5 || dow === 6; // Fri, Sat
         const isToday = day === todayDay;
+        const holiday = holidays.find((item) => day >= item.startDay && day <= item.endDay);
+        const isHolidayStart = holiday?.startDay === day;
+        const holidayLabel = holiday && i18n.language === 'ar' ? (holiday.labelAr || holiday.label) : holiday?.label;
 
         return (
           <div
             key={day}
+            data-testid={`day-header-${day}`}
+            data-holiday-day={holiday ? day : undefined}
             className={cn(
-              'flex flex-col items-center justify-center text-center select-none',
+              'relative flex flex-col items-center justify-center text-center select-none',
               'border-b border-e border-border',
               isWeekend && 'bg-[var(--weekend-tint)]',
+              holiday && 'bg-amber-100/80 dark:bg-amber-950/35',
               isToday && 'bg-[var(--today-tint)]',
-              !isWeekend && !isToday && 'bg-surface',
+              !isWeekend && !isToday && !holiday && 'bg-surface',
+              holidays.length > 0 && 'pt-4',
             )}
             style={{
               minWidth: 'var(--matrix-day-col)',
@@ -40,18 +53,27 @@ function DayHeaderRow({ daysInMonth, year, month }: DayHeaderRowProps) {
               height: 'var(--matrix-header-height)',
             }}
           >
+            {isHolidayStart && holiday && (
+              <span
+                className="absolute inset-inline-start-0 top-0 z-10 flex h-4 items-center justify-center overflow-hidden border-b border-amber-300 bg-amber-300 px-1 text-[8px] font-extrabold uppercase tracking-wide text-amber-950 dark:border-amber-700 dark:bg-amber-800 dark:text-amber-50"
+                style={{ width: `calc(var(--matrix-day-col) * ${holiday.endDay - holiday.startDay + 1})` }}
+                title={holidayLabel}
+              >
+                {holidayLabel}
+              </span>
+            )}
             <span className={cn(
               'text-[10px] font-medium',
               isToday ? 'text-primary-teal' : isWeekend ? 'text-alert-coral font-semibold' : 'text-text-secondary',
             )}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dow]}
+              {new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date)}
             </span>
             <span className={cn(
               'text-xs font-bold mt-0.5',
               isToday && 'bg-primary-teal text-white w-5 h-5 rounded-full flex items-center justify-center',
               !isToday && 'text-ink',
             )}>
-              {day}
+              {numberFormatter.format(day)}
             </span>
           </div>
         );

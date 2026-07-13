@@ -5,7 +5,7 @@
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-import type { VacationRow, MatrixAdminMode } from '@/types/scheduleMatrix';
+import type { VacationRow, MatrixAdminMode, HolidayRange } from '@/types/scheduleMatrix';
 
 interface VacationBandProps {
   vacations: VacationRow[];
@@ -14,6 +14,7 @@ interface VacationBandProps {
   month: number;
   adminMode: MatrixAdminMode;
   onVacationToggle: (employeeId: string, day: number) => void;
+  holidays?: HolidayRange[];
 }
 
 function VacationBand({
@@ -23,6 +24,7 @@ function VacationBand({
   month,
   adminMode,
   onVacationToggle,
+  holidays = [],
 }: VacationBandProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const today = new Date();
@@ -51,7 +53,9 @@ function VacationBand({
             insetInlineStart: 0,
           }}
         >
-          {t('schedule:matrix.vacationsBand')}
+          <span className="facility-vertical-text sticky top-[calc(var(--matrix-header-height)+8px)]">
+            {t('schedule:matrix.vacationsBand')}
+          </span>
         </div>
 
         {/* Rows container */}
@@ -88,6 +92,7 @@ function VacationBand({
                 const dow = date.getDay();
                 const isWeekend = dow === 5 || dow === 6;
                 const isToday = day === todayDay;
+                const isHoliday = holidays.some((holiday) => day >= holiday.startDay && day <= holiday.endDay);
 
                 return (
                   <div
@@ -97,8 +102,9 @@ function VacationBand({
                       'border-b border-e border-border',
                       'transition-colors duration-100',
                       isWeekend && 'bg-[var(--weekend-tint)]',
+                      isHoliday && 'bg-amber-100/60 dark:bg-amber-950/25',
                       isToday && 'bg-[var(--today-tint)]',
-                      !isWeekend && !isToday && !isOff && 'bg-[var(--empty-cell-bg)]',
+                      !isWeekend && !isToday && !isHoliday && !isOff && 'bg-[var(--empty-cell-bg)]',
                       isVacationMode && 'cursor-pointer hover:bg-primary-teal/5',
                     )}
                     style={{

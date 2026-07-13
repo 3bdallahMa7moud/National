@@ -19,6 +19,8 @@
   },
   "labels": {
     "fullName": "Full name",
+    "username": "Username",
+    "code": "Abbreviation (Code)",
     "phoneNumber": "Phone number",
     "currentPassword": "Current password",
     "newPassword": "New password",

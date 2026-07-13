@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { X, AlertTriangle, CheckCircle, Info, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export interface ToastMessage {
   id: string;
@@ -16,6 +17,8 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | null>(null);
 
+// Shared with feature hooks; keeping the provider and hook together avoids duplicate contexts.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error('useToast must be used within ToastProvider');
@@ -39,6 +42,7 @@ const styles = {
 };
 
 function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: string) => void }) {
+  const { t } = useTranslation(['common']);
   const Icon = icons[toast.type];
 
   useEffect(() => {
@@ -50,6 +54,8 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
 
   return (
     <div
+      role={toast.type === 'error' || toast.type === 'urgent' ? 'alert' : 'status'}
+      aria-live={toast.type === 'error' || toast.type === 'urgent' ? 'assertive' : 'polite'}
       className={cn(
         'flex items-start gap-3 p-4 rounded-card border-s-4 shadow-dropdown min-w-[320px] max-w-[420px] animate-toastIn',
         styles[toast.type]
@@ -60,7 +66,11 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
         <p className="text-sm font-semibold">{toast.title}</p>
         {toast.message && <p className="text-xs mt-0.5 opacity-80">{toast.message}</p>}
       </div>
-      <button onClick={() => onDismiss(toast.id)} className="flex-shrink-0 p-0.5 rounded hover:opacity-70">
+      <button
+        onClick={() => onDismiss(toast.id)}
+        className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded hover:opacity-70 focus:outline-none focus:ring-2 focus:ring-current/30"
+        aria-label={t('common:actions.close')}
+      >
         <X className="w-4 h-4" />
       </button>
     </div>

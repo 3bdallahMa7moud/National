@@ -36,6 +36,7 @@ export function resolveEmployee(emp: MockEmployeeSource, lang: Language): Employ
     departmentName: getLocalizedText(emp.departmentName, lang),
     position: getLocalizedText(emp.position, lang),
     employeeNumber: emp.employeeNumber,
+    code: emp.code,
     avatar: emp.avatar,
     isActive: emp.isActive,
     createdAt: emp.createdAt,
@@ -115,7 +116,9 @@ export function resolveAuthUser(emp: MockEmployeeSource, lang: Language): AuthUs
     role: resolved.role,
     departmentId: resolved.departmentId,
     departmentName: resolved.departmentName ?? getLocalizedText(emp.departmentName, lang),
+    code: resolved.code,
     avatar: resolved.avatar,
+    scheduleEmployeeId: emp.scheduleEmployeeId,
   };
 }
 

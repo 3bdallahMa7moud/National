@@ -9,9 +9,10 @@ import { AlertTriangle, CalendarDays, Check, Clock3, MapPin, Search, X } from 'l
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { validateAssignment } from '@/lib/validateAssignment';
-import { SHIFT_COLOR_KEYS } from '@/lib/shiftColorOptions';
+import { getShiftChipStyle } from '@/components/schedule/ScheduleMatrix/getShiftChipClasses';
 import type {
   Assignment,
+  LegendEmployee,
   ScheduleMatrixData,
   ShiftColorKey,
   ValidateResult,
@@ -37,7 +38,7 @@ interface AssignmentDrawerProps {
   /** Current assignments in this cell */
   currentAssignments: Assignment[];
   /** Legend for the employee list */
-  legend: { code: string; fullName: string }[];
+  legend: LegendEmployee[];
   /** Callback to save */
   onSave: (rowId: string, day: number, assignments: Assignment[]) => void;
   /** Callback to clear */
@@ -58,56 +59,13 @@ function AssignmentDrawer({
   const [search, setSearch] = useState('');
   const [primary, setPrimary] = useState<string | null>(null);
   const [secondary, setSecondary] = useState<string | null>(null);
-  const [primaryColorKey, setPrimaryColorKey] = useState<ShiftColorKey>('morning');
-  const [secondaryColorKey, setSecondaryColorKey] = useState<ShiftColorKey>('morning');
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-
-  const shiftOptions = [
-    {
-      key: 'morning' as const,
-      label: t('schedule:shiftColors.morning'),
-      dot: 'bg-shift-morning',
-      active: 'border-shift-morning bg-shift-morning/15 ring-shift-morning/20',
-    },
-    {
-      key: 'evening' as const,
-      label: t('schedule:shiftColors.evening'),
-      dot: 'bg-shift-evening',
-      active: 'border-shift-evening bg-shift-evening/15 ring-shift-evening/20',
-    },
-    {
-      key: 'night' as const,
-      label: t('schedule:shiftColors.night'),
-      dot: 'bg-shift-night',
-      active: 'border-shift-night bg-shift-night/15 ring-shift-night/20',
-    },
-    {
-      key: 'onCall' as const,
-      label: t('schedule:shiftColors.onCall'),
-      dot: 'bg-shift-oncall',
-      active: 'border-shift-oncall bg-shift-oncall/15 ring-shift-oncall/20',
-    },
-    {
-      key: 'vacation' as const,
-      label: t('schedule:shiftColors.vacation'),
-      dot: 'bg-shift-vacation',
-      active: 'border-shift-vacation bg-shift-vacation/15 ring-shift-vacation/20',
-    },
-    {
-      key: 'overtime' as const,
-      label: t('schedule:shiftColors.overtime'),
-      dot: 'bg-shift-overtime',
-      active: 'border-shift-overtime bg-shift-overtime/15 ring-shift-overtime/20',
-    },
-  ];
 
   useEffect(() => {
     if (isOpen && cell) {
       setPrimary(currentAssignments[0]?.employeeCode || null);
       setSecondary(currentAssignments[1]?.employeeCode || null);
-      setPrimaryColorKey(currentAssignments[0]?.colorKey || cell.defaultColorKey);
-      setSecondaryColorKey(currentAssignments[1]?.colorKey || cell.defaultColorKey);
       setSearch('');
     }
   }, [isOpen, cell, currentAssignments]);
@@ -132,8 +90,8 @@ function AssignmentDrawer({
         }
       }
     }
-    legend.forEach((employee, index) => {
-      if (!map.has(employee.code)) map.set(employee.code, `emp-m-${index + 1}`);
+    legend.forEach((employee) => {
+      if (!map.has(employee.code)) map.set(employee.code, employee.employeeId);
     });
     return map;
   }, [data, legend]);
@@ -203,19 +161,17 @@ function AssignmentDrawer({
         assignments.push({
           employeeId: codeToId.get(primaryCode) || '',
           employeeCode: primaryCode,
-          colorKey: primaryColorKey,
         });
       }
       if (secondaryCode) {
         assignments.push({
           employeeId: codeToId.get(secondaryCode) || '',
           employeeCode: secondaryCode,
-          colorKey: secondaryColorKey,
         });
       }
       return assignments;
     },
-    [codeToId, primaryColorKey, secondaryColorKey],
+    [codeToId],
   );
 
   const handleSave = () => {
@@ -266,8 +222,6 @@ function AssignmentDrawer({
   const renderSlot = (
     label: string,
     code: string | null,
-    colorKey: ShiftColorKey,
-    onColorChange: (value: ShiftColorKey) => void,
     onRemove: () => void,
     conflict: ValidateResult | null,
   ) => {
@@ -311,18 +265,6 @@ function AssignmentDrawer({
             {t('schedule:assignment.emptySlot')}
           </div>
         )}
-
-        <select
-          value={colorKey}
-          onChange={(event) => onColorChange(event.target.value as ShiftColorKey)}
-          className="h-9 w-full rounded-lg border border-border bg-surface px-3 text-xs font-bold text-text-primary outline-none transition-colors focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/15"
-        >
-          {SHIFT_COLOR_KEYS.map((key) => (
-            <option key={key} value={key}>
-              {t(`schedule:shiftColors.${key}`)}
-            </option>
-          ))}
-        </select>
 
         {renderConflict(conflict)}
       </div>
@@ -379,37 +321,19 @@ function AssignmentDrawer({
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <section className="rounded-xl border border-border bg-surface-muted/35 p-3">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-text-primary">{t('schedule:assignment.shiftType')}</h3>
-                <p className="mt-0.5 text-xs font-medium text-text-secondary">
-                  {t('schedule:assignment.shiftTypeHint')}
-                </p>
-              </div>
+            <div>
+              <h3 className="text-sm font-bold text-text-primary">{t('schedule:assignment.shiftType')}</h3>
+              <p className="mt-0.5 text-xs font-medium text-text-secondary">
+                {t('schedule:assignment.shiftColorFromRow')}
+              </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {shiftOptions.map((item) => {
-                const isSelected = primaryColorKey === item.key && secondaryColorKey === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => {
-                      setPrimaryColorKey(item.key);
-                      setSecondaryColorKey(item.key);
-                    }}
-                    className={cn(
-                      'flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-start text-xs font-bold leading-4 outline-none transition-colors focus:ring-2',
-                      isSelected
-                        ? cn(item.active, 'text-text-primary ring-2')
-                        : 'border-border bg-surface text-text-secondary hover:border-primary-teal/45 hover:bg-hover hover:text-text-primary focus:ring-primary-teal/20',
-                    )}
-                  >
-                    <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', item.dot)} />
-                    <span className="min-w-0">{item.label}</span>
-                  </button>
-                );
-              })}
+            <div
+              className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold"
+              style={getShiftChipStyle(cell.defaultColorKey)}
+              data-testid="row-shift-color"
+            >
+              <span className="h-2.5 w-2.5 rounded-full bg-current" aria-hidden="true" />
+              <span>{t(`schedule:shiftColors.${cell.defaultColorKey}`)}</span>
             </div>
           </section>
 
@@ -434,16 +358,12 @@ function AssignmentDrawer({
               {renderSlot(
                 t('schedule:assignment.primary'),
                 primary,
-                primaryColorKey,
-                setPrimaryColorKey,
                 handleRemovePrimary,
                 primaryConflict,
               )}
               {renderSlot(
                 t('schedule:assignment.secondary'),
                 secondary,
-                secondaryColorKey,
-                setSecondaryColorKey,
                 handleRemoveSecondary,
                 secondaryConflict,
               )}

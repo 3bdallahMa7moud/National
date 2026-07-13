@@ -23,12 +23,11 @@ export default function ConfirmDialog({
   const { t } = useTranslation(['common']);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} size="sm" title={title}>
       <div className="text-center">
         <div className={`mx-auto p-3 rounded-full w-fit mb-4 ${variant === 'danger' ? 'bg-danger-50' : 'bg-warning-50'}`}>
           <AlertTriangle className={`w-8 h-8 ${variant === 'danger' ? 'text-danger' : 'text-warning'}`} />
         </div>
-        <h3 className="text-lg font-semibold text-text-primary mb-2">{title}</h3>
         <p className="text-sm text-text-secondary mb-6">{message}</p>
         <div className="flex gap-3 justify-center">
           <Button variant="secondary" onClick={onClose} disabled={loading}>

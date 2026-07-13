@@ -7,7 +7,6 @@ import NotificationCenter from '@/components/common/NotificationCenter';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import { useMockData } from '@/hooks/useMockData';
-import type { AppNotification } from '@/types';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useTranslation } from 'react-i18next';
 
@@ -52,7 +51,8 @@ export default function Topbar() {
         <div className="flex items-center gap-3">
           <button
             onClick={toggleSidebar}
-            className="rounded-btn p-2 transition-colors hover:bg-hover lg:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-btn transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30 lg:hidden"
+            aria-label={t('common:topbar.openNavigation')}
           >
             <Menu className="h-5 w-5 text-text-secondary" />
           </button>
@@ -76,7 +76,9 @@ export default function Topbar() {
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 rounded-btn border border-transparent p-1.5 transition-colors hover:border-border hover:bg-hover"
+              className="flex min-h-11 items-center gap-2 rounded-btn border border-transparent p-1.5 transition-colors hover:border-border hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
+              aria-label={t('common:topbar.userMenu')}
+              aria-expanded={showUserMenu}
             >
               {user?.avatar ? (
                 <img src={user.avatar} alt="Avatar" className="h-8 w-8 rounded-btn object-cover border border-border" />
@@ -95,7 +97,7 @@ export default function Topbar() {
 
             {showUserMenu && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} aria-hidden="true" />
                 <div className="absolute end-0 top-full z-50 mt-2 w-48 max-w-[calc(100vw-2rem)] overflow-hidden rounded-card border border-border bg-surface shadow-dropdown">
                   <button
                     onClick={() => { navigate('/profile'); setShowUserMenu(false); }}

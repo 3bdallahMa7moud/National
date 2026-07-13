@@ -15,7 +15,7 @@ export const SHIFT_THEMES: Record<ShiftCategory, ShiftTheme> = {
     border: 'border-blue-200 dark:border-blue-800',
     hex: '#3B82F6',
     label: 'M',
-    fullLabel: 'Morning',
+    fullLabel: 'Day Shift',
     icon: 'Sun',
   },
   evening: {

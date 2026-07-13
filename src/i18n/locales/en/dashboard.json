@@ -1,32 +1,69 @@
 {
-  "title": "Admin Dashboard",
   "department": "CT Scan Department",
-  "activeTechnicians": "{{count}} active technicians",
-  "welcome": "Welcome {{name}}, here's a brief operational overview of today's shift coverage and schedule activity.",
-  "actions": {
-    "manageSchedule": "Manage Schedule",
-    "addEmployee": "Add Employee"
+  "lastPublished": "Last published {{value}}",
+  "notPublished": "No publication recorded",
+  "operationalDate": "Operational date",
+  "missingSchedule": "No published Schedule data for this date",
+  "commandCenter": {
+    "title": "Operations command center",
+    "description": "See today's real coverage, resolve gaps, and open the exact schedule item that needs attention."
   },
-  "stats": {
-    "totalTechnicians": "Total Technicians",
-    "vsLastMonth": "vs last month",
-    "todayShifts": "Today's Scheduled Shifts",
-    "onCallCoverage": "On-Call Coverage",
-    "onCallCount": "{{count}} shifts"
+  "actions": { "openSchedule": "Open Schedule", "reviewOt": "Review OT" },
+  "coverage": {
+    "title": "Today's coverage",
+    "description": "Select a shift to focus the schedule below.",
+    "ariaLabel": "{{shift}} coverage",
+    "noPublishedData": "No published data",
+    "assignments_one": "{{count}} assignment",
+    "assignments_other": "{{count}} assignments",
+    "hours_one": "{{count}} hour",
+    "hours_other": "{{count}} hours",
+    "uncovered_one": "{{count}} uncovered",
+    "uncovered_other": "{{count}} uncovered",
+    "fullyCovered": "Fully covered",
+    "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCall": "On-call", "ot": "OT" }
   },
-  "todayRoster": {
-    "title": "Today's On-Duty Staff",
-    "viewMonthly": "View monthly schedule",
-    "columns": {
-      "employee": "Employee",
-      "position": "Title",
-      "shift": "Shift",
-      "timing": "Time"
-    },
-    "defaultPosition": "CT Scan Technician"
+  "shiftGroups": {
+    "title": "Today's shift groups",
+    "description": "Assignments and coverage gaps grouped by operational shift.",
+    "summary": "{{assignments}} assigned · {{issues}} issues",
+    "uncoveredSlot": "Uncovered slot",
+    "resolveGap": "Resolve {{shift}} gap",
+    "openAssignment": "Open {{employee}} assignment",
+    "conflict": "Schedule conflict",
+    "approvedAbsence": "Assigned during approved vacation",
+    "unresolvedEmployee": "Employee needs reassignment",
+    "empty": "No assignments or coverage gaps in this view"
   },
-  "recentChanges": {
-    "title": "Recent Schedule Changes",
-    "viewFull": "Full log"
+  "activity": {
+    "title": "Recent operational activity",
+    "description": "The five latest Schedule and OT changes.",
+    "viewAuditLog": "View Audit Log",
+    "empty": "No recorded activity yet",
+    "actions": { "create": "Created", "update": "Updated", "delete": "Deleted", "assign": "Assigned", "clear": "Cleared", "archive": "Archived", "restore": "Restored", "publish": "Published", "discard": "Discarded", "vacation": "Vacation", "settings": "Settings", "undo": "Undone" },
+    "modules": { "schedule": "Schedule", "ot": "OT", "employees": "Employees", "profile": "Profile", "settings": "Settings" }
+  },
+  "secondary": {
+    "title": "Operational indicators",
+    "description": "Supporting totals for the selected day.",
+    "scheduledEmployees": "Scheduled employees",
+    "standardAssignments": "Standard assignments",
+    "otHours": "OT hours",
+    "approvedVacations": "Approved vacations",
+    "availableMonths_one": "{{count}} published month available",
+    "availableMonths_other": "{{count}} published months available"
+  },
+  "employee": {
+    "title": "Your workday at a glance",
+    "greeting": "Welcome {{name}}. Your published Schedule and OT assignments are shown below.",
+    "unlinked": { "title": "Your schedule profile is not linked", "description": "Ask an administrator to link your account to your official employee roster record before viewing schedules." },
+    "missing": { "title": "No published schedule is available for this period", "description": "There are no published Schedule or OT records for the current period." },
+    "links": { "mySchedule": "My Schedule", "departmentSchedule": "Department Schedule" },
+    "nextShift": { "title": "Next shift", "empty": "No upcoming published shift in the available schedule." },
+    "week": { "title": "This week", "description": "Sunday through Saturday, including Schedule and OT.", "off": "No assignment" },
+    "source": { "schedule": "Schedule", "ot": "OT" },
+    "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" },
+    "notices": { "title": "Schedule notices" },
+    "summary": { "title": "Current month totals", "description": "Computed only from available published data.", "otHours_one": "{{count}} OT hour", "otHours_other": "{{count}} OT hours", "hoursLabel": "OT hours" }
   }
 }

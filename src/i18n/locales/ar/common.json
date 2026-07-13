@@ -21,9 +21,10 @@
   "nav": {
     "dashboard": "لوحة التحكم",
     "scheduleAdmin": "إدارة الجدول",
+    "lateSchedule": "جدول OT",
     "employees": "الموظفون",
     "departments": "الأقسام",
-    "reports": "التقارير",
+    "reports": "تحليل الموظفين",
     "auditLog": "سجل التغييرات",
     "mySchedule": "جدولي",
     "departmentSchedule": "جدول القسم",
@@ -33,12 +34,16 @@
   },
   "topbar": {
     "profile": "الملف الشخصي",
-    "logout": "تسجيل الخروج"
+    "logout": "تسجيل الخروج",
+    "openNavigation": "فتح قائمة التنقل",
+    "userMenu": "فتح قائمة المستخدم"
   },
   "sidebar": {
     "subtitle": "جدولة الأشعة المقطعية",
     "collapse": "طي القائمة",
-    "expand": "توسيع القائمة"
+    "expand": "توسيع القائمة",
+    "close": "إغلاق قائمة التنقل",
+    "navigation": "التنقل الرئيسي"
   },
   "hospital": {
     "name": "مستشفى الحرس الوطني",
@@ -48,7 +53,7 @@
     "imageAlt": "مستشفى الحرس الوطني - مدينة الملك عبدالعزيز الطبية"
   },
   "shifts": {
-    "morning": "صباحي",
+    "morning": "الشفت النهاري",
     "evening": "مسائي",
     "night": "ليلي",
     "oncall": "تحت الطلب",
@@ -144,6 +149,35 @@
     "switchTo": "التبديل إلى {{lang}}",
     "en": "English",
     "ar": "العربية"
+  },
+  "lateSchedule": {
+    "assignment": {
+      "selectedEmployees": "الموظفون المحددون",
+      "maxTwo": "اختر موظفًا واحدًا أو اثنين",
+      "unresolved": "أكواد قديمة غير مرتبطة:",
+      "search": "ابحث بالاسم أو الاختصار",
+      "cancel": "إلغاء",
+      "clear": "مسح التعيين",
+      "save": "حفظ التعيين"
+    },
+    "validation": {
+      "titleRequired": "اسم الشفت مطلوب",
+      "locationRequired": "الموقع مطلوب",
+      "timeRequired": "الوقت مطلوب",
+      "hoursInvalid": "يجب أن تكون الساعات أكبر من صفر"
+    },
+    "form": {
+      "addTitle": "إضافة شفت OT",
+      "editTitle": "تعديل شفت OT",
+      "title": "اسم الشفت",
+      "location": "الموقع",
+      "timeRange": "الوقت",
+      "hours": "الساعات",
+      "archive": "أرشفة شفت OT",
+      "archiveConfirmText": "هل تريد أرشفة هذا الشفت؟",
+      "confirmArchive": "تأكيد الأرشفة",
+      "save": "حفظ شفت OT"
+    }
   },
   "theme": {
     "switch": "المظهر",

@@ -14,7 +14,7 @@ interface FacilityBandProps {
 function FacilityBand({ name, accentColorToken, rowCount }: FacilityBandProps) {
   return (
     <div
-      className="facility-vertical-label flex items-center justify-center text-white"
+      className="facility-vertical-label relative flex justify-center text-white"
       style={{
         backgroundColor: `var(--${accentColorToken})`,
         width: 'var(--matrix-facility-col)',
@@ -23,7 +23,12 @@ function FacilityBand({ name, accentColorToken, rowCount }: FacilityBandProps) {
         gridRow: `span ${rowCount}`,
       }}
     >
-      {name}
+      <span
+        data-testid={`facility-label-${name.toLowerCase()}`}
+        className="facility-vertical-text sticky top-[calc(var(--matrix-header-height)+8px)] flex h-24 items-center justify-center"
+      >
+        {name}
+      </span>
     </div>
   );
 }

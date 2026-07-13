@@ -1,6 +1,7 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useId, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ModalProps {
   isOpen: boolean;
@@ -20,6 +21,9 @@ const sizeClasses = {
 };
 
 export default function Modal({ isOpen, onClose, title, children, size = 'md', showClose = true }: ModalProps) {
+  const { t } = useTranslation(['common']);
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const handleEscape = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -29,8 +33,20 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
 
   useEffect(() => {
     if (isOpen) {
+      const previouslyFocused = document.activeElement as HTMLElement | null;
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
+      window.requestAnimationFrame(() => {
+        const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        firstFocusable?.focus();
+      });
+      return () => {
+        document.removeEventListener('keydown', handleEscape);
+        document.body.style.overflow = '';
+        previouslyFocused?.focus();
+      };
     }
     return () => {
       document.removeEventListener('keydown', handleEscape);
@@ -46,9 +62,15 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-fadeIn"
         onClick={onClose}
+        aria-hidden="true"
       />
       {/* Content */}
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : t('common:actions.close')}
         className={cn(
           'relative mx-3 flex max-h-[90vh] w-full flex-col rounded-card border border-border bg-surface shadow-dropdown animate-slideUp sm:mx-4',
           sizeClasses[size]
@@ -57,11 +79,12 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
         {/* Header */}
         {(title || showClose) && (
           <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-3 sm:px-6">
-            {title && <h2 className="text-lg sm:text-xl font-semibold text-text-primary">{title}</h2>}
+            {title && <h2 id={titleId} className="text-lg sm:text-xl font-semibold text-text-primary">{title}</h2>}
             {showClose && (
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-lg hover:bg-hover text-text-secondary transition-colors"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
+                aria-label={t('common:actions.close')}
               >
                 <X className="w-5 h-5" />
               </button>

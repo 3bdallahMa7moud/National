@@ -12,12 +12,12 @@ export default function AppShell() {
       <Sidebar />
       <div
         className={cn(
-          'transition-all duration-300',
+          'min-w-0 transition-all duration-300',
           sidebarCollapsed ? 'lg:ms-[72px]' : 'lg:ms-64'
         )}
       >
         <Topbar />
-        <main className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+        <main className="min-w-0 overflow-x-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
           <Outlet />
         </main>
       </div>

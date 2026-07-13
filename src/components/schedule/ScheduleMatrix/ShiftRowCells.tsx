@@ -7,7 +7,7 @@ import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import EmployeeChip from './EmployeeChip';
-import type { AuditEntry, ShiftRow, Assignment, MatrixCellRef } from '@/types/scheduleMatrix';
+import type { AuditEntry, ShiftRow, Assignment, MatrixCellRef, HolidayRange } from '@/types/scheduleMatrix';
 
 export interface CellInteractionMeta {
   anchorRect?: DOMRect;
@@ -34,6 +34,7 @@ interface ShiftRowCellsProps {
   isBrushMode: boolean;
   brushEmployeeCodes: string[];
   colorblindMode?: boolean;
+  holidays?: HolidayRange[];
   onCellClick: (ref: MatrixCellRef, meta?: CellInteractionMeta) => void;
   onChipClick: (ref: MatrixCellRef, assignment: Assignment, meta?: CellInteractionMeta) => void;
   onCellContextMenu?: (ref: MatrixCellRef, position: { x: number; y: number }) => void;
@@ -71,6 +72,7 @@ function ShiftRowCells({
   isBrushMode,
   brushEmployeeCodes,
   colorblindMode = false,
+  holidays = [],
   onCellClick,
   onChipClick,
   onCellContextMenu,
@@ -122,6 +124,7 @@ function ShiftRowCells({
         const cellRef: MatrixCellRef = { facilityId, unitId, rowId: row.id, day };
         const isFillTarget = fillTargetDay === day;
         const canEditCell = isEditable || isBrushMode;
+        const isHoliday = holidays.some((holiday) => day >= holiday.startDay && day <= holiday.endDay);
 
         return (
           <div
@@ -129,14 +132,16 @@ function ShiftRowCells({
             data-matrix-row-index={rowIndex}
             data-matrix-day={day}
             data-row-id={row.id}
+            data-holiday-day={isHoliday ? day : undefined}
             className={cn(
               'group relative flex flex-col items-center justify-center gap-1 px-[2px]',
               'border-b border-e border-border outline-none',
               'transition-colors duration-100',
               isWeekend && 'bg-[var(--weekend-tint)]',
+              isHoliday && 'bg-amber-100/60 dark:bg-amber-950/25',
               isToday && 'bg-[var(--today-tint)]',
-              !isWeekend && !isToday && assignments.length === 0 && 'bg-[var(--empty-cell-bg)]',
-              !isWeekend && !isToday && assignments.length > 0 && 'bg-surface',
+              !isWeekend && !isToday && !isHoliday && assignments.length === 0 && 'bg-[var(--empty-cell-bg)]',
+              !isWeekend && !isToday && !isHoliday && assignments.length > 0 && 'bg-surface',
               selected && 'ring-2 ring-inset ring-signal-cyan bg-signal-cyan/10',
               isFillTarget && 'ring-2 ring-inset ring-primary-teal bg-primary-teal/10',
               canEditCell && 'cursor-pointer hover:bg-primary-teal/10',
@@ -263,6 +268,7 @@ function ShiftRowCells({
                 isHighlighted={highlightedEmployeeId === assignment.employeeId}
                 colorblindMode={colorblindMode}
                 historyEntries={historyForCell(day)}
+                suppressPopover={isBrushMode}
                 onClick={() => onChipClick(cellRef, assignment, { hasAssignments: true })}
               />
             ))}

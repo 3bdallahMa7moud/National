@@ -7,8 +7,6 @@ import { AlertTriangle, CalendarOff, Check, Search, Trash2, X } from 'lucide-rea
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { validateAssignmentsForCell } from '@/lib/validateAssignment';
-import { SHIFT_COLOR_KEYS } from '@/lib/shiftColorOptions';
-import { resolveAssignmentColorKey } from '@/lib/shiftColorOptions';
 import type { Assignment, MatrixCellRef, ScheduleMatrixData, ShiftColorKey, ValidateResult } from '@/types/scheduleMatrix';
 
 interface AssignmentPopoverProps {
@@ -43,22 +41,10 @@ function AssignmentPopover({
   const [selectedCodes, setSelectedCodes] = useState<string[]>(() =>
     currentAssignments.map((assignment) => assignment.employeeCode),
   );
-  const [colorKeysByCode, setColorKeysByCode] = useState<Record<string, ShiftColorKey>>(() => {
-    const map: Record<string, ShiftColorKey> = {};
-    currentAssignments.forEach((a) => {
-      map[a.employeeCode] = a.colorKey || cell.defaultColorKey;
-    });
-    return map;
-  });
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSelectedCodes(currentAssignments.map((assignment) => assignment.employeeCode).slice(0, 2));
-    const map: Record<string, ShiftColorKey> = {};
-    currentAssignments.forEach((a) => {
-      map[a.employeeCode] = a.colorKey || cell.defaultColorKey;
-    });
-    setColorKeysByCode(map);
     setSearch('');
     const timeout = window.setTimeout(() => searchRef.current?.focus(), 40);
     return () => window.clearTimeout(timeout);
@@ -81,12 +67,11 @@ function AssignmentPopover({
         {
           employeeId: employee.employeeId,
           employeeCode: employee.code,
-          colorKey: colorKeysByCode[code] || cell.defaultColorKey,
           status: 'draft',
         },
       ];
     }),
-  [data.legend, selectedCodes, colorKeysByCode, cell.defaultColorKey]);
+  [data.legend, selectedCodes]);
 
   const validation = useMemo<ValidateResult>(() => {
     if (selectedAssignments.length === 0) return { ok: true };
@@ -137,23 +122,10 @@ function AssignmentPopover({
   function toggleEmployee(code: string) {
     setSelectedCodes((current) => {
       if (current.includes(code)) {
-        setColorKeysByCode((keys) => {
-          const next = { ...keys };
-          delete next[code];
-          return next;
-        });
         return current.filter((item) => item !== code);
       }
-      setColorKeysByCode((keys) => ({
-        ...keys,
-        [code]: keys[code] || cell.defaultColorKey,
-      }));
       return [...current, code].slice(0, 2);
     });
-  }
-
-  function setEmployeeColorKey(code: string, colorKey: ShiftColorKey) {
-    setColorKeysByCode((keys) => ({ ...keys, [code]: colorKey }));
   }
 
 
@@ -213,19 +185,6 @@ function AssignmentPopover({
                     </button>
                   )}
                 </div>
-                {code && (
-                  <select
-                    value={colorKeysByCode[code] || cell.defaultColorKey}
-                    onChange={(e) => setEmployeeColorKey(code, e.target.value as ShiftColorKey)}
-                    className="mt-1.5 h-7 w-full rounded border border-border bg-surface px-2 text-[11px] text-ink focus:border-primary-teal focus:outline-none"
-                  >
-                    {SHIFT_COLOR_KEYS.map((key) => (
-                      <option key={key} value={key}>
-                        {t(`schedule:shiftColors.${key}`)}
-                      </option>
-                    ))}
-                  </select>
-                )}
               </div>
             );
           })}

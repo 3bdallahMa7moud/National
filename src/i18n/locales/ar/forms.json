@@ -19,6 +19,8 @@
   },
   "labels": {
     "fullName": "الاسم الكامل",
+    "username": "اسم المستخدم",
+    "code": "الاختصار",
     "phoneNumber": "رقم الهاتف",
     "currentPassword": "كلمة المرور الحالية",
     "newPassword": "كلمة المرور الجديدة",

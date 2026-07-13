@@ -8,6 +8,8 @@
 import ExcelJS from 'exceljs';
 import { resolveScheduleMatrixLocale } from '@/lib/scheduleMatrixLocale';
 import { resolveAssignmentColorKey } from '@/lib/shiftColorOptions';
+import { SHIFT_COLOR_PALETTE } from '@/lib/shiftColorPalette';
+import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
 import type {
   Assignment,
   Facility,
@@ -47,14 +49,12 @@ const FACILITY_COLORS: Record<string, string> = {
   'facility-whh': '#453653',
 };
 
-const CHIP_COLORS: Record<ShiftColorKey, { bg: string; text: string }> = {
-  morning: { bg: '#FDF1DC', text: '#8A5A0F' },
-  evening: { bg: '#EDECFB', text: '#3F3A99' },
-  night: { bg: '#E7E5F2', text: '#2A2358' },
-  onCall: { bg: '#FBE7E0', text: '#9C3413' },
-  overtime: { bg: '#F8E1EA', text: '#7A1940' },
-  vacation: { bg: '#EEF0F2', text: '#4B535D' },
-};
+const CHIP_COLORS = Object.fromEntries(
+  Object.entries(SHIFT_COLOR_PALETTE).map(([key, value]) => [
+    key,
+    { bg: value.light.background, text: value.light.text },
+  ]),
+) as Record<ShiftColorKey, { bg: string; text: string }>;
 
 const BORDER_COLOR = '#D1D5DB';
 const WEEKEND_TINT = '#F8FAFC';
@@ -62,7 +62,7 @@ const INK = '#101B2D';
 const TEAL = '#0B7285';
 const SLATE = '#64748B';
 const CORAL = '#E2572B';
-const PRINTABLE_WIDTH_PX = 1466;
+const PRINTABLE_WIDTH_PX = 1240;
 const FACILITY_COL_W = 40;
 const LABEL_COL_W = 190;
 
@@ -115,7 +115,12 @@ export function filterMatrixForExport(
     cloned.facilities = cloned.facilities.filter((f) => f.id === facilityFilter);
   }
   cloned.facilities.forEach((f) => {
-    f.units = f.units.filter((u) => !u.archived);
+    f.units = f.units
+      .filter((u) => !u.archived)
+      .map((u) => {
+        const rows = filterActiveScheduleRows(cloned, f.id, u.rows);
+        return rows === u.rows ? u : { ...u, rows };
+      });
   });
   return cloned;
 }
@@ -123,6 +128,10 @@ export function filterMatrixForExport(
 function isWeekendDay(year: number, month: number, day: number): boolean {
   const dow = new Date(year, month, day).getDay();
   return dow === 5 || dow === 6;
+}
+
+function holidayForDay(data: ScheduleMatrixData, day: number) {
+  return data.holidays.find((holiday) => day >= holiday.startDay && day <= holiday.endDay);
 }
 
 function facilityColor(token: string): string {
@@ -137,7 +146,7 @@ function unitShiftLabelLines(row: ShiftRow, unitName: string) {
   };
 }
 
-function formatCellCodes(assigns: Assignment[], rowColorKey: ShiftColorKey): string {
+function formatCellCodes(assigns: Assignment[]): string {
   if (!assigns.length) return '';
   return assigns.map((a) => a.employeeCode).join('\n');
 }
@@ -174,10 +183,11 @@ function renderDayCellHtml(
   month: number,
   day: number,
   layout: MatrixExportLayout,
+  holiday: boolean,
 ): string {
   const wknd = isWeekendDay(year, month, day);
   const emptyWeekdayOnCall = row.weekendOnly && !wknd;
-  const bg = wknd ? WEEKEND_TINT : '#FFFFFF';
+  const bg = holiday ? '#FEF3C7' : wknd ? WEEKEND_TINT : '#FFFFFF';
   const assigns = row.cellsByDay[day] || [];
   const content = emptyWeekdayOnCall ? '' : renderChipsHtml(assigns, row.colorKey, layout);
   const { dayCell, px } = layout;
@@ -198,9 +208,10 @@ function renderVacationDayHtml(
   month: number,
   day: number,
   layout: MatrixExportLayout,
+  holiday: boolean,
 ): string {
   const wknd = isWeekendDay(year, month, day);
-  const bg = wknd ? WEEKEND_TINT : '#FFFFFF';
+  const bg = holiday ? '#FEF3C7' : wknd ? WEEKEND_TINT : '#FFFFFF';
   const chip = CHIP_COLORS.vacation;
   const { dayCell, px, fs } = layout;
   const mark = vac.daysOff.includes(day)
@@ -242,7 +253,24 @@ function buildAdminMatrixTable(
 
   let html = `<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Segoe UI,Arial,sans-serif;font-size:${fs(10)}px;table-layout:fixed;">`;
 
-  html += '<thead><tr>';
+  html += '<thead>';
+  if (data.holidays.length > 0) {
+    html += '<tr class="holiday-row">';
+    html += `<th colspan="2" style="border:1px solid ${BORDER_COLOR};background:#F8FAFC;"></th>`;
+    for (let day = 1; day <= daysInMonth;) {
+      const holiday = holidayForDay(data, day);
+      if (holiday && holiday.startDay === day) {
+        const span = Math.min(daysInMonth, holiday.endDay) - holiday.startDay + 1;
+        html += `<th colspan="${span}" style="border:1px solid #D6A522;background:#FCD34D;color:#78350F;text-align:center;font-size:${fs(9)}px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;height:${px(18)}px;">${escapeHtml(holiday.label)}</th>`;
+        day += span;
+      } else {
+        html += `<th style="border:1px solid ${BORDER_COLOR};background:#F8FAFC;height:${px(18)}px;"></th>`;
+        day += 1;
+      }
+    }
+    html += '</tr>';
+  }
+  html += '<tr>';
   html += `<th style="border:1px solid ${BORDER_COLOR};background:#F8FAFC;width:${FACILITY_COL_W}px;min-width:${FACILITY_COL_W}px;height:${headerRow}px;"></th>`;
   html += `<th style="border:1px solid ${BORDER_COLOR};background:#F8FAFC;width:${LABEL_COL_W}px;min-width:${LABEL_COL_W}px;height:${headerRow}px;text-align:left;padding:${px(6)}px ${px(10)}px;font-size:${fs(10)}px;font-weight:600;color:${SLATE};">${escapeHtml(labels.unitShiftCol)}</th>`;
 
@@ -250,8 +278,9 @@ function buildAdminMatrixTable(
     const dow = new Date(year, month, day).getDay();
     const wknd = isWeekendDay(year, month, day);
     const isToday = day === todayDay;
+    const holiday = holidayForDay(data, day);
     const weekdayColor = isToday ? TEAL : wknd ? CORAL : SLATE;
-    const dayBg = wknd ? WEEKEND_TINT : isToday ? 'rgba(11,114,133,0.08)' : '#FFFFFF';
+    const dayBg = holiday ? '#FEF3C7' : wknd ? WEEKEND_TINT : isToday ? 'rgba(11,114,133,0.08)' : '#FFFFFF';
     const dayNumStyle = isToday
       ? `background:${TEAL};color:#fff;width:${px(20)}px;height:${px(20)}px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;`
       : `color:${INK};`;
@@ -277,7 +306,7 @@ function buildAdminMatrixTable(
         html += renderLabelCellHtml(row, unit.name, layout);
 
         for (let day = 1; day <= daysInMonth; day += 1) {
-          html += renderDayCellHtml(row, year, month, day, layout);
+          html += renderDayCellHtml(row, year, month, day, layout, !!holidayForDay(data, day));
         }
 
         html += '</tr>';
@@ -304,7 +333,7 @@ function buildAdminMatrixTable(
       }
       html += renderVacationLabelHtml(vac, layout);
       for (let day = 1; day <= daysInMonth; day += 1) {
-        html += renderVacationDayHtml(vac, year, month, day, layout);
+        html += renderVacationDayHtml(vac, year, month, day, layout, !!holidayForDay(data, day));
       }
       html += '</tr>';
     });
@@ -347,7 +376,6 @@ export function buildScheduleMatrixExportHtml(
   const matrixTable = buildAdminMatrixTable(filtered, labels, options.year, filtered.month)
     .replace(/^<table/, '<table class="matrix-table"');
   const legendPage = buildLegendPageHtml(filtered, labels);
-  const hasLegend = legendPage.length > 0;
 
   return `<!DOCTYPE html>
 <html dir="ltr" lang="en">
@@ -358,23 +386,38 @@ export function buildScheduleMatrixExportHtml(
   @page { size: A3 landscape; margin: 8mm; }
   * { box-sizing: border-box; }
   body { margin: 0; padding: 0; color: ${INK}; background: #fff; direction: ltr; font-family: Segoe UI, Arial, sans-serif; }
-  .legend-page {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding: 8mm;
-  }
   .legend-table {
     width: 100%;
-    max-width: 720px;
+    max-width: none;
+    font-size: 8px !important;
   }
   .schedule-page {
-    padding: 8mm;
+    padding: 5mm;
+  }
+  .export-header {
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  .export-header img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+  }
+  .schedule-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    align-items: start;
+    gap: 8px;
+    zoom: .62;
   }
   .export-title {
     font-size: 15px;
     font-weight: 800;
-    padding: 0 0 8px;
+    padding: 0;
     margin: 0;
     color: ${TEAL};
   }
@@ -384,12 +427,6 @@ export function buildScheduleMatrixExportHtml(
   }
   @media print {
     html, body { width: 100%; height: auto; margin: 0; padding: 0; overflow: hidden; }
-    .legend-page {
-      page-break-inside: avoid;
-      break-inside: avoid-page;
-      page-break-after: always;
-      break-after: page;
-    }
     .schedule-page {
       page-break-before: avoid;
       break-before: avoid-page;
@@ -410,10 +447,16 @@ export function buildScheduleMatrixExportHtml(
 </style>
 </head>
 <body>
-  ${hasLegend ? `<section class="legend-page">${legendPage}</section>` : ''}
   <section class="schedule-page">
-    <div class="export-title">${escapeHtml(labels.title)}</div>
-    ${matrixTable}
+    <header class="export-header">
+      <img src="/mngha-logo.png" alt="National Guard Hospital" />
+      <div class="export-title">${escapeHtml(labels.title)}</div>
+      <img src="/ct-logo.png" alt="CT Department" />
+    </header>
+    <div class="schedule-layout">
+      <div>${matrixTable}</div>
+      <aside>${legendPage}</aside>
+    </div>
   </section>
 </body>
 </html>`;
@@ -463,37 +506,39 @@ function styleDayCell(
   colorKey: ShiftColorKey,
   wknd: boolean,
   empty: boolean,
+  holiday: boolean,
 ) {
   cell.border = thinBorder();
   cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
   if (empty) {
     cell.value = '';
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexArgb(wknd ? WEEKEND_TINT : '#FFFFFF') } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexArgb(holiday ? '#FEF3C7' : wknd ? WEEKEND_TINT : '#FFFFFF') } };
     return;
   }
 
   const chip = assigns.length
     ? assignmentChipStyle(assigns[0], colorKey)
     : CHIP_COLORS[colorKey];
-  cell.value = formatCellCodes(assigns, colorKey);
+  cell.value = formatCellCodes(assigns);
   cell.font = { bold: true, size: 10, color: { argb: hexArgb(chip.text) } };
   cell.fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: hexArgb(assigns.length ? chip.bg : wknd ? WEEKEND_TINT : '#FFFFFF') },
+    fgColor: { argb: hexArgb(assigns.length ? chip.bg : holiday ? '#FEF3C7' : wknd ? WEEKEND_TINT : '#FFFFFF') },
   };
 }
 
-async function buildAdminWorkbook(
+export async function buildScheduleMatrixWorkbook(
   data: ScheduleMatrixData,
   labels: ScheduleMatrixExportLabels,
   year: number,
   month: number,
 ): Promise<ExcelJS.Workbook> {
   const wb = new ExcelJS.Workbook();
+  const headerRowNumber = data.holidays.length > 0 ? 2 : 1;
   const sheet = wb.addWorksheet('Schedule Matrix', {
-    views: [{ state: 'frozen', xSplit: 2, ySplit: 1 }],
+    views: [{ state: 'frozen', xSplit: 2, ySplit: headerRowNumber }],
   });
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -506,11 +551,40 @@ async function buildAdminWorkbook(
     sheet.getColumn(3 + d).width = 8;
   }
 
-  const cornerA = sheet.getCell(1, 1);
+  if (data.holidays.length > 0) {
+    const holidayCorner = sheet.getCell(1, 1);
+    holidayCorner.border = thinBorder();
+    holidayCorner.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexArgb('#F8FAFC') } };
+    sheet.mergeCells(1, 1, 1, 2);
+
+    for (let day = 1; day <= daysInMonth;) {
+      const holiday = holidayForDay(data, day);
+      const column = 2 + day;
+      if (holiday && holiday.startDay === day) {
+        const endDay = Math.min(daysInMonth, holiday.endDay);
+        sheet.mergeCells(1, column, 1, 2 + endDay);
+        const cell = sheet.getCell(1, column);
+        cell.value = holiday.label;
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.font = { bold: true, size: 9, color: { argb: hexArgb('#78350F') } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexArgb('#FCD34D') } };
+        cell.border = thinBorder();
+        day = endDay + 1;
+      } else {
+        const cell = sheet.getCell(1, column);
+        cell.border = thinBorder();
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexArgb('#F8FAFC') } };
+        day += 1;
+      }
+    }
+    sheet.getRow(1).height = 18;
+  }
+
+  const cornerA = sheet.getCell(headerRowNumber, 1);
   cornerA.border = thinBorder();
   cornerA.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: hexArgb('#F8FAFC') } };
 
-  const cornerB = sheet.getCell(1, 2);
+  const cornerB = sheet.getCell(headerRowNumber, 2);
   cornerB.value = labels.unitShiftCol;
   cornerB.font = { size: 10, bold: true, color: { argb: hexArgb(SLATE) } };
   cornerB.alignment = { vertical: 'middle' };
@@ -520,16 +594,16 @@ async function buildAdminWorkbook(
   for (let day = 1; day <= daysInMonth; day += 1) {
     const dow = new Date(year, month, day).getDay();
     styleHeaderCell(
-      sheet.getCell(1, 2 + day),
+      sheet.getCell(headerRowNumber, 2 + day),
       EN_WEEKDAYS[dow],
       day,
       isWeekendDay(year, month, day),
       day === todayDay,
     );
   }
-  sheet.getRow(1).height = 36;
+  sheet.getRow(headerRowNumber).height = 36;
 
-  let rowNum = 2;
+  let rowNum = headerRowNumber + 1;
 
   for (const facility of data.facilities) {
     const rowCount = facilityRowCount(facility);
@@ -560,6 +634,7 @@ async function buildAdminWorkbook(
             row.colorKey,
             wknd,
             emptyOnCall,
+            !!holidayForDay(data, day),
           );
         }
         rowNum += 1;
@@ -595,7 +670,7 @@ async function buildAdminWorkbook(
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: hexArgb(wknd ? WEEKEND_TINT : '#FFFFFF') },
+          fgColor: { argb: hexArgb(holidayForDay(data, day) ? '#FEF3C7' : wknd ? WEEKEND_TINT : '#FFFFFF') },
         };
         if (vac.daysOff.includes(day)) {
           cell.value = 'X';
@@ -652,7 +727,7 @@ export function exportScheduleMatrixToExcel(
   const filtered = filterMatrixForExport(englishData, options.facilityFilter);
   const filename = `Schedule_Matrix_${options.year}_${String(data.month + 1).padStart(2, '0')}.xlsx`;
 
-  void buildAdminWorkbook(filtered, enLabels, options.year, filtered.month).then((wb) =>
+  void buildScheduleMatrixWorkbook(filtered, enLabels, options.year, filtered.month).then((wb) =>
     wb.xlsx.writeBuffer().then((buffer) => downloadBuffer(buffer, filename)),
   );
 }

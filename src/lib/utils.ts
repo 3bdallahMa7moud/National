@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 function getLocale(): string {
-  return i18n.language === 'ar' ? 'ar-SA' : 'en-US';
+  return i18n.language === 'ar' ? 'ar-SA-u-ca-gregory' : 'en-US';
 }
 
 export function formatDate(date: string): string {

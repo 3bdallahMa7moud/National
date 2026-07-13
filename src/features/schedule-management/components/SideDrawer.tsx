@@ -168,7 +168,7 @@ function SideDrawer({ drawer, onClose }: SideDrawerProps) {
                       color="text-emerald-600"
                     />
                     <HistoryItem
-                      action="Changed from Morning to Evening"
+                      action="Changed from Day Shift to Evening"
                       by="System"
                       time="5 days ago"
                       color="text-amber-600"

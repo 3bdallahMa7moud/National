@@ -14,6 +14,7 @@ import ShiftRowCells from './ShiftRowCells';
 import LegendPanel from './LegendPanel';
 import VacationBand from './VacationBand';
 import RowEditPopover, { type RowEditTarget } from './RowEditPopover';
+import MobileWeeklySchedule from './MobileWeeklySchedule';
 import type { CellInteractionMeta } from './ShiftRowCells';
 import type {
   ScheduleMatrixData,
@@ -69,7 +70,6 @@ function ScheduleMatrix({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [rowEditTarget, setRowEditTarget] = useState<RowEditTarget | null>(null);
-
   const daysInMonth = useMemo(() => {
     return new Date(data.year, data.month + 1, 0).getDate();
   }, [data.year, data.month]);
@@ -147,7 +147,14 @@ function ScheduleMatrix({
   let rowIndex = 0;
 
   return (
-    <div className="flex gap-3 items-start">
+    <>
+      <div className="md:hidden">
+        <MobileWeeklySchedule data={data} onCellClick={handleCellClick} />
+      </div>
+      <div
+        className="hidden gap-3 items-start md:flex"
+        data-testid="desktop-schedule-matrix"
+      >
       {/* ── Main Grid ── */}
       <div className="flex-1 min-w-0 overflow-hidden rounded-lg border border-border bg-surface shadow-soft">
         {/* Scroll container */}
@@ -193,7 +200,12 @@ function ScheduleMatrix({
                 </span>
               </div>
               {/* Day numbers */}
-              <DayHeaderRow daysInMonth={daysInMonth} year={data.year} month={data.month} />
+              <DayHeaderRow
+                daysInMonth={daysInMonth}
+                year={data.year}
+                month={data.month}
+                holidays={data.holidays}
+              />
             </div>
 
             {/* ── Facility Rows ── */}
@@ -243,8 +255,13 @@ function ScheduleMatrix({
                         </div>
                       </div>
                     )}
-                    {facility.units.map((unit) =>
-                      unit.rows.map((row) => {
+                    {facility.units.map((unit) => (
+                      <div
+                        key={unit.id}
+                        data-testid={`unit-group-${unit.id}`}
+                        className="flex flex-col"
+                      >
+                      {unit.rows.map((row, rowPosition) => {
                         const currentRowIndex = rowIndex;
                         rowIndex += 1;
                         return (
@@ -262,6 +279,7 @@ function ScheduleMatrix({
                               isOverflowRow={row.isOverflowRow}
                               weekendOnly={row.weekendOnly}
                               isEditable={canEditRows}
+                              showUnitName={rowPosition === 0}
                               onEditRow={
                                 canEditRows
                                   ? (anchorRect) =>
@@ -291,6 +309,7 @@ function ScheduleMatrix({
                             isBrushMode={isBrushMode}
                             brushEmployeeCodes={brushEmployeeCodes}
                             colorblindMode={colorblindMode}
+                            holidays={data.holidays}
                             onCellClick={handleCellClick}
                             onChipClick={handleChipClick}
                             onCellContextMenu={onCellContextMenu}
@@ -299,8 +318,9 @@ function ScheduleMatrix({
                           />
                         </div>
                         );
-                      }),
-                    )}
+                      })}
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
@@ -315,6 +335,7 @@ function ScheduleMatrix({
                 month={data.month}
                 adminMode={adminMode}
                 onVacationToggle={handleVacationToggle}
+                holidays={data.holidays}
               />
             )}
           </div>
@@ -337,7 +358,8 @@ function ScheduleMatrix({
         onClose={() => setRowEditTarget(null)}
         onSave={(rowId, updates) => onUpdateRow?.(rowId, updates)}
       />
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -1,99 +1,38 @@
 import { useState } from 'react';
+import { CalendarDays, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import EmployeeScheduleMonth from './EmployeeScheduleMonth';
+import EmployeeScheduleWeek from './EmployeeScheduleWeek';
+import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import ScheduleCalendar from './ScheduleCalendar';
-import { useSchedule } from '@/hooks/useSchedule';
-import { useAuthStore } from '@/stores/authStore';
-import ShiftBadge from '@/components/common/ShiftBadge';
-import type { Shift, ShiftTypeKey } from '@/types';
 import Modal from '@/components/ui/Modal';
-import { formatTime } from '@/lib/utils';
-import { useLanguage } from '@/hooks/useLanguage';
+import { buildEmployeeScheduleView } from '@/lib/employeeScheduleView';
+import { useAuthStore } from '@/stores/authStore';
+import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
+import { useLateScheduleStore } from '@/stores/lateScheduleStore';
+import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
+import type { OperationalOccurrence } from '@/types/operationalSchedule';
+
+type ViewMode = 'week' | 'month';
+function fmt(date: Date): string { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
 
 export default function EmployeeSchedulePage() {
-  const { t } = useTranslation(['schedule', 'common']);
-  const { dateLocale } = useLanguage();
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth());
-  const user = useAuthStore((s) => s.user);
-  const { shifts, shiftTypes } = useSchedule(user?.id, month, year);
-  const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
+  const { t, i18n } = useTranslation('schedule');
+  const [mode, setMode] = useState<ViewMode>('week');
+  const [anchor, setAnchor] = useState(() => new Date());
+  const [selected, setSelected] = useState<OperationalOccurrence | null>(null);
+  const user = useAuthStore((state) => state.user);
+  const roster = useEmployeeRosterStore((state) => state.employees);
+  const matrices = useScheduleMatrixStore((state) => state.matricesByMonth);
+  const otMonths = useLateScheduleStore((state) => state.rowsByMonth);
 
-  const handlePrevMonth = () => {
-    if (month === 0) { setMonth(11); setYear(y => y - 1); }
-    else setMonth(m => m - 1);
-  };
+  if (!user?.scheduleEmployeeId) return <Card className="mx-auto max-w-2xl py-10 text-center"><h1 className="text-xl font-semibold text-text-primary">{t('employeeView.unlinked')}</h1><p className="mt-2 text-sm text-text-secondary">{t('employeeView.unlinkedHint')}</p></Card>;
 
-  const handleNextMonth = () => {
-    if (month === 11) { setMonth(0); setYear(y => y + 1); }
-    else setMonth(m => m + 1);
-  };
+  const start = mode === 'month' ? new Date(anchor.getFullYear(), anchor.getMonth(), 1) : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - anchor.getDay());
+  const end = mode === 'month' ? new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0) : new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+  const view = buildEmployeeScheduleView(user.scheduleEmployeeId, { startDate: fmt(start), endDate: fmt(end) }, matrices, otMonths, roster, fmt(new Date()));
+  const move = (direction: number) => setAnchor((current) => mode === 'month' ? new Date(current.getFullYear(), current.getMonth() + direction, 1) : new Date(current.getFullYear(), current.getMonth(), current.getDate() + direction * 7));
+  const title = mode === 'month' ? new Intl.DateTimeFormat(i18n.language, { month: 'long', year: 'numeric' }).format(start) : `${new Intl.DateTimeFormat(i18n.language, { month: 'short', day: 'numeric' }).format(start)} – ${new Intl.DateTimeFormat(i18n.language, { month: 'short', day: 'numeric', year: 'numeric' }).format(end)}`;
 
-  const shiftCounts = shiftTypes.reduce((acc, st) => {
-    acc[st.key] = shifts.filter(s => s.shiftType === st.key).length;
-    return acc;
-  }, {} as Record<string, number>);
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-text-primary sm:text-2xl">{t('schedule:personal.title')}</h1>
-        <p className="mt-1 text-sm leading-6 text-text-secondary">{t('schedule:personal.welcome', { name: user?.name })}</p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {shiftTypes.map((st) => (
-          shiftCounts[st.key] > 0 && (
-            <div key={st.id} className="flex items-center gap-1.5 rounded-pill border border-border bg-surface px-3 py-1.5 shadow-soft">
-              <ShiftBadge type={st.key as ShiftTypeKey} size="sm" />
-              <span className="text-xs font-medium text-text-primary">{shiftCounts[st.key]}</span>
-            </div>
-          )
-        ))}
-      </div>
-
-      <Card padding={false} className="p-3 sm:p-4">
-        <ScheduleCalendar
-          shifts={shifts}
-          mode="personal"
-          year={year}
-          month={month}
-          onPrevMonth={handlePrevMonth}
-          onNextMonth={handleNextMonth}
-          onCellShiftClick={setSelectedShift}
-        />
-      </Card>
-
-      <Modal isOpen={!!selectedShift} onClose={() => setSelectedShift(null)} title={t('schedule:personal.shiftDetails')} size="sm">
-        {selectedShift && (
-          <div className="space-y-4">
-            <div className="flex justify-center">
-              <ShiftBadge type={selectedShift.shiftType as ShiftTypeKey} />
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-text-secondary text-xs">{t('common:labels.date')}</p>
-                <p className="font-medium">{new Date(selectedShift.date).toLocaleDateString(dateLocale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-              </div>
-              <div>
-                <p className="text-text-secondary text-xs">{t('common:labels.time')}</p>
-                <p className="font-medium">{formatTime(selectedShift.startTime)} - {formatTime(selectedShift.endTime)}</p>
-              </div>
-              <div>
-                <p className="text-text-secondary text-xs">{t('common:labels.status')}</p>
-                <p className="font-medium">
-                  {selectedShift.status === 'completed'
-                    ? t('common:shiftStatus.completed')
-                    : selectedShift.status === 'scheduled'
-                      ? t('common:shiftStatus.scheduled')
-                      : selectedShift.status}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
+  return <div className="space-y-5"><header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h1 className="text-xl font-semibold text-text-primary sm:text-2xl">{t('employeeView.title')}</h1><p className="mt-1 text-sm text-text-secondary">{t('employeeView.subtitle')}</p></div><div className="flex flex-wrap gap-2"><Button type="button" variant={mode === 'week' ? 'primary' : 'secondary'} aria-pressed={mode === 'week'} aria-label={t('employeeView.weekView')} onClick={() => setMode('week')} icon={<List className="h-4 w-4" />}>{t('employeeView.week')}</Button><Button type="button" variant={mode === 'month' ? 'primary' : 'secondary'} aria-pressed={mode === 'month'} aria-label={t('employeeView.monthView')} onClick={() => setMode('month')} icon={<CalendarDays className="h-4 w-4" />}>{t('employeeView.month')}</Button></div></header><div className="flex items-center justify-between gap-3 rounded-card border border-border bg-surface p-3 shadow-card"><Button type="button" variant="ghost" aria-label={t('employeeView.previous')} onClick={() => move(-1)} className="min-h-11 min-w-11 px-2"><ChevronLeft className="h-5 w-5 rtl:rotate-180" /></Button><h2 className="text-center font-semibold text-text-primary">{title}</h2><Button type="button" variant="ghost" aria-label={t('employeeView.next')} onClick={() => move(1)} className="min-h-11 min-w-11 px-2"><ChevronRight className="h-5 w-5 rtl:rotate-180" /></Button></div>{view.availability === 'missing' ? <Card className="py-10 text-center"><p className="font-medium text-text-primary">{t('employeeView.missing')}</p></Card> : mode === 'week' ? <EmployeeScheduleWeek days={view.days} locale={i18n.language} onSelect={setSelected} /> : <EmployeeScheduleMonth days={view.days} locale={i18n.language} onSelect={setSelected} />}<Modal isOpen={!!selected} onClose={() => setSelected(null)} title={t('employeeView.details')} size="sm">{selected && <div className="space-y-3 text-sm"><p className="text-lg font-semibold text-text-primary">{t(`employeeView.categories.${selected.category}`)}</p><p className="text-text-secondary">{selected.facility} · {selected.unit}</p><p className="font-medium text-text-primary" dir="ltr">{selected.timeRange}</p><p className="text-text-secondary">{selected.source === 'ot' ? 'OT' : t('employeeView.scheduleSource')}</p>{selected.category === 'ot' && <p className="text-text-secondary">{t('employeeView.hours', { count: selected.hours })}</p>}</div>}</Modal></div>;
 }

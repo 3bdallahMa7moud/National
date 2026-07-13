@@ -16,6 +16,7 @@ interface UnitShiftLabelProps {
   weekendOnly?: boolean;
   isEditable?: boolean;
   onEditRow?: (anchorRect: DOMRect) => void;
+  showUnitName?: boolean;
 }
 
 function UnitShiftLabel({
@@ -27,14 +28,16 @@ function UnitShiftLabel({
   weekendOnly = false,
   isEditable = false,
   onEditRow,
+  showUnitName = true,
 }: UnitShiftLabelProps) {
   const { t } = useTranslation(['schedule']);
-  const primaryLabel = rowLabel || unitName;
+  const primaryLabel = showUnitName ? unitName : (rowLabel || shiftLabel);
 
   return (
     <div
       className={cn(
-        'group/label relative flex flex-col justify-center px-2.5 py-1',
+        'group/label relative flex flex-col justify-center',
+        'px-2.5 py-1',
         'border-b border-e border-border',
         isOverflowRow ? 'bg-surface-muted/80' : 'bg-surface-muted',
       )}
@@ -65,11 +68,13 @@ function UnitShiftLabel({
       <span dir="ltr" className="text-xs font-bold text-ink truncate leading-tight" style={{ unicodeBidi: 'isolate' }}>
         {primaryLabel}
       </span>
-      <span dir="ltr" className="text-[11px] font-semibold text-primary-teal truncate leading-tight mt-0.5" style={{ unicodeBidi: 'isolate' }}>
-        {shiftLabel}
-      </span>
+      {showUnitName && rowLabel && rowLabel !== unitName && (
+        <span dir="ltr" className="text-[10px] font-semibold text-primary-teal truncate leading-tight" style={{ unicodeBidi: 'isolate' }}>
+          {rowLabel}
+        </span>
+      )}
       <span dir="ltr" className="text-[10px] font-medium text-text-secondary truncate leading-tight" style={{ unicodeBidi: 'isolate' }}>
-        {weekendOnly ? 'Fri/Sat · ' : ''}{timeRange}
+        {showUnitName ? `${shiftLabel} · ` : ''}{weekendOnly ? 'Fri/Sat · ' : ''}{timeRange}
       </span>
     </div>
   );

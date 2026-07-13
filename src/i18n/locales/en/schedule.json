@@ -3,10 +3,24 @@
     "title": "Department Schedule",
     "subtitle": "View shift schedules for all CT Scan department employees"
   },
+  "departmentView": {
+    "subtitle": "Published department coverage from Schedule and OT, read-only.",
+    "facilityFilter": "Facility filter", "shiftFilter": "Shift filter", "allFacilities": "All facilities", "allShifts": "All shifts",
+    "date": "Date", "you": "You", "missing": "No published department schedule is available for this period", "noResults": "No assignments match these filters",
+    "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" }
+  },
   "personal": {
     "title": "My Personal Schedule",
     "welcome": "Welcome {{name}}, here is your shift schedule",
     "shiftDetails": "Shift Details"
+  },
+  "employeeView": {
+    "title": "My Schedule", "subtitle": "Your read-only published Schedule and OT assignments.",
+    "unlinked": "Your schedule profile is not linked", "unlinkedHint": "Ask an administrator to link your account to the official roster.",
+    "week": "Week", "month": "Month", "weekView": "Week view", "monthView": "Month view", "previous": "Previous period", "next": "Next period",
+    "noAssignment": "No assignment", "missing": "No published schedule is available for this period", "details": "Shift details", "openDetails": "Open {{shift}} details",
+    "scheduleSource": "Schedule", "hours_one": "{{count}} hour", "hours_other": "{{count}} hours",
+    "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" }
   },
   "admin": {
     "title": "Monthly Schedule Management",
@@ -21,7 +35,7 @@
     "exitEditMode": "Exit edit mode",
     "enterEditMode": "Edit mode & shift management",
     "editGuideTitle": "How to edit the schedule:",
-    "editGuideSingle": "Click any cell in the schedule to open the shift management window and add a shift (morning, evening, night, vacation) or add an extra shift for the same day. To select multiple cells at once, click \"Enable bulk selection\" above.",
+    "editGuideSingle": "Click any cell in the schedule to open the shift management window and add a shift (Day Shift, evening, night, vacation) or add an extra shift for the same day. To select multiple cells at once, click \"Enable bulk selection\" above.",
     "editGuideBulk": "Click the cells you want to select, then click \"Edit selected cells\" above to apply a uniform shift to all of them at once.",
     "bulkEditSuccess": "Bulk edit completed successfully",
     "bulkEditApplied": "Changes applied to {{count}} cells"
@@ -41,7 +55,7 @@
     "addOrModify": "Add new shift / modify shift",
     "addAsExtra": "Add as extra shift (without replacing current)",
     "clickToAdd": "Click any shift below to immediately add it to the employee's schedule for this day:",
-    "note": "Note: Regular shifts (morning, evening, night) automatically replace the current shift unless you enable \"Add as extra shift\". On-call and overtime shifts are always added as extra shifts.",
+    "note": "Note: Regular shifts (Day Shift, evening, night) automatically replace the current shift unless you enable \"Add as extra shift\". On-call and overtime shifts are always added as extra shifts.",
     "shiftDeleted": "Shift deleted",
     "shiftDeletedMessage": "Deleted ({{shiftType}}) shift for employee {{employeeName}}",
     "shiftAdded": "Shift added",
@@ -75,6 +89,12 @@
     "noUnitsYet": "No units configured for this facility yet.",
     "day": "Day {{day}}"
   },
+  "viewControls": {
+    "hideStats": "Hide statistics",
+    "showStats": "Show statistics",
+    "hideStatsLabel": "Hide statistics",
+    "showStatsLabel": "Show statistics"
+  },
   "toolbar": {
     "title": "Monthly Schedule Management",
     "subtitle": "CT Matrix across KAMC / KASCH / WHH",
@@ -96,7 +116,13 @@
     "fullscreenAria": "Monthly Schedule - Fullscreen Mode",
     "allFacilities": "All",
     "allShifts": "All Shifts",
-    "morning": "Morning",
+    "morning": "Day",
+    "evening": "Late",
+    "night": "Night",
+    "onCall": "On-call Day",
+    "onCallNight": "On-call Night",
+    "overtime": "Overtime",
+    "moreActions": "More actions",
     "legendAndColors": "Symbols + Colors",
     "undo": "Undo",
     "undoTitle": "Undo last action (Ctrl+Z)",
@@ -120,7 +146,8 @@
     "searchPlaceholder": "Search by code or name...",
     "resultsCount": "{{count}} results",
     "bulkSelectActiveLabel": "Bulk select active",
-    "selectRangeLabel": "Select range"
+    "selectRangeLabel": "Select range",
+    "shiftTypeOnAssign": "Shift Type:"
   },
   "vacationsPanel": {
     "title": "Vacation Management",
@@ -166,6 +193,24 @@
     "clearVacation": "Clear",
     "daysUnit": "{{count}} days",
     "dayLabel": "Day {{day}}",
+    "identity": {
+      "edit": "Edit employee identity",
+      "editShort": "Edit",
+      "editFor": "Edit identity for {{name}}",
+      "title": "Edit employee identity",
+      "name": "Employee name",
+      "code": "Abbreviation",
+      "save": "Save identity",
+      "cancel": "Cancel",
+      "successTitle": "Employee identity updated",
+      "successMessage": "{{name}} now uses abbreviation {{code}}.",
+      "errors": {
+        "nameRequired": "Employee name is required.",
+        "codeRequired": "Abbreviation is required.",
+        "duplicateCode": "This abbreviation is already used by another employee.",
+        "employeeNotFound": "The selected employee could not be found."
+      }
+    },
     "toastSuccessTitle": "Vacation Registered",
     "toastRangeMessage": "Registered vacation for employee from day {{start}} to {{end}}",
     "toastDatesMessage": "Registered vacation for employee on days: [{{days}}]"
@@ -193,6 +238,18 @@
     "vacationDay": "Vacation Day {{day}}",
     "vacation": "Vacation",
     "gridAriaLabel": "Monthly Shift Schedule",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "loading": "Loading schedule…",
+    "highlightActive": "Employee highlight is active",
+    "cancelHighlight": "Clear highlight",
+    "brushActive": "Assignment brush is active",
+    "brushSelectionCount": "Selected {{count}}/2 employees",
+    "cancelBrush": "Clear brush selection",
+    "cellsSelected": "{{count}} cells selected",
+    "assignEmployee": "Assign employee",
+    "clearCells": "Clear selected cells",
+    "cancelSelection": "Cancel selection",
     "unitShiftLabel": "Unit / Shift",
     "addFirstUnit": "Add first unit/room",
     "noUnits": "No units configured for this facility yet.",
@@ -204,6 +261,16 @@
     "convertToVacation": "Convert to vacation",
     "auditLog": "Audit Log",
     "copyToNextDay": "Copy to next day"
+    ,"mobileTitle": "Weekly schedule"
+    ,"previousWeek": "Previous week"
+    ,"nextWeek": "Next week"
+    ,"weekLabel": "Week {{week}}"
+    ,"swipeHint": "Swipe the days to view the full week"
+    ,"assignmentsFor": "Assignments for {{date}}"
+    ,"noAssignments": "No assignments for this day"
+    ,"assignmentCount": "{{count}} assignments"
+    ,"showAllAssignments": "Show all {{count}} assignments"
+    ,"showFewerAssignments": "Show fewer assignments"
   },
   "months": [
     "January", "February", "March", "April", "May", "June",
@@ -233,20 +300,22 @@
     "saveTitle": "Save changes",
     "cancel": "Cancel",
     "shiftType": "Shift type",
-    "shiftTypeHint": "Default chip color for both selected employees.",
+    "shiftTypeHint": "The chip color is inherited from the schedule row.",
+    "shiftColorFromRow": "This color is fixed by the schedule row.",
     "selectedCount": "{{count}} / 2 selected",
     "emptySlot": "Choose from the employee list",
-    "slotShift": "Assigned shift color",
+    "slotShift": "Shift color",
     "employeeList": "Employee list",
     "employeesFound": "{{count}} employees",
     "cannotSaveConflict": "Resolve conflict before saving"
   },
   "shiftColors": {
-    "morning": "Morning",
-    "evening": "Evening",
-    "night": "Night",
-    "onCall": "On-call",
-    "overtime": "Weekend / Overtime",
+    "morning": "Day Shift",
+    "evening": "Late Shift",
+    "night": "Night Shift",
+    "onCall": "On-call Day",
+    "onCallNight": "On-call Night",
+    "overtime": "Overtime",
     "vacation": "Vacation"
   },
   "rowEdit": {
@@ -376,7 +445,7 @@
       "facilityRoleCol": "Facility & Role",
       "unitShiftCol": "Department, Unit & Shift",
       "legendTitle": "Shift symbols & colors guide:",
-      "morningShift": "Morning Shift",
+      "morningShift": "Day Shift",
       "eveningShift": "Evening Shift",
       "nightShift": "Night Shift",
       "onCallShift": "On-Call",

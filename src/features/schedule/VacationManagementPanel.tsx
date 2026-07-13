@@ -4,9 +4,10 @@
 // ============================================================
 
 import { memo, useMemo, useState } from 'react';
-import { Calendar, CalendarDays, CalendarOff, CalendarRange, Save, Trash2, User, X } from 'lucide-react';
+import { Calendar, CalendarOff, Pencil, Save, Trash2, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import type { EmployeeIdentityUpdateResult } from '@/stores/scheduleMatrixStore';
 import type { ScheduleMatrixData, VacationType } from '@/types/scheduleMatrix';
 
 interface VacationManagementPanelProps {
@@ -16,15 +17,20 @@ interface VacationManagementPanelProps {
   onRemoveVacationDay?: (employeeId: string, day: number) => void;
   onRemoveVacationRange?: (employeeId: string, rangeId: string) => void;
   onClearEmployeeVacations?: (employeeId: string) => void;
+  onUpdateEmployeeIdentity: (
+    employeeId: string,
+    fullName: string,
+    code: string,
+  ) => EmployeeIdentityUpdateResult;
 }
 
 function VacationManagementPanel({
   data,
   onSaveRange,
-  onSaveDates,
   onRemoveVacationDay,
   onRemoveVacationRange,
   onClearEmployeeVacations,
+  onUpdateEmployeeIdentity,
 }: VacationManagementPanelProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const vacationTypes = [
@@ -33,13 +39,40 @@ function VacationManagementPanel({
     { value: 'emergency' as const, label: t('schedule:vacationsPanel.types.emergency') },
   ];
   const daysInMonth = new Date(data.year, data.month + 1, 0).getDate();
-  const [mode, setMode] = useState<'range' | 'dates'>('range');
+  const defaultYear = data.year;
+  const defaultMonthStr = String(data.month + 1).padStart(2, '0');
   const [employeeId, setEmployeeId] = useState(data.legend[0]?.employeeId || '');
-  const [startDay, setStartDay] = useState(1);
-  const [endDay, setEndDay] = useState(Math.min(3, daysInMonth));
+  const [fromDateStr, setFromDateStr] = useState(`${defaultYear}-${defaultMonthStr}-01`);
+  const [toDateStr, setToDateStr] = useState(`${defaultYear}-${defaultMonthStr}-03`);
   const [type, setType] = useState<VacationType>('annual');
-  const [selectedDates, setSelectedDates] = useState<number[]>([]);
-  const [datesInputText, setDatesInputText] = useState('');
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+  const [identityName, setIdentityName] = useState('');
+  const [identityCode, setIdentityCode] = useState('');
+  const [identityError, setIdentityError] = useState<string | null>(null);
+
+  const parseDayFromDateStr = (dateStr: string, fallback: number) => {
+    if (!dateStr) return fallback;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const day = Number(parts[2]);
+      if (year === data.year && month === data.month) {
+        return Math.max(1, Math.min(daysInMonth, day));
+      }
+      if (new Date(year, month, day) < new Date(data.year, data.month, 1)) {
+        return 1;
+      }
+      if (new Date(year, month, day) > new Date(data.year, data.month, daysInMonth)) {
+        return daysInMonth;
+      }
+      return Math.max(1, Math.min(daysInMonth, day));
+    }
+    return fallback;
+  };
+
+  const startDay = parseDayFromDateStr(fromDateStr, 1);
+  const endDay = parseDayFromDateStr(toDateStr, Math.min(3, daysInMonth));
 
   const selectedEmployee = useMemo(
     () => data.legend.find((employee) => employee.employeeId === employeeId),
@@ -56,36 +89,42 @@ function VacationManagementPanel({
     [data.vacations],
   );
 
-  const handleDayToggle = (day: number) => {
-    const exists = selectedDates.includes(day);
-    const updated = exists
-      ? selectedDates.filter((currentDay) => currentDay !== day)
-      : [...selectedDates, day].sort((a, b) => a - b);
-    setSelectedDates(updated);
-    setDatesInputText(updated.join(', '));
-  };
-
-  const handleInputTextChange = (text: string) => {
-    setDatesInputText(text);
-    const parsed = text
-      .split(/[,\u060C\s]+/)
-      .map((item) => parseInt(item.trim(), 10))
-      .filter((num) => !isNaN(num) && num >= 1 && num <= daysInMonth);
-    const uniqueSorted = Array.from(new Set(parsed)).sort((a, b) => a - b);
-    setSelectedDates(uniqueSorted);
-  };
-
   const handleSave = () => {
-    if (mode === 'range') {
-      const safeStartDay = Math.max(1, Math.min(daysInMonth, startDay));
-      const safeEndDay = Math.max(1, Math.min(daysInMonth, endDay));
-      onSaveRange(employeeId, Math.min(safeStartDay, safeEndDay), Math.max(safeStartDay, safeEndDay), type);
-    } else if (onSaveDates) {
-      if (selectedDates.length === 0) return;
-      onSaveDates(employeeId, selectedDates, type);
-      setSelectedDates([]);
-      setDatesInputText('');
+    const safeStartDay = Math.max(1, Math.min(daysInMonth, startDay));
+    const safeEndDay = Math.max(1, Math.min(daysInMonth, endDay));
+    onSaveRange(employeeId, Math.min(safeStartDay, safeEndDay), Math.max(safeStartDay, safeEndDay), type);
+  };
+
+  const openIdentityEditor = (targetEmployeeId: string) => {
+    const employee = data.legend.find((entry) => entry.employeeId === targetEmployeeId);
+    if (!employee) return;
+    setEmployeeId(targetEmployeeId);
+    setEditingEmployeeId(targetEmployeeId);
+    setIdentityName(employee.fullName);
+    setIdentityCode(employee.code);
+    setIdentityError(null);
+  };
+
+  const closeIdentityEditor = () => {
+    setEditingEmployeeId(null);
+    setIdentityError(null);
+  };
+
+  const handleIdentitySubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingEmployeeId) return;
+    const result = onUpdateEmployeeIdentity(editingEmployeeId, identityName, identityCode);
+    if (result.ok) {
+      closeIdentityEditor();
+      return;
     }
+    const errorKeys = {
+      name_required: 'schedule:vacationsPanel.identity.errors.nameRequired',
+      code_required: 'schedule:vacationsPanel.identity.errors.codeRequired',
+      duplicate_code: 'schedule:vacationsPanel.identity.errors.duplicateCode',
+      employee_not_found: 'schedule:vacationsPanel.identity.errors.employeeNotFound',
+    } as const;
+    setIdentityError(t(errorKeys[result.reason]));
   };
 
   const getVacationTypeLabel = (val?: VacationType) => {
@@ -102,6 +141,18 @@ function VacationManagementPanel({
   const orderedStartDay = Math.min(safeStartDay, safeEndDay);
   const orderedEndDay = Math.max(safeStartDay, safeEndDay);
   const rangeLength = orderedEndDay - orderedStartDay + 1;
+  const editingEmployee = editingEmployeeId
+    ? data.legend.find((employee) => employee.employeeId === editingEmployeeId)
+    : null;
+  const identityCanSave = Boolean(
+    editingEmployee
+    && identityName.trim()
+    && identityCode.trim()
+    && (
+      identityName.trim() !== editingEmployee.fullName
+      || identityCode.trim().toUpperCase() !== editingEmployee.code
+    ),
+  );
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-soft">
@@ -120,43 +171,12 @@ function VacationManagementPanel({
               )}
             </div>
             <p className="mt-0.5 text-xs font-medium text-text-secondary">
-              {mode === 'range'
-                ? t('schedule:vacationsPanel.modeHintRange', {
-                    count: rangeLength,
-                    type: getVacationTypeLabel(type),
-                  })
-                : t('schedule:vacationsPanel.modeHintDates', { count: selectedDates.length })}
+              {t('schedule:vacationsPanel.modeHintRange', {
+                count: rangeLength,
+                type: getVacationTypeLabel(type),
+              })}
             </p>
           </div>
-        </div>
-
-        <div className="flex rounded-lg border border-border bg-surface p-1 shadow-soft">
-          <button
-            type="button"
-            onClick={() => setMode('range')}
-            className={cn(
-              'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[11px] font-bold transition-colors',
-              mode === 'range'
-                ? 'bg-primary-teal text-white shadow-sm'
-                : 'text-text-secondary hover:bg-hover hover:text-text-primary',
-            )}
-          >
-            <CalendarRange className="h-3.5 w-3.5" />
-            <span>{t('schedule:vacationsPanel.rangeMode')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('dates')}
-            className={cn(
-              'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[11px] font-bold transition-colors',
-              mode === 'dates'
-                ? 'bg-primary-teal text-white shadow-sm'
-                : 'text-text-secondary hover:bg-hover hover:text-text-primary',
-            )}
-          >
-            <CalendarDays className="h-3.5 w-3.5" />
-            <span>{t('schedule:vacationsPanel.datesMode')}</span>
-          </button>
         </div>
       </header>
 
@@ -179,54 +199,32 @@ function VacationManagementPanel({
             </select>
           </label>
 
-          {mode === 'range' ? (
-            <div className="grid grid-cols-2 gap-2">
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-text-secondary">
-                  {t('schedule:vacationsPanel.fromDay')}
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  max={daysInMonth}
-                  value={startDay}
-                  onChange={(event) => setStartDay(Number(event.target.value))}
-                  className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/20"
-                />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-text-secondary">
-                  {t('schedule:vacationsPanel.toDay')}
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  max={daysInMonth}
-                  value={endDay}
-                  onChange={(event) => setEndDay(Number(event.target.value))}
-                  className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/20"
-                />
-              </label>
-            </div>
-          ) : (
+          <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1.5">
-              <span className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-wide text-text-secondary">
-                <span>{t('schedule:vacationsPanel.selectedDays')}</span>
-                {selectedDates.length > 0 && (
-                  <span className="rounded-full bg-primary-teal/10 px-2 py-0.5 text-[10px] font-bold text-primary-teal">
-                    {t('schedule:vacationsPanel.daysCount', { count: selectedDates.length })}
-                  </span>
-                )}
+              <span className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-text-secondary">
+                <span>{t('schedule:vacationsPanel.fromDay')}</span>
+                <span className="font-mono text-primary-teal">(يوم {orderedStartDay})</span>
               </span>
               <input
-                type="text"
-                placeholder={t('schedule:vacationsPanel.datesPlaceholder')}
-                value={datesInputText}
-                onChange={(event) => handleInputTextChange(event.target.value)}
-                className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm font-semibold text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/20"
+                type="date"
+                value={fromDateStr}
+                onChange={(event) => setFromDateStr(event.target.value)}
+                className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-text-primary outline-none transition-colors focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/20"
               />
             </label>
-          )}
+            <label className="space-y-1.5">
+              <span className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-text-secondary">
+                <span>{t('schedule:vacationsPanel.toDay')}</span>
+                <span className="font-mono text-primary-teal">(يوم {orderedEndDay})</span>
+              </span>
+              <input
+                type="date"
+                value={toDateStr}
+                onChange={(event) => setToDateStr(event.target.value)}
+                className="h-10 w-full rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-text-primary outline-none transition-colors focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/20"
+              />
+            </label>
+          </div>
 
           <div className="space-y-1.5">
             <span className="block text-[11px] font-bold uppercase tracking-wide text-text-secondary">
@@ -254,80 +252,86 @@ function VacationManagementPanel({
           <button
             type="button"
             onClick={handleSave}
-            disabled={mode === 'dates' && selectedDates.length === 0}
-            className={cn(
-              'inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors',
-              mode === 'dates' && selectedDates.length === 0
-                ? 'cursor-not-allowed bg-surface-muted text-text-muted'
-                : 'bg-primary-teal text-white shadow-sm hover:bg-primary-teal/90',
-            )}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary-teal px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-teal/90"
           >
             <Save className="h-4 w-4" />
             <span>{t('schedule:vacationsPanel.save')}</span>
           </button>
         </div>
 
-        {mode === 'dates' && (
-          <div className="rounded-lg border border-border bg-surface-muted/35 p-3">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-text-primary">
-                  {t('schedule:vacationsPanel.quickCalendarTitle')}
+        {editingEmployee && (
+          <form
+            aria-label={t('schedule:vacationsPanel.identity.title')}
+            onSubmit={handleIdentitySubmit}
+            className="rounded-xl border border-primary-teal/30 bg-primary-teal/5 p-4"
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-text-primary">
+                {t('schedule:vacationsPanel.identity.title')}
+              </h3>
+              <button
+                type="button"
+                onClick={closeIdentityEditor}
+                aria-label={t('schedule:vacationsPanel.identity.cancel')}
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary hover:bg-hover"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="text-xs font-bold text-text-secondary">
+                  {t('schedule:vacationsPanel.identity.name')}
                 </span>
-                <span className="rounded-full border border-amber-300/60 bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/15 dark:text-amber-100">
-                  {t('schedule:vacationsPanel.quickCalendarHint')}
-                </span>
-              </div>
-              {selectedDates.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDates([]);
-                    setDatesInputText('');
+                <input
+                  value={identityName}
+                  onChange={(event) => {
+                    setIdentityName(event.target.value);
+                    setIdentityError(null);
                   }}
-                  className="rounded-md px-2 py-1 text-[11px] font-bold text-danger hover:bg-danger-500/10"
-                >
-                  {t('schedule:vacationsPanel.clearSelection')}
-                </button>
-              )}
+                  className="h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm font-semibold text-text-primary outline-none focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/20"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-xs font-bold text-text-secondary">
+                  {t('schedule:vacationsPanel.identity.code')}
+                </span>
+                <input
+                  dir="ltr"
+                  value={identityCode}
+                  onChange={(event) => {
+                    setIdentityCode(event.target.value);
+                    setIdentityError(null);
+                  }}
+                  className="h-11 w-full rounded-lg border border-border bg-surface px-3 text-sm font-bold uppercase text-text-primary outline-none focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/20"
+                />
+              </label>
             </div>
 
-            <div className="flex flex-wrap gap-1.5">
-              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-                const isSelected = selectedDates.includes(day);
-                const isAlreadyVacation = selectedVacationDays.includes(day);
+            {identityError && (
+              <p role="alert" className="mt-3 text-xs font-bold text-danger">
+                {identityError}
+              </p>
+            )}
 
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => {
-                      if (isAlreadyVacation && onRemoveVacationDay) {
-                        onRemoveVacationDay(employeeId, day);
-                      } else {
-                        handleDayToggle(day);
-                      }
-                    }}
-                    className={cn(
-                      'flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-bold transition-colors',
-                      isSelected
-                        ? 'border-primary-teal bg-primary-teal text-white shadow-sm'
-                        : isAlreadyVacation
-                          ? 'border-amber-300 bg-amber-100 text-amber-900 hover:border-danger/50 hover:bg-danger-500/10 hover:text-danger dark:border-amber-400/40 dark:bg-amber-400/15 dark:text-amber-100'
-                          : 'border-border bg-surface text-text-primary hover:border-primary-teal/50 hover:bg-hover',
-                    )}
-                    title={
-                      isAlreadyVacation
-                        ? t('schedule:vacationsPanel.alreadyVacation', { day })
-                        : t('schedule:vacationsPanel.dayTooltip', { day })
-                    }
-                  >
-                    {day}
-                  </button>
-                );
-              })}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeIdentityEditor}
+                className="min-h-11 rounded-lg border border-border bg-surface px-4 text-sm font-bold text-text-secondary hover:bg-hover"
+              >
+                {t('schedule:vacationsPanel.identity.cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={!identityCanSave}
+                className="min-h-11 rounded-lg bg-primary-teal px-4 text-sm font-bold text-white hover:bg-primary-teal/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t('schedule:vacationsPanel.identity.save')}
+              </button>
             </div>
-          </div>
+          </form>
         )}
 
         {selectedVacation && selectedVacationDays.length > 0 && (
@@ -347,16 +351,26 @@ function VacationManagementPanel({
                 </div>
               </div>
 
-              {onClearEmployeeVacations && (
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => onClearEmployeeVacations(employeeId)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-danger px-3 text-xs font-bold text-white shadow-sm transition-colors hover:bg-danger/90"
+                  onClick={() => openIdentityEditor(employeeId)}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-primary-teal/30 bg-surface px-3 text-xs font-bold text-primary-teal transition-colors hover:bg-primary-teal hover:text-white"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>{t('schedule:vacationsPanel.clearEmployeeVacations')}</span>
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>{t('schedule:vacationsPanel.identity.edit')}</span>
                 </button>
-              )}
+                {onClearEmployeeVacations && (
+                  <button
+                    type="button"
+                    onClick={() => onClearEmployeeVacations(employeeId)}
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-danger px-3 text-xs font-bold text-white shadow-sm transition-colors hover:bg-danger/90"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>{t('schedule:vacationsPanel.clearEmployeeVacations')}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-3 pt-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
@@ -463,15 +477,24 @@ function VacationManagementPanel({
                           <button
                             type="button"
                             onClick={() => setEmployeeId(vacation.employeeId)}
-                            className="rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-bold text-primary-teal transition-colors hover:border-primary-teal hover:bg-primary-teal hover:text-white"
+                            className="min-h-11 rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-bold text-primary-teal transition-colors hover:border-primary-teal hover:bg-primary-teal hover:text-white"
                           >
                             {t('schedule:vacationsPanel.manageEmployeeVacations')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openIdentityEditor(vacation.employeeId)}
+                            aria-label={t('schedule:vacationsPanel.identity.editFor', { name: vacation.fullName })}
+                            className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-bold text-text-secondary transition-colors hover:border-primary-teal hover:text-primary-teal"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            {t('schedule:vacationsPanel.identity.editShort')}
                           </button>
                           {onClearEmployeeVacations && (
                             <button
                               type="button"
                               onClick={() => onClearEmployeeVacations(vacation.employeeId)}
-                              className="rounded-lg border border-danger/25 bg-danger-500/10 px-2.5 py-1 text-[11px] font-bold text-danger transition-colors hover:bg-danger hover:text-white"
+                              className="min-h-11 rounded-lg border border-danger/25 bg-danger-500/10 px-2.5 py-1 text-[11px] font-bold text-danger transition-colors hover:bg-danger hover:text-white"
                               title={t('schedule:vacationsPanel.clearEmployeeVacations')}
                             >
                               {t('schedule:vacationsPanel.clearVacation')}

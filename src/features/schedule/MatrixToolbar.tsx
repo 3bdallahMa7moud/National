@@ -11,6 +11,7 @@ import {
   Eye,
   FileSpreadsheet,
   Maximize2,
+  MoreHorizontal,
   Paintbrush,
   Pencil,
   Printer,
@@ -24,7 +25,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import Button from '@/components/ui/Button';
-import { SHIFT_COLOR_KEYS } from '@/lib/shiftColorOptions';
+import { getShiftChipStyle } from '@/components/schedule/ScheduleMatrix/getShiftChipClasses';
 import type { MatrixAdminMode, ShiftColorKey } from '@/types/scheduleMatrix';
 
 interface MatrixToolbarProps {
@@ -47,8 +48,6 @@ interface MatrixToolbarProps {
   onClearSelection: () => void;
   brushEmployeeCodes: string[];
   onClearBrush: () => void;
-  brushColorKey?: ShiftColorKey;
-  onBrushColorKeyChange?: (key: ShiftColorKey) => void;
   isBulkSelecting?: boolean;
   onToggleBulkSelect?: () => void;
   isExpanded?: boolean;
@@ -118,8 +117,6 @@ function MatrixToolbar({
   onToggleColorblindMode,
   onUndo,
   canUndo = false,
-  brushColorKey = 'morning',
-  onBrushColorKeyChange,
 }: MatrixToolbarProps) {
   const { t, i18n } = useTranslation(['schedule', 'common']);
   const isRtl = i18n.dir() === 'rtl';
@@ -142,36 +139,37 @@ function MatrixToolbar({
   ];
   const shiftFilters = [
     { value: '' as const, label: t('schedule:toolbar.allShifts') },
-    { value: 'morning' as const, label: t('schedule:toolbar.morning') },
-    { value: 'evening' as const, label: 'Late' },
-    { value: 'night' as const, label: 'Night' },
-    { value: 'onCall' as const, label: 'On-call' },
-    { value: 'overtime' as const, label: 'Weekend' },
+    { value: 'morning' as const, label: t('schedule:toolbar.morning'), colorKey: 'morning' as const },
+    { value: 'evening' as const, label: t('schedule:toolbar.evening'), colorKey: 'evening' as const },
+    { value: 'night' as const, label: t('schedule:toolbar.night'), colorKey: 'night' as const },
+    { value: 'onCall' as const, label: t('schedule:toolbar.onCall'), colorKey: 'onCall' as const },
+    { value: 'onCallNight' as const, label: t('schedule:toolbar.onCallNight'), colorKey: 'onCallNight' as const },
+    { value: 'overtime' as const, label: t('schedule:toolbar.overtime'), colorKey: 'overtime' as const },
   ];
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3 shadow-soft">
-        <div className="flex flex-wrap items-center gap-4">
-          <div>
+    <div className="min-w-0 space-y-3 overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-3 shadow-soft sm:px-4">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 sm:gap-4">
+          <div className="min-w-0 flex-1 sm:flex-none">
             <h1 className="text-lg font-bold text-ink">{t('schedule:toolbar.title')}</h1>
             <p className="text-[11px] text-text-secondary">{t('schedule:toolbar.subtitle')}</p>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex w-full items-center gap-1.5 sm:w-auto">
             <button
               onClick={onPrevMonth}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary hover:bg-hover transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary hover:bg-hover transition-colors"
               aria-label={t('schedule:matrix.prevMonth')}
             >
               <PrevIcon className="h-4 w-4" />
             </button>
-            <div className="rounded-lg border border-border bg-surface px-4 py-1.5 min-w-[140px] text-center">
+            <div className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-center sm:min-w-[140px] sm:flex-none sm:px-4 sm:py-1.5">
               <span className="text-sm font-semibold text-ink">{months[month] || ''} {year}</span>
             </div>
             <button
               onClick={onNextMonth}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary hover:bg-hover transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary hover:bg-hover transition-colors"
               aria-label={t('schedule:matrix.nextMonth')}
             >
               <NextIcon className="h-4 w-4" />
@@ -179,12 +177,12 @@ function MatrixToolbar({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="hidden items-center gap-2 flex-wrap md:flex">
 
           <button
             onClick={onToggleColorblindMode}
             className={cn(
-              'rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors shadow-sm',
+              'min-h-11 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors shadow-sm',
               colorblindMode
                 ? 'border-primary-teal bg-primary-teal text-white'
                 : 'border-border bg-surface text-text-primary hover:bg-hover',
@@ -198,7 +196,7 @@ function MatrixToolbar({
               onClick={onUndo}
               disabled={!canUndo}
               className={cn(
-                'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all shadow-sm',
+                'flex min-h-11 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all shadow-sm',
                 canUndo
                   ? 'border-amber-500 bg-amber-500/10 text-amber-700 hover:bg-amber-500 hover:text-white'
                   : 'border-border bg-surface-muted text-text-muted cursor-not-allowed'
@@ -214,14 +212,14 @@ function MatrixToolbar({
             <button
               onClick={onZoomOut}
               disabled={zoomLevel <= 0.7}
-              className="flex h-6 w-6 items-center justify-center rounded bg-surface text-text-primary shadow-sm hover:bg-hover disabled:opacity-40 transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded bg-surface text-text-primary shadow-sm hover:bg-hover disabled:opacity-40 transition-colors"
               title={t('schedule:toolbar.zoomOut')}
             >
               <ZoomOut className="h-3.5 w-3.5 text-primary-teal" />
             </button>
             <button
               onClick={onZoomReset}
-              className="min-w-[42px] text-center text-xs font-bold text-ink hover:text-primary-teal transition-colors px-1"
+              className="min-h-11 min-w-11 px-1 text-center text-xs font-bold text-ink transition-colors hover:text-primary-teal"
               title={t('schedule:toolbar.resetZoom')}
             >
               {Math.round(zoomLevel * 100)}%
@@ -229,7 +227,7 @@ function MatrixToolbar({
             <button
               onClick={onZoomIn}
               disabled={zoomLevel >= 2}
-              className="flex h-6 w-6 items-center justify-center rounded bg-surface text-text-primary shadow-sm hover:bg-hover disabled:opacity-40 transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded bg-surface text-text-primary shadow-sm hover:bg-hover disabled:opacity-40 transition-colors"
               title={t('schedule:toolbar.zoomIn')}
             >
               <ZoomIn className="h-3.5 w-3.5 text-primary-teal" />
@@ -239,7 +237,7 @@ function MatrixToolbar({
           {onExportExcel && (
             <button
               onClick={onExportExcel}
-              className="flex items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-600 hover:text-white transition-all shadow-sm dark:bg-emerald-950/60 dark:text-emerald-200"
               title={t('schedule:toolbar.exportExcel')}
             >
               <FileSpreadsheet className="h-4 w-4" />
@@ -250,7 +248,7 @@ function MatrixToolbar({
           {onExportPDF && (
             <button
               onClick={onExportPDF}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-muted px-3 py-1.5 text-xs font-bold text-text-primary hover:border-primary hover:bg-primary hover:text-white transition-all shadow-sm"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-border bg-surface-muted px-3 py-1.5 text-xs font-bold text-text-primary hover:border-primary hover:bg-primary hover:text-white transition-all shadow-sm"
               title={t('schedule:toolbar.exportPDF')}
             >
               <Printer className="h-4 w-4" />
@@ -261,7 +259,7 @@ function MatrixToolbar({
           {onOpenFullscreen && (
             <button
               onClick={onOpenFullscreen}
-              className="flex items-center gap-1.5 rounded-lg border border-primary-teal bg-primary-teal/10 px-3 py-1.5 text-xs font-bold text-primary-teal hover:bg-primary-teal hover:text-white transition-all shadow-sm"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-primary-teal bg-primary-teal/10 px-3 py-1.5 text-xs font-bold text-primary-teal hover:bg-primary-teal hover:text-white transition-all shadow-sm"
               title={t('schedule:toolbar.fullscreen')}
             >
               <Maximize2 className="h-4 w-4" />
@@ -269,6 +267,44 @@ function MatrixToolbar({
             </button>
           )}
         </div>
+
+        <details className="group relative w-full md:hidden">
+          <summary className="flex h-11 cursor-pointer list-none items-center justify-center gap-2 rounded-btn border border-border bg-surface-muted px-3 text-sm font-semibold text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <MoreHorizontal className="h-5 w-5" />
+            {t('schedule:toolbar.moreActions')}
+          </summary>
+          <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-border bg-surface p-2 shadow-dropdown">
+            <button type="button" onClick={() => onModeChange('brush')} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
+              {t('schedule:toolbar.modes.brush')}
+            </button>
+            <button type="button" onClick={() => onModeChange('settings')} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
+              {t('schedule:toolbar.modes.settings')}
+            </button>
+            <button type="button" onClick={onToggleColorblindMode} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
+              {t('schedule:toolbar.legendAndColors')}
+            </button>
+            {onUndo && (
+              <button type="button" onClick={onUndo} disabled={!canUndo} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover disabled:opacity-40">
+                {t('schedule:toolbar.undo')}
+              </button>
+            )}
+            {onExportExcel && (
+              <button type="button" onClick={onExportExcel} className="min-h-11 rounded-btn border border-emerald-600 px-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                {t('schedule:toolbar.exportExcel')}
+              </button>
+            )}
+            {onExportPDF && (
+              <button type="button" onClick={onExportPDF} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
+                {t('schedule:toolbar.exportPDF')}
+              </button>
+            )}
+            {onOpenFullscreen && (
+              <button type="button" onClick={onOpenFullscreen} className="col-span-2 min-h-11 rounded-btn border border-primary px-3 text-xs font-semibold text-primary">
+                {t('schedule:toolbar.fullscreen')}
+              </button>
+            )}
+          </div>
+        </details>
       </div>
 
       {isDirty && (
@@ -288,15 +324,16 @@ function MatrixToolbar({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-2.5 shadow-soft">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 rounded-lg bg-surface-muted p-0.5 border border-border">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 shadow-soft sm:px-4">
+        <div className="min-w-0 max-w-full flex-1 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0">
+          <div className="flex w-max items-center gap-1 rounded-lg bg-surface-muted p-0.5 border border-border">
             {modeConfig.map(({ mode, label, icon }) => (
               <button
                 key={mode}
                 onClick={() => onModeChange(mode)}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all duration-150',
+                  'flex min-h-11 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all duration-150',
+                  (mode === 'brush' || mode === 'settings') && 'hidden md:flex',
                   adminMode === mode
                     ? 'bg-surface text-primary-teal shadow-sm border border-border'
                     : 'text-text-secondary hover:text-ink hover:bg-hover',
@@ -312,7 +349,7 @@ function MatrixToolbar({
             <button
               onClick={onToggleBulkSelect}
               className={cn(
-                'rounded-md px-3 py-1.5 text-xs font-semibold border transition-all duration-150',
+                'min-h-11 rounded-md px-3 py-1.5 text-xs font-semibold border transition-all duration-150',
                 isBulkSelecting
                   ? 'bg-primary-teal text-white border-primary-teal shadow-sm'
                   : 'bg-surface text-text-secondary border-border hover:border-primary-teal hover:bg-hover',
@@ -321,30 +358,15 @@ function MatrixToolbar({
               {isBulkSelecting ? t('schedule:toolbar.bulkSelectActiveLabel') : t('schedule:toolbar.selectRangeLabel')}
             </button>
           )}
-
-          {(adminMode === 'edit' || adminMode === 'brush') && onBrushColorKeyChange && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-primary-teal/30 bg-primary-teal/5 px-2.5 py-1">
-              <span className="text-[11px] font-bold text-primary-teal">نوع الشفت عند التعيين:</span>
-              <select
-                value={brushColorKey}
-                onChange={(e) => onBrushColorKeyChange(e.target.value as ShiftColorKey)}
-                className="h-7 rounded border border-primary-teal/40 bg-surface px-2 text-xs font-bold text-ink focus:border-primary-teal focus:outline-none"
-              >
-                {SHIFT_COLOR_KEYS.map((key) => (
-                  <option key={key} value={key}>{t(`schedule:shiftColors.${key}`)}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex w-full items-center gap-1 overflow-x-auto pb-1 lg:w-auto lg:overflow-visible lg:pb-0">
           {facilityTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => onFacilityFilterChange(tab.id)}
               className={cn(
-                'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors duration-150',
+                'min-h-11 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors duration-150',
                 facilityFilter === tab.id
                   ? 'bg-primary-teal text-white shadow-sm'
                   : 'text-text-secondary hover:bg-hover',
@@ -356,8 +378,8 @@ function MatrixToolbar({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 shadow-soft">
-        <div className="relative min-w-[240px] flex-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2.5 shadow-soft sm:px-4">
+        <div className="relative min-w-0 flex-1 basis-full sm:min-w-[240px] sm:basis-auto">
           <Search className="absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
           <input
             value={searchQuery}
@@ -375,18 +397,21 @@ function MatrixToolbar({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex max-w-full flex-wrap items-center gap-1">
           {shiftFilters.map((filter) => (
             <button
               key={filter.value || 'all'}
               onClick={() => onShiftFilterChange(filter.value)}
               className={cn(
-                'rounded-md px-2.5 py-1.5 text-[11px] font-bold transition-colors',
+                'min-h-11 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition-colors',
                 shiftFilter === filter.value
                   ? 'bg-primary-700 text-white shadow-sm dark:bg-primary-800 dark:text-white'
                   : 'bg-surface-muted text-text-secondary hover:bg-hover hover:text-text-primary dark:hover:bg-primary-950 dark:hover:text-text-primary',
               )}
             >
+              {filter.colorKey && (
+                <span className="me-1 inline-block h-2.5 w-2.5 rounded-full border" style={getShiftChipStyle(filter.colorKey)} aria-hidden="true" />
+              )}
               {filter.label}
             </button>
           ))}
@@ -402,16 +427,20 @@ function MatrixToolbar({
         </div>
       )}
 
-      {adminMode === 'brush' && brushEmployeeCodes.length > 0 && (
+      {adminMode === 'brush' && (
         <div className="flex items-center gap-2 rounded-lg bg-violet-50 border border-violet-200 px-3 py-2 text-xs font-medium text-violet-700">
           <Paintbrush className="h-3.5 w-3.5" />
-          <span>{t('schedule:matrix.brushActive')}:</span>
-          <span dir="ltr" className="font-bold" style={{ unicodeBidi: 'isolate' }}>
-            {brushEmployeeCodes.join(' + ')}
-          </span>
-          <button onClick={onClearBrush} className="ms-auto flex items-center gap-1 text-[11px] hover:text-ink">
-            <X className="h-3 w-3" /> {t('schedule:matrix.cancelBrush')}
-          </button>
+          <span>{t('schedule:matrix.brushSelectionCount', { count: brushEmployeeCodes.length })}</span>
+          {brushEmployeeCodes.length > 0 && (
+            <span dir="ltr" className="font-bold" style={{ unicodeBidi: 'isolate' }}>
+              {brushEmployeeCodes.join(' + ')}
+            </span>
+          )}
+          {brushEmployeeCodes.length > 0 && (
+            <button onClick={onClearBrush} className="ms-auto flex items-center gap-1 text-[11px] hover:text-ink">
+              <X className="h-3 w-3" /> {t('schedule:matrix.cancelBrush')}
+            </button>
+          )}
         </div>
       )}
 

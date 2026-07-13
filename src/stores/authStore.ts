@@ -4,7 +4,8 @@ import type { Language } from '@/i18n/constants';
 import { getStoredLanguage } from '@/i18n/constants';
 import i18n from '@/i18n';
 import { mockEmployeesSource } from '@/mocks/sources';
-import { resolveAuthUser, updateLocalizedField } from '@/mocks/resolveMockData';
+import { resolveAuthUser } from '@/mocks/resolveMockData';
+import { verifyEmployeePassword, setEmployeePassword } from '@/mocks/mockPasswordStore';
 
 interface AuthState {
   user: AuthUser | null;
@@ -13,6 +14,7 @@ interface AuthState {
   logout: () => void;
   setUser: (user: AuthUser) => void;
   updateProfile: (updates: Partial<AuthUser>) => void;
+  changePassword: (currentPw: string, newPw: string) => boolean;
   syncLocale: (lang: Language) => void;
 }
 
@@ -28,7 +30,8 @@ const loadUser = (): AuthUser | null => {
     const parsed: AuthUser = JSON.parse(stored);
     const source = mockEmployeesSource.find((e) => e.id === parsed.id);
     if (source) {
-      const updated = resolveAuthUser(source, getCurrentLanguage());
+      const localized = resolveAuthUser(source, getCurrentLanguage());
+      const updated = { ...localized, email: parsed.email, avatar: parsed.avatar };
       localStorage.setItem('user', JSON.stringify(updated));
       return updated;
     }
@@ -58,29 +61,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   updateProfile: (updates) => {
     const current = get().user;
     if (!current) return;
-    const lang = getCurrentLanguage();
-    const empIndex = mockEmployeesSource.findIndex((e) => e.id === current.id);
-    if (empIndex !== -1) {
-      if (updates.name) {
-        mockEmployeesSource[empIndex].name = updateLocalizedField(
-          mockEmployeesSource[empIndex].name,
-          lang,
-          updates.name,
-        );
-      }
-      if (updates.email) mockEmployeesSource[empIndex].email = updates.email;
-      if (updates.avatar !== undefined) mockEmployeesSource[empIndex].avatar = updates.avatar;
-    }
-    const updated = resolveAuthUser(mockEmployeesSource[empIndex], lang);
+    const updated = { ...current, ...updates };
     localStorage.setItem('user', JSON.stringify(updated));
     set({ user: updated });
+  },
+  changePassword: (currentPw, newPw) => {
+    const current = get().user;
+    if (!current) return false;
+    if (!verifyEmployeePassword(current.id, currentPw)) return false;
+    setEmployeePassword(current.id, newPw);
+    return true;
   },
   syncLocale: (lang) => {
     const current = get().user;
     if (!current) return;
     const source = mockEmployeesSource.find((e) => e.id === current.id);
     if (!source) return;
-    const updated = resolveAuthUser(source, lang);
+    const localized = resolveAuthUser(source, lang);
+    const updated = { ...localized, email: current.email, avatar: current.avatar };
     localStorage.setItem('user', JSON.stringify(updated));
     set({ user: updated });
   },

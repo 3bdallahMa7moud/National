@@ -4,12 +4,13 @@ import RouteGuard from '@/features/auth/RouteGuard';
 
 const AppShell = lazy(() => import('@/layouts/AppShell'));
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
-const RegisterPage = lazy(() => import('@/features/auth/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'));
 const NotFoundPage = lazy(() => import('@/features/auth/NotFoundPage'));
 const ForbiddenPage = lazy(() => import('@/features/auth/ForbiddenPage'));
 const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage'));
+const EmployeeDashboardPage = lazy(() => import('@/features/dashboard/EmployeeDashboardPage'));
 const AdminSchedulePage = lazy(() => import('@/features/schedule/AdminSchedulePage'));
-const ScheduleManagementPage = lazy(() => import('@/features/schedule-management/ScheduleManagementPage'));
+const LateSchedulePage = lazy(() => import('@/features/late-schedule/LateSchedulePage'));
 const EmployeesPage = lazy(() => import('@/features/employees/EmployeesPage'));
 const DepartmentsPage = lazy(() => import('@/features/departments/DepartmentsPage'));
 const ReportsPage = lazy(() => import('@/features/reports/ReportsPage'));
@@ -40,8 +41,8 @@ export const router = createBrowserRouter([
     element: lazyElement(<LoginPage />),
   },
   {
-    path: '/register',
-    element: lazyElement(<RegisterPage />),
+    path: '/forgot-password',
+    element: lazyElement(<ForgotPasswordPage />),
   },
   {
     path: '/403',
@@ -67,8 +68,8 @@ export const router = createBrowserRouter([
                 element: lazyElement(<AdminSchedulePage />),
               },
               {
-                path: 'admin/schedule-management',
-                element: lazyElement(<ScheduleManagementPage />),
+                path: 'admin/late-schedule',
+                element: lazyElement(<LateSchedulePage />),
               },
               {
                 path: 'admin/employees',
@@ -90,20 +91,28 @@ export const router = createBrowserRouter([
           },
           // مسارات الموظف والعامة المشتركة (Employee Routes)
           {
-            path: 'schedule/me',
-            element: lazyElement(<EmployeeSchedulePage />),
-          },
-          {
-            path: 'schedule/department',
-            element: lazyElement(<DepartmentSchedulePage />),
-          },
-          {
-            path: 'calendar-sync',
-            element: lazyElement(<CalendarSyncPage />),
-          },
-          {
             element: <RouteGuard allowedRoles={['employee']} />,
             children: [
+              {
+                path: 'employee/dashboard',
+                element: lazyElement(<EmployeeDashboardPage />),
+              },
+              {
+                path: 'schedule/me',
+                element: lazyElement(<EmployeeSchedulePage />),
+              },
+              {
+                path: 'schedule/department',
+                element: lazyElement(<DepartmentSchedulePage />),
+              },
+              {
+                path: 'late-schedule',
+                element: lazyElement(<LateSchedulePage />),
+              },
+              {
+                path: 'calendar-sync',
+                element: lazyElement(<CalendarSyncPage />),
+              },
               {
                 path: 'notifications',
                 element: lazyElement(<NotificationsPage />),

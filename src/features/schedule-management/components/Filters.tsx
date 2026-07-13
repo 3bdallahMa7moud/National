@@ -17,7 +17,7 @@ interface FiltersProps {
 }
 
 const SHIFT_OPTIONS: { value: ShiftCategory; label: string }[] = [
-  { value: 'morning', label: 'Morning' },
+  { value: 'morning', label: 'Day Shift' },
   { value: 'evening', label: 'Evening' },
   { value: 'night', label: 'Night' },
   { value: 'vacation', label: 'Vacation' },

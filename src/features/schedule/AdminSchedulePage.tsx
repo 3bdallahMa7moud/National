@@ -6,18 +6,22 @@
 // management, shift definition settings, bulk actions, undo/redo,
 // search, and cross-facility conflict verification.
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useScheduleMatrix } from '@/hooks/useScheduleMatrix';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
 import { useTranslation } from 'react-i18next';
 import ScheduleMatrix from '@/components/schedule/ScheduleMatrix/ScheduleMatrix';
 import MatrixToolbar from './MatrixToolbar';
+import MatrixStatsCards from './MatrixStatsCards';
+import ScheduleViewControls from './ScheduleViewControls';
 import AssignmentDrawer from './AssignmentDrawer';
 import FullscreenMatrixModal from './FullscreenMatrixModal';
 import VacationManagementPanel from './VacationManagementPanel';
 import ScheduleSettingsPanel from './ScheduleSettingsPanel';
 import CellContextMenu from './CellContextMenu';
+import { mergeBrushAssignments } from '@/lib/scheduleAssignments';
+import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
 import type { MatrixCellRef, Assignment, ShiftColorKey } from '@/types/scheduleMatrix';
 
 export default function AdminSchedulePage() {
@@ -56,6 +60,7 @@ export default function AdminSchedulePage() {
     fillAssignmentRange,
     toggleVacation,
     addVacationRange,
+    updateEmployeeIdentity,
     markCellVacation,
     publishDrafts,
     discardDraft,
@@ -64,24 +69,71 @@ export default function AdminSchedulePage() {
     addShiftDefinition,
     updateShiftDefinition,
     archiveShiftDefinition,
+    restoreShiftDefinition,
     addUnit,
     renameUnit,
     archiveUnit,
+    restoreUnit,
     updateMatrixRow,
   } = store;
 
   const { addToast } = useToast();
+  const searchParams = useMemo(() => new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search), []);
+  const deepLinkHandled = useRef(false);
 
   // Local state for toolbar filtering & search
   const [isBulkSelecting, setIsBulkSelecting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [statsExpanded, setStatsExpanded] = useState(false);
   const [isFullscreenModalOpen, setIsFullscreenModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [shiftFilter, setShiftFilter] = useState<ShiftColorKey | ''>('');
   const [conflictsOnly, setConflictsOnly] = useState(false);
-  const [brushColorKey, setBrushColorKey] = useState<ShiftColorKey>('morning');
+
+  useEffect(() => {
+    if (deepLinkHandled.current) return;
+    const dateValue = searchParams.get('date');
+    const rowId = searchParams.get('rowId');
+    const day = Number(searchParams.get('day'));
+    if (!dateValue || !rowId || !Number.isInteger(day)) return;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
+    if (!match) { deepLinkHandled.current = true; return; }
+    const targetYear = Number(match[1]);
+    const targetMonth = Number(match[2]) - 1;
+    if (year !== targetYear || month !== targetMonth) {
+      store.loadMonth(targetMonth, targetYear);
+      return;
+    }
+    if (!data) return;
+    for (const facility of data.facilities) {
+      for (const unit of facility.units) {
+        if (unit.archived) continue;
+        const row = filterActiveScheduleRows(data, facility.id, unit.rows).find((entry) => entry.id === rowId);
+        if (!row || day < 1 || day > new Date(targetYear, targetMonth + 1, 0).getDate()) continue;
+        setFacilityFilter(facility.id);
+        const category = searchParams.get('category');
+        const categoryColor: Record<string, ShiftColorKey> = { day: 'morning', late: 'evening', night: 'night', onCall: 'onCall', ot: 'overtime' };
+        if (category && categoryColor[category]) setShiftFilter(categoryColor[category]);
+        openDrawer({
+          facilityId: facility.id,
+          unitId: unit.id,
+          rowId: row.id,
+          day,
+          facilityName: facility.name,
+          unitName: unit.name,
+          shiftLabel: row.shiftLabel || row.rowLabel,
+          timeRange: row.timeRange,
+          defaultColorKey: row.colorKey,
+        });
+        deepLinkHandled.current = true;
+        return;
+      }
+    }
+    deepLinkHandled.current = true;
+    addToast({ type: 'warning', title: t('schedule:matrix.noResults'), message: t('schedule:matrix.noResults') });
+  }, [addToast, data, month, openDrawer, searchParams, setFacilityFilter, store, t, year]);
 
   // Right-click context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -158,44 +210,26 @@ export default function AdminSchedulePage() {
 
       if (adminMode === 'brush' && brushEmployeeCodes.length > 0) {
         const current = getCellAssignments(cellRef);
-        const merged: Assignment[] = current.map((a) => ({ ...a, status: 'draft' as const }));
-        let changed = false;
-        let cellFull = false;
+        const selectedEmployees = brushEmployeeCodes.flatMap((code) => {
+          const employee = data.legend.find((entry) => entry.code === code);
+          return employee ? [employee] : [];
+        });
+        const mergeResult = mergeBrushAssignments(current, selectedEmployees);
 
-        for (const code of brushEmployeeCodes) {
-          const emp = data.legend.find((e) => e.code === code);
-          if (!emp) continue;
-          const existingIndex = merged.findIndex((a) => a.employeeCode === code);
-          if (existingIndex >= 0) {
-            merged.splice(existingIndex, 1);
-            changed = true;
-            continue;
-          }
-          if (merged.length >= 2) {
-            cellFull = true;
-            break;
-          }
-          merged.push({
-            employeeId: emp.employeeId,
-            employeeCode: emp.code,
-            status: 'draft',
-            colorKey: brushColorKey,
+        if (!mergeResult.ok) {
+          addToast({
+            type: 'warning',
+            title: t('schedule:toast.brushMaxCellTitle'),
+            message: t('schedule:toast.brushMaxCellMsg'),
           });
-          changed = true;
-        }
-
-        if (!changed) {
-          if (cellFull) {
-            addToast({
-              type: 'warning',
-              title: t('schedule:toast.brushMaxCellTitle'),
-              message: t('schedule:toast.brushMaxCellMsg'),
-            });
-          }
           return;
         }
 
-        const res = assignCell(cellRef.rowId, cellRef.day, merged);
+        if (!mergeResult.changed) {
+          return;
+        }
+
+        const res = assignCell(cellRef.rowId, cellRef.day, mergeResult.assignments);
         if (!res.ok) {
           addToast({
             type: 'warning',
@@ -207,7 +241,7 @@ export default function AdminSchedulePage() {
             type: 'success',
             title: t('schedule:toast.brushAssignTitle'),
             message: t('schedule:toast.brushAssignMsg', {
-              codes: merged.map((a) => a.employeeCode).join(', '),
+              codes: mergeResult.assignments.map((assignment) => assignment.employeeCode).join(', '),
               day: cellRef.day,
             }),
           });
@@ -252,20 +286,47 @@ export default function AdminSchedulePage() {
         defaultColorKey,
       });
     },
-    [data, isBulkSelecting, adminMode, brushEmployeeCodes, brushColorKey, store, assignCell, openDrawer, addToast, t, getCellAssignments],
+    [data, isBulkSelecting, adminMode, brushEmployeeCodes, store, assignCell, openDrawer, addToast, t, getCellAssignments],
   );
 
   const handleChipClick = useCallback(
     (cellRef: MatrixCellRef, assignment?: Assignment) => {
-      if (adminMode === 'brush' && brushEmployeeCodes.length === 0 && assignment?.employeeCode) {
-        toggleBrushEmployeeCode(assignment.employeeCode);
+      if (adminMode === 'brush' && assignment?.employeeCode) {
+        const wasSelected = brushEmployeeCodes.includes(assignment.employeeCode);
+        const result = toggleBrushEmployeeCode(assignment.employeeCode);
+
+        if (!result.ok && result.reason === 'max_selection') {
+          addToast({
+            type: 'warning',
+            title: t('schedule:toast.brushMaxSelectionTitle'),
+            message: t('schedule:toast.brushMaxSelectionMsg'),
+          });
+          return;
+        }
+
         const emp = data?.legend.find((e) => e.code === assignment.employeeCode);
-        if (emp) setHighlightedEmployeeId(emp.employeeId);
+        if (wasSelected) {
+          const remaining = brushEmployeeCodes.filter((code) => code !== assignment.employeeCode);
+          const nextCode = remaining[remaining.length - 1];
+          const nextEmp = nextCode ? data?.legend.find((entry) => entry.code === nextCode) : null;
+          setHighlightedEmployeeId(nextEmp?.employeeId ?? null);
+        } else if (emp) {
+          setHighlightedEmployeeId(emp.employeeId);
+        }
         return;
       }
       handleCellClick(cellRef);
     },
-    [handleCellClick, adminMode, brushEmployeeCodes, toggleBrushEmployeeCode, data?.legend, setHighlightedEmployeeId],
+    [
+      handleCellClick,
+      adminMode,
+      brushEmployeeCodes,
+      toggleBrushEmployeeCode,
+      data?.legend,
+      setHighlightedEmployeeId,
+      addToast,
+      t,
+    ],
   );
 
   const handleSaveAssignment = useCallback(
@@ -399,7 +460,7 @@ export default function AdminSchedulePage() {
         const units = facility.units
           .filter((unit) => !unit.archived)
           .map((unit) => {
-            let rows = unit.rows;
+            let rows = filterActiveScheduleRows(data, facility.id, unit.rows);
 
             if (shiftFilter) {
               rows = rows.filter((row) => row.colorKey === shiftFilter);
@@ -508,8 +569,6 @@ export default function AdminSchedulePage() {
         onClearSelection={clearSelection}
         brushEmployeeCodes={brushEmployeeCodes}
         onClearBrush={clearBrushEmployees}
-        brushColorKey={brushColorKey}
-        onBrushColorKeyChange={setBrushColorKey}
         isBulkSelecting={isBulkSelecting || selectedCells.length > 0}
         onToggleBulkSelect={() => {
           if (selectedCells.length > 0) {
@@ -545,6 +604,20 @@ export default function AdminSchedulePage() {
           }
         }}
         canUndo={undoStack.length > 0}
+        />
+      </div>
+
+      {/* ── KPI Statistics Cards ── */}
+      <ScheduleViewControls
+        statsExpanded={statsExpanded}
+        onToggleStats={() => setStatsExpanded((expanded) => !expanded)}
+      />
+
+      <div className={cn('hidden md:block', !statsExpanded && 'md:hidden')}>
+        <MatrixStatsCards
+          data={data}
+          activeShiftFilter={shiftFilter}
+          onSelectFilter={(filterKey) => setShiftFilter(filterKey)}
         />
       </div>
 
@@ -593,6 +666,20 @@ export default function AdminSchedulePage() {
                 message: 'تم مسح جميع إجازات الموظف بنجاح',
               });
             }}
+            onUpdateEmployeeIdentity={(empId, fullName, code) => {
+              const result = updateEmployeeIdentity(empId, fullName, code);
+              if (result.ok) {
+                addToast({
+                  type: 'success',
+                  title: t('schedule:vacationsPanel.identity.successTitle'),
+                  message: t('schedule:vacationsPanel.identity.successMessage', {
+                    name: result.fullName,
+                    code: result.code,
+                  }),
+                });
+              }
+              return result;
+            }}
           />
           <div className="pt-4 border-t border-border">
             <h3 className="text-sm font-bold text-ink mb-2">{t('schedule:vacationPanel.bandTitle')}</h3>
@@ -617,9 +704,11 @@ export default function AdminSchedulePage() {
           onAddShift={addShiftDefinition}
           onUpdateShift={updateShiftDefinition}
           onArchiveShift={archiveShiftDefinition}
+          onRestoreShift={restoreShiftDefinition}
           onAddUnit={addUnit}
           onRenameUnit={renameUnit}
           onArchiveUnit={archiveUnit}
+          onRestoreUnit={restoreUnit}
         />
       ) : (
         /* ── Main Schedule Matrix Grid ── */

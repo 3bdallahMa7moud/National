@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -12,6 +13,7 @@ import type { Department } from '@/types';
 
 export default function DepartmentsPage() {
   const { t } = useTranslation(['departments', 'common', 'forms']);
+  const navigate = useNavigate();
   const { departments, employees } = useMockData();
   const [editModal, setEditModal] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -87,7 +89,13 @@ export default function DepartmentsPage() {
 
               <div className="mt-6 flex items-center justify-between border-t border-border pt-4 text-xs text-text-secondary">
                 <span>{t('common:labels.code')}: {dept.id.toUpperCase()}</span>
-                <span className="text-primary font-medium cursor-pointer hover:underline">{t('departments:viewTeam')}</span>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/admin/employees?departmentId=${dept.id}`)}
+                  className="text-primary font-medium cursor-pointer hover:underline focus:outline-none"
+                >
+                  {t('departments:viewTeam')}
+                </button>
               </div>
             </Card>
           );

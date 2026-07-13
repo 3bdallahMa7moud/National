@@ -15,7 +15,25 @@
     "changePassword": "Change Password",
     "changePasswordModalTitle": "Change Password",
     "profileUpdated": "Your personal information was updated successfully",
-    "passwordChanged": "Your password was changed successfully"
+    "passwordChanged": "Your password was changed successfully",
+    "emailAdded": "Your email was added successfully",
+    "addEmail": "Add email address",
+    "addEmailModalTitle": "Add Email Address",
+    "editEmailModalTitle": "Edit Email Address",
+    "addEmailDescription": "Add your email to enable login with email in the future.",
+    "editEmailDescription": "Update your email address used for login."
+  },
+  "profileView": {
+    "title": "Profile", "subtitle": "Account identity, security, and role-specific operational shortcuts.",
+    "active": "Active", "admin": "Admin", "employee": "Employee", "notSet": "Not set",
+    "email": "Email", "editEmail": "Edit email", "saveEmail": "Save email", "cancel": "Cancel",
+    "security": "Account security", "password": "Password", "passwordProtected": "Protected with your account password", "changePassword": "Change password",
+    "currentPassword": "Current password", "newPassword": "New password", "confirmPassword": "Confirm new password", "savePassword": "Save password",
+    "passwordMismatch": "Passwords must match and contain at least 6 characters.", "currentPasswordInvalid": "The current password is incorrect.",
+    "scheduleOverview": "Schedule overview", "nextShift": "Next shift", "thisWeek": "This week", "otHours": "OT hours", "mySchedule": "My Schedule", "departmentSchedule": "Department Schedule", "unlinked": "Your schedule profile is not linked.",
+    "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" },
+    "adminOperations": "Admin operations", "adminOperationsHint": "Open the primary operational tools for the department.", "recentActivity": "Recent operational activity",
+    "adminLinks": { "dashboard": "Dashboard", "auditLog": "Audit Log", "schedule": "Schedule", "ot": "OT Schedule" }
   },
   "management": {
     "title": "Employee Management",
@@ -23,13 +41,26 @@
     "addEmployee": "Add Employee",
     "editEmployee": "Edit Employee",
     "searchPlaceholder": "Search by name, email, or number...",
+    "nameAr": "Name (Arabic)",
+    "nameEn": "Name (English)",
+    "positionAr": "Position (Arabic)",
+    "positionEn": "Position (English)",
+    "codeHint": "Short abbreviation shown on schedule",
+    "defaultPasswordNotice": "Default password for this employee will be 123456",
+    "defaultPassword": "Default Password",
+    "addedSuccess": "Employee Added Successfully",
+    "addedSubtitle": "Share these credentials with the employee",
+    "addedHint": "The employee can update their email and change their password after first login.",
     "columns": {
       "number": "Number",
       "employee": "Employee",
       "email": "Email",
       "phone": "Phone",
-      "role": "Role"
+      "role": "Role",
+      "actions": "Actions"
     },
+    "editEmployeeAria": "Edit employee {{name}}",
+    "deleteEmployeeAria": "Delete employee {{name}}",
     "deleteTitle": "Delete Employee",
     "deleteMessage": "Are you sure you want to delete this employee? This action cannot be undone.",
     "deleteSuccess": "Employee deleted successfully"

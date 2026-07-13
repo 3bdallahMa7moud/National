@@ -24,7 +24,7 @@
     },
     "notif-2": {
       "title": "Shift Change",
-      "message": "Your shift was changed from evening to morning on Sunday"
+      "message": "Your shift was changed from evening to Day Shift on Sunday"
     },
     "notif-3": {
       "title": "Overtime",

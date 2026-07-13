@@ -12,7 +12,7 @@ export default function EmptyState({ title, message, icon, action }: EmptyStateP
   const { t } = useTranslation(['common']);
 
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
+    <div className="flex flex-col items-center justify-center py-16 text-center" role="status" aria-live="polite">
       <div className="p-4 rounded-full bg-surface-muted mb-4">
         {icon || <Inbox className="w-10 h-10 text-text-secondary" />}
       </div>

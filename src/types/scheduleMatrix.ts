@@ -10,6 +10,7 @@ export type ShiftColorKey =
   | 'evening'
   | 'night'
   | 'onCall'
+  | 'onCallNight'
   | 'overtime'
   | 'vacation';
 
@@ -40,7 +41,7 @@ export interface LegendEmployee {
 export interface Assignment {
   employeeId: string;
   employeeCode: string;
-  /** Optional chip color override (morning, night, onCall, …) */
+  /** @deprecated Visual color is inherited from the shift row. */
   colorKey?: ShiftColorKey;
   status?: AssignmentStatus;
   /** true if this employee conflicts with another assignment or an approved vacation */
@@ -52,6 +53,8 @@ export interface Assignment {
 /** One row in the schedule grid = one Excel-style sub-row within a block */
 export interface ShiftRow {
   id: string;
+  /** Stable link to the facility shift definition used for archive/restore and reporting. */
+  shiftDefinitionId?: string;
   blockType: ScheduleBlockType;
   /** Parent unit / shift-type label, e.g. GE VCT, Late Shift, Night OnCall */
   unitLabel: string;
@@ -97,6 +100,15 @@ export interface VacationRange {
   status: AssignmentStatus;
 }
 
+/** A named public-holiday band spanning one or more calendar days. */
+export interface HolidayRange {
+  id: string;
+  label: string;
+  labelAr?: string;
+  startDay: number;
+  endDay: number;
+}
+
 /** Vacation row for one employee */
 export interface VacationRow {
   employeeId: string;
@@ -135,7 +147,7 @@ export interface FacilitySettings {
 export interface AuditEntry {
   id: string;
   actorName: string;
-  action: 'assign' | 'remove' | 'vacation' | 'publish' | 'discard' | 'settings' | 'undo';
+  action: 'assign' | 'remove' | 'vacation' | 'publish' | 'discard' | 'settings' | 'undo' | 'archive' | 'restore';
   facilityId?: string;
   unitId?: string;
   rowId?: string;
@@ -153,6 +165,7 @@ export interface ScheduleMatrixData {
   facilities: Facility[];
   legend: LegendEmployee[];
   vacations: VacationRow[];
+  holidays: HolidayRange[];
   settings: FacilitySettings[];
   auditLog: AuditEntry[];
 }

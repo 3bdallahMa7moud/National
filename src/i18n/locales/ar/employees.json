@@ -15,7 +15,25 @@
     "changePassword": "تغيير كلمة المرور",
     "changePasswordModalTitle": "تغيير كلمة المرور",
     "profileUpdated": "تم تحديث بياناتك الشخصية بنجاح",
-    "passwordChanged": "تم تغيير كلمة المرور بنجاح"
+    "passwordChanged": "تم تغيير كلمة المرور بنجاح",
+    "emailAdded": "تمت إضافة بريدك الإلكتروني بنجاح",
+    "addEmail": "إضافة البريد الإلكتروني",
+    "addEmailModalTitle": "إضافة البريد الإلكتروني",
+    "editEmailModalTitle": "تعديل البريد الإلكتروني",
+    "addEmailDescription": "أضف بريدك الإلكتروني لتتمكن من تسجيل الدخول به لاحقاً.",
+    "editEmailDescription": "قم بتحديث بريدك الإلكتروني المستخدم لتسجيل الدخول."
+  },
+  "profileView": {
+    "title": "الملف الشخصي", "subtitle": "هوية الحساب والأمان والاختصارات التشغيلية المناسبة للدور.",
+    "active": "نشط", "admin": "مسؤول", "employee": "موظف", "notSet": "غير محدد",
+    "email": "البريد الإلكتروني", "editEmail": "تعديل البريد الإلكتروني", "saveEmail": "حفظ البريد", "cancel": "إلغاء",
+    "security": "أمان الحساب", "password": "كلمة المرور", "passwordProtected": "الحساب محمي بكلمة المرور", "changePassword": "تغيير كلمة المرور",
+    "currentPassword": "كلمة المرور الحالية", "newPassword": "كلمة المرور الجديدة", "confirmPassword": "تأكيد كلمة المرور الجديدة", "savePassword": "حفظ كلمة المرور",
+    "passwordMismatch": "يجب أن تتطابق كلمتا المرور وألا تقل عن 6 أحرف.", "currentPasswordInvalid": "كلمة المرور الحالية غير صحيحة.",
+    "scheduleOverview": "ملخص الجدول", "nextShift": "الشفت القادم", "thisWeek": "هذا الأسبوع", "otHours": "ساعات OT", "mySchedule": "جدولي", "departmentSchedule": "جدول القسم", "unlinked": "ملف جدولك غير مرتبط.",
+    "categories": { "day": "الشفت النهاري", "late": "الشفت المتأخر", "night": "الشفت الليلي", "onCallDay": "تحت الطلب نهاري", "onCallNight": "تحت الطلب ليلي", "ot": "العمل الإضافي" },
+    "adminOperations": "عمليات المسؤول", "adminOperationsHint": "افتح أدوات التشغيل الأساسية للقسم.", "recentActivity": "أحدث النشاطات التشغيلية",
+    "adminLinks": { "dashboard": "لوحة التحكم", "auditLog": "سجل التدقيق", "schedule": "جدول المناوبات", "ot": "جدول OT" }
   },
   "management": {
     "title": "إدارة الموظفين",
@@ -23,13 +41,26 @@
     "addEmployee": "إضافة موظف",
     "editEmployee": "تعديل موظف",
     "searchPlaceholder": "بحث بالاسم أو البريد أو الرقم...",
+    "nameAr": "الاسم (عربي)",
+    "nameEn": "الاسم (إنجليزي)",
+    "positionAr": "المسمى الوظيفي (عربي)",
+    "positionEn": "المسمى الوظيفي (إنجليزي)",
+    "codeHint": "اختصار قصير يظهر على جدول النوبات",
+    "defaultPasswordNotice": "كلمة المرور الافتراضية للموظف ستكون 123456",
+    "defaultPassword": "كلمة المرور الافتراضية",
+    "addedSuccess": "تمت إضافة الموظف بنجاح",
+    "addedSubtitle": "شارك هذه البيانات مع الموظف",
+    "addedHint": "يمكن للموظف إضافة بريده الإلكتروني وتغيير كلمة المرور بعد أول تسجيل دخول.",
     "columns": {
       "number": "الرقم",
       "employee": "الموظف",
       "email": "البريد",
       "phone": "الهاتف",
-      "role": "الدور"
+      "role": "الدور",
+      "actions": "الإجراءات"
     },
+    "editEmployeeAria": "تعديل بيانات الموظف {{name}}",
+    "deleteEmployeeAria": "حذف الموظف {{name}}",
     "deleteTitle": "حذف الموظف",
     "deleteMessage": "هل أنت متأكد من حذف هذا الموظف؟ لا يمكن التراجع عن هذا الإجراء.",
     "deleteSuccess": "تم حذف الموظف بنجاح"

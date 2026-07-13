@@ -79,7 +79,7 @@ function StatisticsCards({ stats }: StatisticsCardsProps) {
     },
     {
       icon: <Sun className="h-5 w-5" />,
-      label: 'Morning Shifts',
+      label: 'Day Shifts',
       value: stats.morningShifts,
       color: 'text-sky-600 dark:text-sky-400',
       bgColor: 'bg-sky-100 dark:bg-sky-900/30',

@@ -24,6 +24,7 @@ interface EmployeeChipProps {
   isHighlighted: boolean;
   colorblindMode?: boolean;
   historyEntries?: AuditEntry[];
+  suppressPopover?: boolean;
   onClick?: () => void;
 }
 
@@ -32,6 +33,7 @@ const markerIcons: Record<ShiftColorKey, ReactNode> = {
   evening: <Clock3 className="h-3 w-3" />,
   night: <Moon className="h-3 w-3" />,
   onCall: <Bell className="h-3 w-3" />,
+  onCallNight: <Moon className="h-3 w-3" />,
   overtime: <Bell className="h-3 w-3" />,
   vacation: <Clock3 className="h-3 w-3" />,
 };
@@ -49,13 +51,14 @@ function EmployeeChip({
   isHighlighted,
   colorblindMode = false,
   historyEntries = [],
+  suppressPopover = false,
   onClick,
 }: EmployeeChipProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const [showPopover, setShowPopover] = useState(false);
   const chipRef = useRef<HTMLButtonElement>(null);
 
-  const lightStyle = getShiftChipStyle(resolveAssignmentColorKey(assignment, rowColorKey), false);
+  const chipStyle = getShiftChipStyle(resolveAssignmentColorKey(assignment, rowColorKey));
   const isDraft = assignment.status === 'draft';
   const ariaLabel = `${fullName || assignment.employeeCode} - ${shiftLabel} - ${day} ${monthLabel} - ${facilityName} ${unitName}`;
   const lastHistory = historyEntries.slice(0, 3);
@@ -69,20 +72,20 @@ function EmployeeChip({
         data-employee-id={assignment.employeeId}
         onClick={(event) => {
           event.stopPropagation();
-          setShowPopover(!showPopover);
+          if (!suppressPopover) setShowPopover(!showPopover);
           onClick?.();
         }}
         onBlur={() => setTimeout(() => setShowPopover(false), 200)}
         className={cn(
-          'inline-flex min-w-0 items-center justify-center gap-1 rounded-[6px] px-1.5 py-[3px]',
-          'text-[11px] font-bold leading-tight border border-black/10 shadow-sm',
+          'inline-flex min-w-0 items-center justify-center font-bold leading-tight border border-black/10',
+          'gap-1 rounded-[6px] px-1.5 py-[3px] text-[11px] shadow-sm',
           'transition-all duration-150 cursor-pointer select-none hover:opacity-90',
           'focus:outline-none focus:ring-2 focus:ring-signal-cyan',
           isHighlighted && 'ring-2 ring-signal-cyan ring-offset-1 scale-105 z-10',
           isDraft && 'outline outline-1 outline-dashed outline-primary-teal',
         )}
         style={{
-          ...lightStyle,
+          ...chipStyle,
           unicodeBidi: 'isolate',
           maxWidth: 'calc(var(--matrix-day-col) - 8px)',
         }}
@@ -96,7 +99,7 @@ function EmployeeChip({
         <span className="truncate">{assignment.employeeCode}</span>
       </button>
 
-      {showPopover && (
+      {showPopover && !suppressPopover && (
         <div
           className={cn(
             'absolute z-50 top-full mt-1 w-64 rounded-lg border shadow-dropdown p-3',
