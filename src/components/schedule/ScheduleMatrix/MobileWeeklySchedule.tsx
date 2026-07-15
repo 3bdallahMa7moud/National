@@ -3,14 +3,15 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock3, UserRound } from 'luci
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { getShiftChipStyle } from './getShiftChipClasses';
-import type { MatrixCellRef, ScheduleMatrixData } from '@/types/scheduleMatrix';
+import type { Assignment, MatrixCellRef, ScheduleMatrixData } from '@/types/scheduleMatrix';
 
 interface MobileWeeklyScheduleProps {
   data: ScheduleMatrixData;
   onCellClick?: (ref: MatrixCellRef) => void;
+  onAssignmentClick?: (ref: MatrixCellRef, assignment: Assignment) => void;
 }
 
-function MobileWeeklySchedule({ data, onCellClick }: MobileWeeklyScheduleProps) {
+function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWeeklyScheduleProps) {
   const { t, i18n } = useTranslation(['schedule', 'common']);
   const isRtl = i18n.dir() === 'rtl';
   const daysInMonth = new Date(data.year, data.month + 1, 0).getDate();
@@ -51,6 +52,9 @@ function MobileWeeklySchedule({ data, onCellClick }: MobileWeeklyScheduleProps) 
             shift: row.shiftLabel,
             time: row.timeRange,
             colorKey: row.colorKey,
+            backgroundColor: row.backgroundColor,
+            textColor: row.textColor,
+            assignment,
             code: assignment.employeeCode,
             employee: legendByCode.get(assignment.employeeCode)?.fullName || assignment.employeeCode,
           })),
@@ -154,9 +158,12 @@ function MobileWeeklySchedule({ data, onCellClick }: MobileWeeklyScheduleProps) 
               <button
                 key={`${entry.ref.rowId}-${entry.code}-${index}`}
                 type="button"
-                onClick={() => onCellClick?.(entry.ref)}
+                onClick={() => {
+                  if (onAssignmentClick) onAssignmentClick(entry.ref, entry.assignment);
+                  else onCellClick?.(entry.ref);
+                }}
                 className="flex min-h-14 w-full items-center gap-3 rounded-xl border p-3 text-start transition-transform active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-primary/30"
-                style={getShiftChipStyle(entry.colorKey)}
+                style={getShiftChipStyle(entry.colorKey, entry.backgroundColor, entry.textColor)}
                 aria-label={`${entry.employee}, ${entry.shift}, ${entry.facility}, ${entry.unit}, ${entry.time}`}
               >
                 <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-current/20 bg-surface/70 font-mono text-xs font-bold">

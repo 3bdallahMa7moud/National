@@ -1,4 +1,4 @@
-export type OperationalAuditModule = 'schedule' | 'ot' | 'employees' | 'profile' | 'settings';
+export type OperationalAuditModule = 'schedule' | 'ot' | 'employees' | 'profile' | 'settings' | 'shift_requests';
 
 export type OperationalAuditAction =
   | 'create'
@@ -12,12 +12,19 @@ export type OperationalAuditAction =
   | 'discard'
   | 'vacation'
   | 'settings'
-  | 'undo';
+  | 'undo'
+  | 'request'
+  | 'approve'
+  | 'reject'
+  | 'cancel'
+  | 'expire';
 
 export type OperationalAuditRoute =
   | '/admin/schedule'
   | '/admin/late-schedule'
   | '/admin/employees'
+  | '/admin/shift-requests'
+  | '/shift-requests'
   | '/profile';
 
 export interface OperationalAuditContext {

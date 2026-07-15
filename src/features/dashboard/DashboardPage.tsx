@@ -26,7 +26,7 @@ export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState(() => localDateValue(new Date()));
   const [selectedCategory, setSelectedCategory] = useState<CoverageCategory | null>(null);
   const matricesByMonth = useScheduleMatrixStore((state) => state.matricesByMonth);
-  const rowsByMonth = useLateScheduleStore((state) => state.rowsByMonth);
+  const rowsByMonth = useLateScheduleStore((state) => state.publishedRowsByMonth);
   const employees = useEmployeeRosterStore((state) => state.employees);
   const persistedAuditEntries = useOperationalAuditStore((state) => state.entries);
   const monthKey = selectedDate.slice(0, 7);

@@ -155,6 +155,56 @@ export const mockEmployeesSource: MockEmployeeSource[] = [
   },
 ];
 
+export const MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY = 'ngh_employee_accounts_v1';
+
+interface PersistedMockEmployeeAccounts {
+  version: 1;
+  employees: MockEmployeeSource[];
+}
+
+function isPersistedEmployee(value: unknown): value is MockEmployeeSource {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const employee = value as Partial<MockEmployeeSource>;
+  return typeof employee.id === 'string'
+    && typeof employee.employeeNumber === 'string'
+    && typeof employee.departmentId === 'string'
+    && typeof employee.code === 'string'
+    && (employee.role === 'admin' || employee.role === 'employee')
+    && typeof employee.isActive === 'boolean'
+    && !!employee.name
+    && typeof employee.name.ar === 'string'
+    && typeof employee.name.en === 'string';
+}
+
+function hydratePersistedEmployeeAccounts(): void {
+  try {
+    if (typeof window === 'undefined') return;
+    const parsed = JSON.parse(window.localStorage.getItem(MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY) || 'null') as Partial<PersistedMockEmployeeAccounts> | null;
+    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.employees)) return;
+    const employees = parsed.employees.filter(isPersistedEmployee);
+    if (employees.length === 0) return;
+    mockEmployeesSource.splice(0, mockEmployeesSource.length, ...employees);
+  } catch {
+    // Invalid legacy data never replaces the built-in accounts.
+  }
+}
+
+export function persistMockEmployeesSource(): { ok: true } | { ok: false; message: string } {
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY, JSON.stringify({
+        version: 1,
+        employees: mockEmployeesSource,
+      } satisfies PersistedMockEmployeeAccounts));
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, message: 'Unable to save employee accounts. Browser storage may be full.' };
+  }
+}
+
+hydratePersistedEmployeeAccounts();
+
 function generateShifts(): Shift[] {
   const shifts: Shift[] = [];
   const now = new Date();
@@ -237,6 +287,7 @@ export const mockNotificationsSource: MockNotificationSource[] = [
     newShiftTypeKey: 'morning',
     isRead: false,
     isUrgent: false,
+    actionUrl: '/schedule',
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
   },
   {
@@ -247,6 +298,7 @@ export const mockNotificationsSource: MockNotificationSource[] = [
     newShiftTypeKey: 'overtime',
     isRead: false,
     isUrgent: true,
+    actionUrl: '/schedule',
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
   },
   {
@@ -256,6 +308,7 @@ export const mockNotificationsSource: MockNotificationSource[] = [
     message: { ar: 'تم نشر جدول شهر يوليو 2026', en: 'The July 2026 schedule has been published' },
     isRead: true,
     isUrgent: false,
+    actionUrl: '/schedule',
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
   },
   {
@@ -267,6 +320,7 @@ export const mockNotificationsSource: MockNotificationSource[] = [
     newShiftTypeKey: 'evening',
     isRead: true,
     isUrgent: false,
+    actionUrl: '/schedule',
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
   },
   {

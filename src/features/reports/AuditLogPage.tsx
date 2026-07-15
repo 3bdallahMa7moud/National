@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import AuditEntryDetailsDrawer from './AuditEntryDetailsDrawer';
 import AuditLogFilters from './AuditLogFilters';
 import Card from '@/components/ui/Card';
-import { buildUnifiedOperationalAudit, filterAuditEntries } from '@/lib/operationalAudit';
+import { buildUnifiedOperationalAudit, filterAuditEntries, operationalAuditEntityKey } from '@/lib/operationalAudit';
 import { cn } from '@/lib/utils';
 import { useOperationalAuditStore } from '@/stores/operationalAuditStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
@@ -17,6 +17,8 @@ const actionTone: Record<OperationalAuditEntry['action'], string> = {
   assign: 'bg-primary-50 text-primary', clear: 'bg-warning/10 text-warning', archive: 'bg-danger/10 text-danger',
   restore: 'bg-success/10 text-success', publish: 'bg-primary-50 text-primary', discard: 'bg-warning/10 text-warning',
   vacation: 'bg-info/10 text-info', settings: 'bg-surface-muted text-text-secondary', undo: 'bg-warning/10 text-warning',
+  request: 'bg-info/10 text-info', approve: 'bg-success/10 text-success', reject: 'bg-danger/10 text-danger',
+  cancel: 'bg-warning/10 text-warning', expire: 'bg-surface-muted text-text-secondary',
 };
 
 export default function AuditLogPage() {
@@ -42,6 +44,10 @@ export default function AuditLogPage() {
     { label: t('audit.summary.archived', { count: filteredEntries.filter((entry) => entry.action === 'archive' || entry.action === 'delete').length }), value: filteredEntries.filter((entry) => entry.action === 'archive' || entry.action === 'delete').length, icon: Archive, tone: 'text-danger' },
     { label: t('audit.summary.restored', { count: filteredEntries.filter((entry) => entry.action === 'restore').length }), value: filteredEntries.filter((entry) => entry.action === 'restore').length, icon: RotateCcw, tone: 'text-success' },
   ];
+  const entityLabel = (entry: OperationalAuditEntry) => {
+    const key = operationalAuditEntityKey(entry);
+    return key ? t(key) : entry.entityLabel;
+  };
 
   return (
     <div className="space-y-5">
@@ -73,11 +79,11 @@ export default function AuditLogPage() {
                 <div className="flex items-start gap-3">
                   <span className={cn('mt-0.5 rounded-full px-2.5 py-1 text-[11px] font-semibold', actionTone[entry.action])}>{t(`audit.actions.${entry.action}`)}</span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary">{entry.entityLabel}</p>
+                    <p className="truncate text-sm font-semibold text-text-primary">{entityLabel(entry)}</p>
                     <p className="mt-1 text-xs text-text-secondary">{entry.actorName} · {t(`audit.modules.${entry.module}`)}</p>
                     <time className="mt-1 block text-xs text-text-secondary" dateTime={entry.timestamp}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.timestamp))}</time>
                   </div>
-                  <button type="button" onClick={() => setSelectedEntry(entry)} aria-label={t('audit.details.view', { entity: entry.entityLabel })} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-btn text-primary hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary/30"><Eye className="h-4 w-4" aria-hidden="true" /></button>
+                  <button type="button" onClick={() => setSelectedEntry(entry)} aria-label={t('audit.details.view', { entity: entityLabel(entry) })} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-btn text-primary hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary/30"><Eye className="h-4 w-4" aria-hidden="true" /></button>
                 </div>
               </li>
             ))}

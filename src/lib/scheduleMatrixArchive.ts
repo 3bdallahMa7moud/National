@@ -4,6 +4,7 @@ type ScheduleArchiveSource = Pick<ScheduleMatrixData, 'settings'>;
 type ArchiveAwareShiftRow = Pick<
   ShiftRow,
   'shiftDefinitionId' | 'shiftLabel' | 'timeRange' | 'colorKey'
+  | 'archived'
 >;
 
 export function isShiftRowArchived(
@@ -11,6 +12,7 @@ export function isShiftRowArchived(
   facilityId: string,
   row: ArchiveAwareShiftRow,
 ): boolean {
+  if (row.archived) return true;
   const definitions = data.settings
     .find((settings) => settings.facilityId === facilityId)
     ?.shiftDefinitions ?? [];

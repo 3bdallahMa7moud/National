@@ -10,7 +10,11 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { useScheduleMatrix } from '@/hooks/useScheduleMatrix';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
+import Modal from '@/components/ui/Modal';
+import AdminMonthControl from '@/components/common/AdminMonthControl';
+import Button from '@/components/ui/Button';
 import { useTranslation } from 'react-i18next';
+import { AlertTriangle } from 'lucide-react';
 import ScheduleMatrix from '@/components/schedule/ScheduleMatrix/ScheduleMatrix';
 import MatrixToolbar from './MatrixToolbar';
 import MatrixStatsCards from './MatrixStatsCards';
@@ -19,15 +23,22 @@ import AssignmentDrawer from './AssignmentDrawer';
 import FullscreenMatrixModal from './FullscreenMatrixModal';
 import VacationManagementPanel from './VacationManagementPanel';
 import ScheduleSettingsPanel from './ScheduleSettingsPanel';
+import ScheduleOrderPanel from './ScheduleOrderPanel';
+import ScheduleSettingsWorkspace from './ScheduleSettingsWorkspace';
 import CellContextMenu from './CellContextMenu';
 import { mergeBrushAssignments } from '@/lib/scheduleAssignments';
 import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
-import type { MatrixCellRef, Assignment, ShiftColorKey } from '@/types/scheduleMatrix';
+import { useRole } from '@/hooks/useRole';
+import { useAuthStore } from '@/stores/authStore';
+import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
+import type { MatrixCellRef, Assignment, ShiftColorKey, MatrixReorderCommand, MatrixReorderResult } from '@/types/scheduleMatrix';
 
 export default function AdminSchedulePage() {
   const { t, i18n } = useTranslation(['schedule', 'common']);
   const months = useMemo(() => (t('schedule:months', { returnObjects: true }) as string[]) || [], [t]);
   const store = useScheduleMatrix();
+  const { isAdmin } = useRole();
+  const user = useAuthStore((state) => state.user);
   const {
     data,
     month,
@@ -44,8 +55,6 @@ export default function AdminSchedulePage() {
     brushEmployeeCodes,
     toggleBrushEmployeeCode,
     clearBrushEmployees,
-    colorblindMode,
-    setColorblindMode,
     drawerCell,
     openDrawer,
     closeDrawer,
@@ -68,13 +77,30 @@ export default function AdminSchedulePage() {
     undoStack,
     addShiftDefinition,
     updateShiftDefinition,
+    deleteShiftDefinition,
     archiveShiftDefinition,
     restoreShiftDefinition,
     addUnit,
     renameUnit,
     archiveUnit,
     restoreUnit,
+    deleteUnit,
+    expandedCellsView,
+    setExpandedCellsView,
     updateMatrixRow,
+    addMatrixRow,
+    archiveMatrixRow,
+    restoreMatrixRow,
+    deleteMatrixRow,
+    reorderMatrixItem,
+    clearAllAssignments,
+    tableClipboard,
+    copyCurrentTable,
+    pasteCopiedTable,
+    resetCurrentMonth,
+    deleteCurrentMonth,
+    currentMonthStatus,
+    storageError,
   } = store;
 
   const { addToast } = useToast();
@@ -91,6 +117,17 @@ export default function AdminSchedulePage() {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [shiftFilter, setShiftFilter] = useState<ShiftColorKey | ''>('');
   const [conflictsOnly, setConflictsOnly] = useState(false);
+  const [deleteRowTarget, setDeleteRowTarget] = useState<{
+    rowId: string;
+    rowLabel: string;
+    assignments: number;
+  } | null>(null);
+  const [deleteUnitTarget, setDeleteUnitTarget] = useState<{
+    facilityId: string;
+    unitId: string;
+    unitLabel: string;
+    assignments: number;
+  } | null>(null);
 
   useEffect(() => {
     if (deepLinkHandled.current) return;
@@ -293,16 +330,7 @@ export default function AdminSchedulePage() {
     (cellRef: MatrixCellRef, assignment?: Assignment) => {
       if (adminMode === 'brush' && assignment?.employeeCode) {
         const wasSelected = brushEmployeeCodes.includes(assignment.employeeCode);
-        const result = toggleBrushEmployeeCode(assignment.employeeCode);
-
-        if (!result.ok && result.reason === 'max_selection') {
-          addToast({
-            type: 'warning',
-            title: t('schedule:toast.brushMaxSelectionTitle'),
-            message: t('schedule:toast.brushMaxSelectionMsg'),
-          });
-          return;
-        }
+        toggleBrushEmployeeCode(assignment.employeeCode);
 
         const emp = data?.legend.find((e) => e.code === assignment.employeeCode);
         if (wasSelected) {
@@ -324,13 +352,38 @@ export default function AdminSchedulePage() {
       toggleBrushEmployeeCode,
       data?.legend,
       setHighlightedEmployeeId,
-      addToast,
-      t,
     ],
   );
 
   const handleSaveAssignment = useCallback(
     (rowId: string, day: number, assignments: Assignment[]) => {
+      if (selectedCells.length > 1 && selectedCells.some((c) => c.rowId === rowId && c.day === day)) {
+        let hasConflict = false;
+        let conflictMsg = '';
+        selectedCells.forEach((c) => {
+          const res = assignCell(c.rowId, c.day, assignments);
+          if (!res.ok) {
+            hasConflict = true;
+            conflictMsg = res.conflict.reason;
+          }
+        });
+        clearSelection();
+        if (hasConflict) {
+          addToast({
+            type: 'warning',
+            title: t('schedule:toast.conflictWarningTitle'),
+            message: conflictMsg || 'Some cells had conflicts during bulk assignment.',
+          });
+        } else {
+          addToast({
+            type: 'success',
+            title: 'Bulk Assignment Applied',
+            message: `Successfully applied assignments to ${selectedCells.length} selected cells.`,
+          });
+        }
+        return;
+      }
+
       const res = assignCell(rowId, day, assignments);
       if (!res.ok) {
         addToast({
@@ -346,7 +399,7 @@ export default function AdminSchedulePage() {
         });
       }
     },
-    [assignCell, addToast, t],
+    [assignCell, addToast, selectedCells, clearSelection, t],
   );
 
   // Bulk actions
@@ -394,16 +447,7 @@ export default function AdminSchedulePage() {
         if (!emp) return;
 
         const wasSelected = brushEmployeeCodes.includes(emp.code);
-        const result = toggleBrushEmployeeCode(emp.code);
-
-        if (!result.ok && result.reason === 'max_selection') {
-          addToast({
-            type: 'warning',
-            title: t('schedule:toast.brushMaxSelectionTitle'),
-            message: t('schedule:toast.brushMaxSelectionMsg'),
-          });
-          return;
-        }
+        toggleBrushEmployeeCode(emp.code);
 
         if (wasSelected) {
           const remaining = brushEmployeeCodes.filter((code) => code !== emp.code);
@@ -423,8 +467,6 @@ export default function AdminSchedulePage() {
       data?.legend,
       brushEmployeeCodes,
       toggleBrushEmployeeCode,
-      addToast,
-      t,
       highlightedEmployeeId,
       setHighlightedEmployeeId,
     ],
@@ -438,6 +480,102 @@ export default function AdminSchedulePage() {
     );
     return matchedEmps;
   }, [data, deferredSearchQuery]);
+
+  const totalAssignmentCount = useMemo(() => {
+    if (!data) return 0;
+    let total = 0;
+    for (const facility of data.facilities) {
+      for (const unit of facility.units) {
+        for (const row of unit.rows) {
+          total += Object.values(row.cellsByDay).reduce((sum, assignments) => sum + assignments.length, 0);
+        }
+      }
+    }
+    return total;
+  }, [data]);
+
+  const shiftStyles = useMemo(() => {
+    if (!data) return {};
+    const styles: Partial<Record<ShiftColorKey, { backgroundColor?: string; textColor?: string }>> = {};
+    const orderedSettings = facilityFilter
+      ? [...data.settings].sort((left, right) =>
+        Number(right.facilityId.includes(facilityFilter)) - Number(left.facilityId.includes(facilityFilter)))
+      : data.settings;
+    for (const facilitySettings of orderedSettings) {
+      for (const definition of facilitySettings.shiftDefinitions) {
+        if (!styles[definition.colorKey]) {
+          styles[definition.colorKey] = {
+            backgroundColor: definition.backgroundColor,
+            textColor: definition.textColor,
+          };
+        }
+      }
+    }
+    return styles;
+  }, [data, facilityFilter]);
+
+  const getRowDeleteContext = useCallback((rowId: string) => {
+    if (!data) return null;
+    for (const facility of data.facilities) {
+      for (const unit of facility.units) {
+        for (const row of unit.rows) {
+          if (row.id !== rowId) continue;
+          return {
+            rowId,
+            rowLabel: `${facility.name} / ${unit.name} / ${row.rowLabel}`,
+            assignments: Object.values(row.cellsByDay).reduce((sum, assignments) => sum + assignments.length, 0),
+          };
+        }
+      }
+    }
+    return null;
+  }, [data]);
+
+  const handleRequestDeleteRow = useCallback((rowId: string) => {
+    const context = getRowDeleteContext(rowId);
+    if (!context) return;
+    if (context.assignments > 0) {
+      setDeleteRowTarget(context);
+      return;
+    }
+    deleteMatrixRow(rowId, true);
+    addToast({ type: 'success', title: 'Row deleted', message: 'The empty row was deleted.' });
+  }, [addToast, deleteMatrixRow, getRowDeleteContext]);
+
+  const handleRequestDeleteUnit = useCallback((facilityId: string, unitId: string) => {
+    const facility = data?.facilities.find((candidate) => candidate.id === facilityId);
+    const unit = facility?.units.find((candidate) => candidate.id === unitId);
+    if (!facility || !unit) return;
+    const assignments = unit.rows.reduce((unitTotal, row) => unitTotal
+      + Object.values(row.cellsByDay).reduce((rowTotal, values) => rowTotal + values.length, 0), 0);
+    setDeleteUnitTarget({
+      facilityId,
+      unitId,
+      unitLabel: `${facility.name} / ${unit.name}`,
+      assignments,
+    });
+  }, [data]);
+
+  const handleReorder = useCallback((command: MatrixReorderCommand): MatrixReorderResult => {
+    const result = reorderMatrixItem(command, user?.name);
+    if (result.ok) {
+      addToast({
+        type: 'success',
+        title: t('schedule:matrix.order.successTitle'),
+        message: t('schedule:matrix.order.successMessage', {
+          item: t(`schedule:matrix.order.${result.kind}Kind`),
+          count: result.affectedAssignments,
+        }),
+      });
+      return result;
+    }
+    addToast({
+      type: 'error',
+      title: t('schedule:matrix.order.failureTitle'),
+      message: result.message || t(`schedule:matrix.order.errors.${result.reason}`),
+    });
+    return result;
+  }, [addToast, reorderMatrixItem, t, user?.name]);
 
   const handleJumpToSearchMatch = useCallback(() => {
     if (searchMatches.length > 0) {
@@ -593,11 +731,10 @@ export default function AdminSchedulePage() {
         searchMatchCount={searchMatches.length}
         onJumpToSearchMatch={handleJumpToSearchMatch}
         shiftFilter={shiftFilter}
+        shiftStyles={shiftStyles}
         onShiftFilterChange={setShiftFilter}
         conflictsOnly={conflictsOnly}
         onToggleConflictsOnly={() => setConflictsOnly(!conflictsOnly)}
-        colorblindMode={colorblindMode}
-        onToggleColorblindMode={() => setColorblindMode(!colorblindMode)}
         onUndo={() => {
           if (undoLastEdit()) {
             addToast({ type: 'info', title: t('schedule:toast.undoTitle'), message: t('schedule:toast.undoStepMsg') });
@@ -608,6 +745,30 @@ export default function AdminSchedulePage() {
       </div>
 
       {/* ── KPI Statistics Cards ── */}
+      {isAdmin && (
+        <div className="print:hidden">
+          <AdminMonthControl
+            status={currentMonthStatus()}
+            monthLabel={`${months[month] || month + 1} ${year}`}
+            assignmentCount={totalAssignmentCount}
+            tableClipboard={tableClipboard ? {
+              sourceMonthLabel: `${months[tableClipboard.sourceMonth] || tableClipboard.sourceMonth + 1} ${tableClipboard.sourceYear}`,
+              assignmentCount: tableClipboard.assignmentCount,
+            } : null}
+            storageError={storageError}
+            onCopy={() => copyCurrentTable(user?.name)}
+            onPaste={() => pasteCopiedTable(user?.name)}
+            onClear={() => {
+              clearAllAssignments(user?.name || 'Administrator');
+              const error = useScheduleMatrixStore.getState().storageError;
+              return { ok: !error, message: error || undefined };
+            }}
+            onReset={() => resetCurrentMonth(user?.name)}
+            onDelete={() => deleteCurrentMonth(user?.name)}
+          />
+        </div>
+      )}
+
       <ScheduleViewControls
         statsExpanded={statsExpanded}
         onToggleStats={() => setStatsExpanded((expanded) => !expanded)}
@@ -690,25 +851,51 @@ export default function AdminSchedulePage() {
               highlightedEmployeeId={highlightedEmployeeId}
               selectedCells={[]}
               brushEmployeeCodes={[]}
-              colorblindMode={colorblindMode}
               isExpanded={isExpanded}
               zoomLevel={zoomLevel}
             />
           </div>
         </div>
       ) : adminMode === 'settings' ? (
-        <ScheduleSettingsPanel
-          data={data}
-          colorblindMode={colorblindMode}
-          onToggleColorblindMode={() => setColorblindMode(!colorblindMode)}
-          onAddShift={addShiftDefinition}
-          onUpdateShift={updateShiftDefinition}
-          onArchiveShift={archiveShiftDefinition}
-          onRestoreShift={restoreShiftDefinition}
-          onAddUnit={addUnit}
-          onRenameUnit={renameUnit}
-          onArchiveUnit={archiveUnit}
-          onRestoreUnit={restoreUnit}
+        <ScheduleSettingsWorkspace
+          shiftTypesPanel={(
+            <ScheduleSettingsPanel
+              data={data}
+              onAddShift={addShiftDefinition}
+              onUpdateShift={updateShiftDefinition}
+              onDeleteShift={deleteShiftDefinition}
+              onArchiveShift={archiveShiftDefinition}
+              onRestoreShift={restoreShiftDefinition}
+              onAddUnit={addUnit}
+              onRenameUnit={renameUnit}
+              onArchiveUnit={archiveUnit}
+              onRestoreUnit={restoreUnit}
+              onAddRow={addMatrixRow}
+              onUpdateRow={(rowId, updates) => {
+                updateMatrixRow(rowId, updates);
+                addToast({
+                  type: 'success',
+                  title: t('schedule:toast.rowUpdatedTitle'),
+                  message: t('schedule:toast.rowUpdatedMsg'),
+                });
+              }}
+              onArchiveRow={(rowId) => {
+                archiveMatrixRow(rowId);
+                addToast({ type: 'info', title: 'Row archived', message: 'The row was archived successfully.' });
+              }}
+              onRestoreRow={(rowId) => {
+                restoreMatrixRow(rowId);
+                addToast({ type: 'success', title: 'Row restored', message: 'The row was restored successfully.' });
+              }}
+              onDeleteRow={handleRequestDeleteRow}
+            />
+          )}
+          tableOrderPanel={(
+            <ScheduleOrderPanel
+              data={data}
+              onReorder={handleReorder}
+            />
+          )}
         />
       ) : (
         /* ── Main Schedule Matrix Grid ── */
@@ -719,8 +906,9 @@ export default function AdminSchedulePage() {
           highlightedEmployeeId={highlightedEmployeeId}
           selectedCells={selectedCells}
           brushEmployeeCodes={brushEmployeeCodes}
-          colorblindMode={colorblindMode}
           isExpanded={isExpanded}
+          expandedCellsView={expandedCellsView}
+          onToggleExpandedCellsView={() => setExpandedCellsView(!expandedCellsView)}
           zoomLevel={zoomLevel}
           onCellClick={handleCellClick}
           onChipClick={handleChipClick}
@@ -751,6 +939,17 @@ export default function AdminSchedulePage() {
               message: t('schedule:toast.rowUpdatedMsg'),
             });
           }}
+          onAddRow={addMatrixRow}
+          onArchiveRow={(rowId) => {
+            archiveMatrixRow(rowId);
+            addToast({ type: 'info', title: 'Row archived', message: 'The row was archived successfully.' });
+          }}
+          onDeleteRow={handleRequestDeleteRow}
+          onAddUnit={addUnit}
+          onRenameUnit={renameUnit}
+          onArchiveUnit={archiveUnit}
+          onDeleteUnit={handleRequestDeleteUnit}
+          onReorder={handleReorder}
         />
       )}
 
@@ -844,12 +1043,173 @@ export default function AdminSchedulePage() {
             message: t('schedule:toast.rowUpdatedMsg'),
           });
         }}
+        onAddRow={addMatrixRow}
+        onArchiveRow={(rowId) => {
+          archiveMatrixRow(rowId);
+          addToast({ type: 'info', title: 'Row archived', message: 'The row was archived successfully.' });
+        }}
+        onDeleteRow={handleRequestDeleteRow}
+        onAddUnit={addUnit}
+        onRenameUnit={renameUnit}
+        onArchiveUnit={archiveUnit}
+        onDeleteUnit={handleRequestDeleteUnit}
+        onReorder={handleReorder}
         drawerCell={drawerCell}
         drawerCurrentAssignments={drawerCurrentAssignments}
         onDrawerClose={closeDrawer}
         onDrawerSave={handleSaveAssignment}
         onDrawerClear={clearCell}
       />
+
+      {/* ── Safe Delete Confirmation Dialog (Policy 5) ── */}
+      <Modal
+        isOpen={!!deleteRowTarget}
+        onClose={() => setDeleteRowTarget(null)}
+        title="Delete Row With Assignments"
+        size="md"
+      >
+        {deleteRowTarget && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3.5 text-amber-900">
+              <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+              <div className="text-xs">
+                <p className="font-bold">Accidental Data Loss Warning</p>
+                <p className="mt-1">
+                  This row (<span className="font-semibold">{deleteRowTarget.rowLabel}</span>) currently contains{' '}
+                  <span className="font-bold">{deleteRowTarget.assignments}</span> employee assignments during {months[month] || `Month ${month + 1}`} {year}.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-text-secondary">
+              If you delete this row immediately, all associated employee shift assignments in this row will be permanently removed from the schedule. Alternatively, you can archive the row to hide it while preserving historical assignment records.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-border">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setDeleteRowTarget(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  archiveMatrixRow(deleteRowTarget.rowId);
+                  setDeleteRowTarget(null);
+                  addToast({
+                    type: 'info',
+                    title: 'Row Archived',
+                    message: 'The row has been archived successfully while preserving assignment history.',
+                  });
+                }}
+              >
+                Archive Row
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  deleteMatrixRow(deleteRowTarget.rowId, true);
+                  setDeleteRowTarget(null);
+                  addToast({
+                    type: 'success',
+                    title: 'Row Deleted',
+                    message: `The row and its ${deleteRowTarget.assignments} assignments have been removed permanently.`,
+                  });
+                }}
+              >
+                Delete Row and Remove Assignments
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!deleteUnitTarget}
+        onClose={() => setDeleteUnitTarget(null)}
+        title={t('schedule:matrix.unitDelete.title', { defaultValue: 'Delete unit' })}
+        size="md"
+      >
+        {deleteUnitTarget && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3.5 text-text-primary">
+              <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-warning" aria-hidden="true" />
+              <div className="text-xs">
+                <p className="font-bold">{t('schedule:matrix.unitDelete.warningTitle', { defaultValue: 'Assignments will be affected' })}</p>
+                <p className="mt-1">
+                  {t('schedule:matrix.unitDelete.warningMessage', {
+                    unit: deleteUnitTarget.unitLabel,
+                    count: deleteUnitTarget.assignments,
+                    month: months[month] || `Month ${month + 1}`,
+                    year,
+                    defaultValue: '{{unit}} contains {{count}} employee assignments in {{month}} {{year}}.',
+                  })}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs leading-5 text-text-secondary">
+              {t('schedule:matrix.unitDelete.description', {
+                defaultValue: 'Archive preserves the unit and all assignments. Permanent deletion removes the entire unit, every row, and all assignments.',
+              })}
+            </p>
+            <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-border pt-3">
+              <Button variant="secondary" size="sm" onClick={() => setDeleteUnitTarget(null)}>
+                {t('common:actions.cancel')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  archiveUnit(deleteUnitTarget.facilityId, deleteUnitTarget.unitId);
+                  setDeleteUnitTarget(null);
+                  addToast({
+                    type: 'info',
+                    title: t('schedule:matrix.unitDelete.archivedTitle', { defaultValue: 'Unit archived' }),
+                    message: t('schedule:matrix.unitDelete.archivedMessage', { defaultValue: 'The unit and its assignments were preserved.' }),
+                  });
+                }}
+              >
+                {t('schedule:matrix.unitDelete.archiveAction', { defaultValue: 'Archive unit' })}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => {
+                  const result = deleteUnit(
+                    deleteUnitTarget.facilityId,
+                    deleteUnitTarget.unitId,
+                    true,
+                    user?.name,
+                  );
+                  if (!result.ok) {
+                    addToast({
+                      type: 'error',
+                      title: t('common:toast.error', { defaultValue: 'Unable to delete unit' }),
+                      message: result.message || result.reason,
+                    });
+                    return;
+                  }
+                  setDeleteUnitTarget(null);
+                  addToast({
+                    type: 'success',
+                    title: t('schedule:matrix.unitDelete.deletedTitle', { defaultValue: 'Unit deleted' }),
+                    message: t('schedule:matrix.unitDelete.deletedMessage', {
+                      count: result.affectedAssignments,
+                      defaultValue: 'The unit and {{count}} assignments were permanently removed.',
+                    }),
+                  });
+                }}
+              >
+                {t('schedule:matrix.unitDelete.deleteAction', { defaultValue: 'Delete unit permanently' })}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

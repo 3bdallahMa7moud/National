@@ -13,7 +13,7 @@ interface VacationBandProps {
   year: number;
   month: number;
   adminMode: MatrixAdminMode;
-  onVacationToggle: (employeeId: string, day: number) => void;
+  onVacationToggle?: (employeeId: string, day: number) => void;
   holidays?: HolidayRange[];
 }
 
@@ -114,7 +114,7 @@ function VacationBand({
                     }}
                     onClick={() => {
                       if (isVacationMode) {
-                        onVacationToggle(vac.employeeId, day);
+                        onVacationToggle?.(vac.employeeId, day);
                       }
                     }}
                     role="gridcell"
@@ -122,7 +122,7 @@ function VacationBand({
                     aria-label={`${vac.fullName} - ${t('schedule:matrix.vacationDay', { day })}`}
                     onKeyDown={(event) => {
                       if (isVacationMode && event.key === 'Enter') {
-                        onVacationToggle(vac.employeeId, day);
+                        onVacationToggle?.(vac.employeeId, day);
                       }
                     }}
                   >

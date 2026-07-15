@@ -220,6 +220,13 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
+
+        <div className="absolute bottom-4 w-full text-center px-4">
+          <p className="text-[11px] leading-relaxed text-text-secondary/70 font-medium">
+            Created by Eshraq Alruhaimi<br />
+            Technical Development by Abdallah Mahmoud
+          </p>
+        </div>
       </main>
     </AuthSplitLayout>
   );

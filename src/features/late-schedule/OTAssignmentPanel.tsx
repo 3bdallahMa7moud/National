@@ -27,13 +27,12 @@ export default function OTAssignmentPanel({
   const [selectedIds, setSelectedIds] = useState(() => [
     ...new Set(initialAssignments.flatMap((assignment) =>
       assignment.kind === 'employee' ? [assignment.employeeId] : [])),
-  ].slice(0, 2));
+  ]);
   const [unresolvedCodes, setUnresolvedCodes] = useState(() => [
     ...new Set(initialAssignments.flatMap((assignment) =>
       assignment.kind === 'unresolved' ? [assignment.legacyCode] : [])),
-  ].slice(0, Math.max(0, 2 - selectedIds.length)));
+  ]);
   const selectionCount = selectedIds.length + unresolvedCodes.length;
-  const atCapacity = selectionCount >= 2;
 
   const filteredRoster = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -47,7 +46,7 @@ export default function OTAssignmentPanel({
   const toggleEmployee = (employeeId: string) => {
     setSelectedIds((current) => current.includes(employeeId)
       ? current.filter((id) => id !== employeeId)
-      : current.length + unresolvedCodes.length < 2 ? [...current, employeeId] : current);
+      : [...current, employeeId]);
   };
 
   return (
@@ -58,11 +57,11 @@ export default function OTAssignmentPanel({
             {t('common:lateSchedule.assignment.selectedEmployees', { defaultValue: isRtl ? 'الموظفون المحددون' : 'Selected employees' })}
           </p>
           <p className="text-xs text-text-secondary">
-            {t('common:lateSchedule.assignment.maxTwo', { defaultValue: isRtl ? 'اختر موظفًا واحدًا أو اثنين' : 'Choose one or two employees' })}
+            {isRtl ? 'يمكنك اختيار أي عدد من الموظفين' : 'Choose any number of employees'}
           </p>
         </div>
         <span className="rounded-full bg-cyan-950 px-3 py-1 text-sm font-bold text-cyan-100" aria-live="polite">
-          {selectionCount}/2
+          {selectionCount}
         </span>
       </div>
 
@@ -125,7 +124,6 @@ export default function OTAssignmentPanel({
       <div className="max-h-72 space-y-2 overflow-y-auto pe-1">
         {filteredRoster.map((employee) => {
           const selected = selectedIds.includes(employee.employeeId);
-          const disabled = atCapacity && !selected;
           const name = isRtl ? employee.fullName : employee.fullNameEn || employee.fullName;
           return (
             <button
@@ -134,7 +132,6 @@ export default function OTAssignmentPanel({
               role="checkbox"
               aria-checked={selected}
               aria-label={`${employee.code} — ${name}`}
-              disabled={disabled}
               onClick={() => toggleEmployee(employee.employeeId)}
               className={cn(
                 'flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 text-start transition-colors',

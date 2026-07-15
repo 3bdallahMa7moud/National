@@ -2,6 +2,11 @@ import { AlertTriangle, ArrowUpRight, CheckCircle2, UserRound } from 'lucide-rea
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Card from '@/components/ui/Card';
+import {
+  operationalShiftGradient,
+  operationalShiftStyle,
+  uniqueOperationalShiftVisuals,
+} from '@/lib/occurrenceShiftStyle';
 import type { CoverageCategory, DailyShiftGroup } from '@/types/operationalDashboard';
 
 interface TodayShiftGroupsProps { groups: DailyShiftGroup[]; selectedCategory: CoverageCategory | null }
@@ -24,10 +29,19 @@ export default function TodayShiftGroups({ groups, selectedCategory }: TodayShif
         <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
           {visibleGroups.map((group) => {
             const label = t(`coverage.categories.${group.category}`);
+            const groupShiftColors = uniqueOperationalShiftVisuals(group.items);
             return (
               <Card key={group.category} padding={false} className="overflow-hidden">
                 <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
                   <div>
+                    {groupShiftColors.length > 0 && (
+                      <span
+                        className="mb-2 block h-1 w-12 rounded-full"
+                        style={{ background: operationalShiftGradient(groupShiftColors) }}
+                        data-group-shift-color={group.category}
+                        aria-hidden="true"
+                      />
+                    )}
                     <h3 className="font-semibold text-text-primary">{label}</h3>
                     <p className="mt-0.5 text-xs text-text-secondary">{t('shiftGroups.summary', { assignments: group.assignmentCount, issues: group.issueCount })}</p>
                   </div>
@@ -35,8 +49,19 @@ export default function TodayShiftGroups({ groups, selectedCategory }: TodayShif
                 </div>
                 <div className="divide-y divide-border/60">
                   {group.items.map((item) => (
-                    <div key={item.id} className="flex min-h-[72px] items-center gap-3 px-5 py-3">
-                      <span className={item.uncovered ? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger/10 text-danger' : 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary'}>
+                    <div key={item.id} className="relative flex min-h-[72px] items-center gap-3 overflow-hidden px-5 py-3">
+                      <span
+                        className="absolute inset-y-2 start-0 w-1 rounded-e-full"
+                        style={{ backgroundColor: operationalShiftStyle(item).backgroundColor }}
+                        data-item-shift-color={item.id}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className={item.uncovered
+                          ? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-danger/10 text-danger'
+                          : 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border'}
+                        style={item.uncovered ? undefined : operationalShiftStyle(item)}
+                      >
                         {item.uncovered ? <AlertTriangle className="h-4 w-4" aria-hidden="true" /> : <UserRound className="h-4 w-4" aria-hidden="true" />}
                       </span>
                       <div className="min-w-0 flex-1">

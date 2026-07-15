@@ -7,8 +7,10 @@ import { useToast } from '@/components/ui/Toast';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import AdminMonthControl from '@/components/common/AdminMonthControl';
 import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
 import { exportLateScheduleExcel, exportLateSchedulePdf } from '@/lib/lateScheduleExport';
+import { isActiveLateScheduleRow, orderLateScheduleRows } from '@/lib/lateScheduleOrder';
 import type { OTShiftInput } from '@/types/lateSchedule';
 import LateScheduleToolbar from './LateScheduleToolbar';
 import LateScheduleStats from './LateScheduleStats';
@@ -16,6 +18,8 @@ import LateScheduleDesktopGrid from './LateScheduleDesktopGrid';
 import LateScheduleMobileWeek from './LateScheduleMobileWeek';
 import OTAssignmentPanel from './OTAssignmentPanel';
 import OTShiftFormModal from './OTShiftFormModal';
+import OTStructureControl from './OTStructureControl';
+import OTBulkActions from './OTBulkActions';
 
 interface ActiveCell {
   rowId: string;
@@ -32,6 +36,7 @@ export default function LateSchedulePage() {
   const year = useLateScheduleStore((state) => state.year);
   const month = useLateScheduleStore((state) => state.month);
   const rows = useLateScheduleStore((state) => state.rows);
+  const units = useLateScheduleStore((state) => state.units);
   const notice = useLateScheduleStore((state) => state.notice);
   const warnings = useLateScheduleStore((state) => state.warnings);
   const goToPreviousMonth = useLateScheduleStore((state) => state.goToPreviousMonth);
@@ -39,10 +44,28 @@ export default function LateSchedulePage() {
   const setMonth = useLateScheduleStore((state) => state.setMonth);
   const setCellAssignments = useLateScheduleStore((state) => state.setCellAssignments);
   const clearCell = useLateScheduleStore((state) => state.clearCell);
+  const setRangeAssignments = useLateScheduleStore((state) => state.setRangeAssignments);
+  const clearRangeAssignments = useLateScheduleStore((state) => state.clearRangeAssignments);
   const addRow = useLateScheduleStore((state) => state.addRow);
   const updateRow = useLateScheduleStore((state) => state.updateRow);
   const archiveRow = useLateScheduleStore((state) => state.archiveRow);
   const restoreLateShiftRow = useLateScheduleStore((state) => state.restoreLateShiftRow);
+  const deleteRow = useLateScheduleStore((state) => state.deleteRow);
+  const reorderRow = useLateScheduleStore((state) => state.reorderRow);
+  const addUnit = useLateScheduleStore((state) => state.addUnit);
+  const renameUnit = useLateScheduleStore((state) => state.renameUnit);
+  const archiveUnit = useLateScheduleStore((state) => state.archiveUnit);
+  const restoreUnit = useLateScheduleStore((state) => state.restoreUnit);
+  const deleteUnit = useLateScheduleStore((state) => state.deleteUnit);
+  const reorderUnit = useLateScheduleStore((state) => state.reorderUnit);
+  const tableClipboard = useLateScheduleStore((state) => state.tableClipboard);
+  const copyCurrentTable = useLateScheduleStore((state) => state.copyCurrentTable);
+  const pasteCopiedTable = useLateScheduleStore((state) => state.pasteCopiedTable);
+  const clearAllAssignments = useLateScheduleStore((state) => state.clearAllAssignments);
+  const resetCurrentMonth = useLateScheduleStore((state) => state.resetCurrentMonth);
+  const deleteCurrentMonth = useLateScheduleStore((state) => state.deleteCurrentMonth);
+  const currentMonthStatus = useLateScheduleStore((state) => state.currentMonthStatus);
+  const storageError = useLateScheduleStore((state) => state.storageError);
   const setNotice = useLateScheduleStore((state) => state.setNotice);
   const [search, setSearch] = useState('');
   const [showStats, setShowStats] = useState(true);
@@ -77,11 +100,12 @@ export default function LateSchedulePage() {
 
   const roster = useEmployeeRosterStore((state) => state.employees);
   const employeeById = useMemo(() => new Map(roster.map((employee) => [employee.employeeId, employee])), [roster]);
+  const orderedRows = useMemo(() => orderLateScheduleRows(rows, units), [rows, units]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return rows;
-    return rows.filter((row) => {
+    if (!query) return orderedRows;
+    return orderedRows.filter((row) => {
       const identityText = Object.values(row.assignments).flat().map((assignment) => {
         if (assignment.kind === 'unresolved') return assignment.legacyCode;
         const employee = employeeById.get(assignment.employeeId);
@@ -89,14 +113,14 @@ export default function LateSchedulePage() {
       }).join(' ');
       return `${row.title} ${row.location} ${row.timeRange} ${identityText}`.toLowerCase().includes(query);
     });
-  }, [rows, search, employeeById]);
-  const activeFilteredRows = filteredRows.filter((row) => !row.archived);
+  }, [orderedRows, search, employeeById]);
+  const activeFilteredRows = filteredRows.filter((row) => isActiveLateScheduleRow(row, units));
   const archivedFilteredRows = filteredRows.filter((row) => row.archived);
 
   const activeRow = activeCell ? rows.find((row) => row.id === activeCell.rowId) : undefined;
   const editingRow = editingRowId ? rows.find((row) => row.id === editingRowId) : undefined;
   const monthLabel = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(year, month, 1));
-  const activeRows = rows.filter((row) => !row.archived);
+  const activeRows = orderedRows.filter((row) => isActiveLateScheduleRow(row, units));
   const assignmentCount = activeRows.reduce((total, row) => total + Object.values(row.assignments).reduce((sum, assignments) => sum + assignments.length, 0), 0);
   const totalHours = activeRows.reduce((total, row) => total + Object.values(row.assignments).reduce((sum, assignments) => sum + assignments.filter((assignment) => assignment.kind === 'employee').length * row.hours, 0), 0);
 
@@ -152,14 +176,65 @@ export default function LateSchedulePage() {
         onToggleStats={() => setShowStats((value) => !value)}
         onExportExcel={async () => {
           const context = exportContext();
-          await exportLateScheduleExcel(rows, roster, context.title, year, month, context.days, notice);
+          await exportLateScheduleExcel(activeRows, roster, context.title, year, month, context.days, notice);
         }}
         onExportPdf={() => {
           const context = exportContext();
-          exportLateSchedulePdf(rows, roster, context.title, year, context.days, isRtl, notice);
+          exportLateSchedulePdf(activeRows, roster, context.title, year, context.days, isRtl, notice);
         }}
         onAddShift={() => setIsAddingRow(true)}
       />
+
+      {isAdmin && (
+        <AdminMonthControl
+          status={currentMonthStatus()}
+          monthLabel={monthLabel}
+          assignmentCount={assignmentCount}
+          tableClipboard={tableClipboard ? {
+            sourceMonthLabel: new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' })
+              .format(new Date(tableClipboard.sourceYear, tableClipboard.sourceMonth, 1)),
+            assignmentCount: tableClipboard.assignmentCount,
+          } : null}
+          storageError={storageError}
+          onCopy={() => copyCurrentTable(user?.name)}
+          onPaste={() => pasteCopiedTable(user?.name)}
+          onClear={() => clearAllAssignments(user?.name)}
+          onReset={() => resetCurrentMonth(user?.name)}
+          onDelete={() => deleteCurrentMonth(user?.name)}
+        />
+      )}
+
+      {isAdmin && (
+        <OTStructureControl
+          units={units}
+          rows={rows}
+          onAddUnit={(name) => addUnit(name, user?.name)}
+          onRenameUnit={(id, name) => renameUnit(id, name, user?.name)}
+          onArchiveUnit={(id) => archiveUnit(id, user?.name)}
+          onRestoreUnit={(id) => restoreUnit(id, user?.name)}
+          onDeleteUnit={(id) => deleteUnit(id, user?.name)}
+          onReorderUnit={(sourceUnitId, targetUnitId, position) => reorderUnit(sourceUnitId, targetUnitId, position, user?.name)}
+          onReorderRow={(rowId, _sourceUnitId, targetUnitId, targetRowId, position) => reorderRow(rowId, targetUnitId, targetRowId, position, user?.name)}
+          onEditRow={setEditingRowId}
+          onDeleteRow={(id) => deleteRow(id, user?.name)}
+        />
+      )}
+
+      {isAdmin && (
+        <OTBulkActions
+          rows={activeRows}
+          roster={roster}
+          daysInMonth={new Date(year, month + 1, 0).getDate()}
+          onApply={(rowId, from, to, employeeIds) => {
+            const result = setRangeAssignments(rowId, from, to, employeeIds, user?.name);
+            addToast({ type: result.ok ? 'success' : 'warning', title: result.ok ? (isRtl ? 'تم التعديل الجماعي' : 'Bulk assignment applied') : (isRtl ? 'تعذر التعديل' : 'Bulk assignment failed') });
+          }}
+          onClear={(rowId, from, to) => {
+            const result = clearRangeAssignments(rowId, from, to, user?.name);
+            addToast({ type: result.ok ? 'success' : 'warning', title: result.ok ? (isRtl ? 'تم مسح النطاق' : 'Range cleared') : (isRtl ? 'تعذر المسح' : 'Range clear failed') });
+          }}
+        />
+      )}
 
       {showStats && <LateScheduleStats isRtl={isRtl} shiftRows={activeRows.length} assignments={assignmentCount} hours={totalHours} employees={roster.length} />}
 
@@ -182,7 +257,7 @@ export default function LateSchedulePage() {
 
       {isAdmin && (
         <div
-          className="flex w-fit items-center gap-1 rounded-xl border border-border bg-surface-muted p-1"
+          className="grid w-full grid-cols-2 items-center gap-1 rounded-xl border border-border bg-surface-muted p-1 sm:flex sm:w-fit"
           role="tablist"
           aria-label={isRtl ? 'حالة صفوف OT' : 'OT row status'}
         >
@@ -210,8 +285,8 @@ export default function LateSchedulePage() {
 
       {archiveView === 'active' || !isAdmin ? (
         <>
-          <LateScheduleDesktopGrid year={year} month={month} rows={activeFilteredRows} roster={roster} notice={notice} canEdit={isAdmin} onAssign={(rowId, day) => setActiveCell({ rowId, day })} onEditRow={setEditingRowId} />
-          <LateScheduleMobileWeek year={year} month={month} rows={activeFilteredRows} roster={roster} canEdit={isAdmin} onAssign={(rowId, day) => setActiveCell({ rowId, day })} />
+          <LateScheduleDesktopGrid year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} notice={notice} canEdit={isAdmin} onAssign={(rowId, day) => setActiveCell({ rowId, day })} onEditRow={setEditingRowId} />
+          <LateScheduleMobileWeek year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} canEdit={isAdmin} onAssign={(rowId, day) => setActiveCell({ rowId, day })} />
         </>
       ) : (
         <section className="space-y-3 rounded-2xl border border-border bg-surface p-4" aria-label={isRtl ? 'صفوف OT المؤرشفة' : 'Archived OT rows'}>
@@ -263,7 +338,7 @@ export default function LateSchedulePage() {
         )}
       </Modal>
 
-      <OTShiftFormModal isOpen={isAddingRow || !!editingRow} row={editingRow} onClose={() => { setIsAddingRow(false); setEditingRowId(null); }} onSave={handleSaveRow} onArchive={editingRow ? () => { archiveRow(editingRow.id, user?.name); setEditingRowId(null); } : undefined} />
+      <OTShiftFormModal isOpen={isAddingRow || !!editingRow} row={editingRow} units={units} onClose={() => { setIsAddingRow(false); setEditingRowId(null); }} onSave={handleSaveRow} onArchive={editingRow ? () => { archiveRow(editingRow.id, user?.name); setEditingRowId(null); } : undefined} />
 
       <Modal isOpen={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} title={isRtl ? 'تعديل تنبيه OT' : 'Edit OT notice'} size="sm">
         <div className="space-y-4">

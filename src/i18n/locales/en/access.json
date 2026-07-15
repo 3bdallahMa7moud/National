@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "title": "Employee access",
+    "subtitle": "Choose a safe permission template, then customize individual permissions.",
+    "template": "Permission template",
+    "templates": {
+      "standard": "Standard",
+      "view_only": "View only",
+      "coordinator": "Coordinator"
+    },
+    "rosterLink": "Official schedule employee",
+    "unlinked": "Not linked",
+    "unlinkedWarning": "This account can view allowed pages, but cannot create or receive shift requests until it is linked to one official employee.",
+    "saved": "Permissions saved",
+    "storageError": "Permissions could not be saved. The previous settings are still active.",
+    "duplicateLink": "This official employee is already linked to another account.",
+    "customized": "Customized",
+    "inherit": "Use template",
+    "enabled": "Allowed",
+    "disabled": "Not allowed",
+    "items": {
+      "schedule.own.view": "View own Schedule",
+      "schedule.department.view": "View department Schedule",
+      "schedule.ot.own.view": "View own OT",
+      "schedule.ot.department.view": "View department OT",
+      "schedule.exchange.create": "Create Exchange requests",
+      "schedule.replace.create": "Create Replace requests",
+      "schedule.requests.respond": "Respond to incoming requests",
+      "schedule.requests.cancelOwn": "Cancel own pending requests",
+      "schedule.own.export": "Export own schedule",
+      "schedule.calendar.sync": "Sync own calendar",
+      "schedule.department.export": "Export department schedule",
+      "schedule.department.requests.view": "View department request history"
+    }
+  }
+}

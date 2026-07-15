@@ -117,7 +117,7 @@ export const useScheduleManagementStore = create<ScheduleManagementState>((set) 
     }),
   collapseAll: () =>
     set({ collapsedDepartments: new Set<string>() }),
-  expandAll: (deptIds) =>
+  expandAll: () =>
     set({ collapsedDepartments: new Set<string>() }),
 
   // ── Side Drawer ──

@@ -8,5 +8,27 @@ export type { LocalizedText } from './localized';
 export type {
   ShiftColorKey, FacilityColorToken, Assignment, ShiftRow, Unit, Facility,
   VacationRow, ScheduleMatrixData, MatrixCellRef, AssignmentChangePayload,
-  MatrixAdminMode, ConflictDetail, ValidateResult,
+  MatrixAdminMode, MatrixReorderCommand, MatrixReorderResult, MatrixDeleteResult, ConflictDetail, ValidateResult,
 } from './scheduleMatrix';
+export type {
+  EmployeePermission,
+  EmployeePermissionTemplateId,
+  EmployeePermissionTemplate,
+  EmployeeAccessProfile,
+  EffectiveEmployeeAccess,
+} from './employeeAccess';
+export {
+  EMPLOYEE_PERMISSIONS,
+  EMPLOYEE_PERMISSION_TEMPLATES,
+  effectivePermissions,
+} from './employeeAccess';
+export type {
+  ShiftRequest,
+  ShiftRequestType,
+  ShiftRequestStatus,
+  ShiftRequestSource,
+  ShiftAssignmentRef,
+  ShiftRequestWarning,
+  ShiftRequestAdminRejectionReason,
+  ShiftRequestMutationResult,
+} from './shiftRequest';

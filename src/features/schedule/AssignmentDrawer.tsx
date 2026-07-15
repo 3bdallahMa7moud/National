@@ -1,15 +1,17 @@
 // ============================================================
 // AssignmentDrawer - Employee assignment slide-out panel
 // ============================================================
-// Opened from cell click in Edit mode or popover change assignment action.
-// Searchable employee list with live conflict preview.
+// Primary + Secondary shown side-by-side (2-col grid).
+// Additional employees (#3, #4 …) stack below in the same grid.
+// Supports Enter-to-select in every combobox.
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CalendarDays, Check, Clock3, MapPin, Search, X } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { CalendarDays, Clock3, MapPin, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { validateAssignment } from '@/lib/validateAssignment';
 import { getShiftChipStyle } from '@/components/schedule/ScheduleMatrix/getShiftChipClasses';
+import { EmployeeCombobox } from './EmployeeCombobox';
 import type {
   Assignment,
   LegendEmployee,
@@ -21,9 +23,7 @@ import type {
 interface AssignmentDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Full matrix data for conflict validation */
   data: ScheduleMatrixData;
-  /** Context of the cell being edited */
   cell: {
     facilityId: string;
     facilityName: string;
@@ -35,14 +35,20 @@ interface AssignmentDrawerProps {
     defaultColorKey: ShiftColorKey;
     day: number;
   } | null;
-  /** Current assignments in this cell */
   currentAssignments: Assignment[];
-  /** Legend for the employee list */
   legend: LegendEmployee[];
-  /** Callback to save */
   onSave: (rowId: string, day: number, assignments: Assignment[]) => void;
-  /** Callback to clear */
   onClear: (rowId: string, day: number) => void;
+}
+
+/** Slot label: Primary → Secondary → #3 → #4 … */
+function useSlotLabel() {
+  const { t } = useTranslation(['schedule']);
+  return (index: number) => {
+    if (index === 0) return t('schedule:assignment.primary');
+    if (index === 1) return t('schedule:assignment.secondary');
+    return `#${index + 1}`;
+  };
 }
 
 function AssignmentDrawer({
@@ -56,140 +62,101 @@ function AssignmentDrawer({
   onClear,
 }: AssignmentDrawerProps) {
   const { t } = useTranslation(['schedule', 'common']);
-  const [search, setSearch] = useState('');
-  const [primary, setPrimary] = useState<string | null>(null);
-  const [secondary, setSecondary] = useState<string | null>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const slotLabel = useSlotLabel();
 
+  // slots[i] = employee code | null (empty)
+  const [slots, setSlots] = useState<(string | null)[]>([null, null]);
+
+  // Sync from currentAssignments when drawer opens
   useEffect(() => {
     if (isOpen && cell) {
-      setPrimary(currentAssignments[0]?.employeeCode || null);
-      setSecondary(currentAssignments[1]?.employeeCode || null);
-      setSearch('');
+      const loaded: (string | null)[] = currentAssignments.map((a) => a.employeeCode);
+      // Always keep at least 2 slots (Primary + Secondary)
+      while (loaded.length < 2) loaded.push(null);
+      setSlots(loaded);
     }
   }, [isOpen, cell, currentAssignments]);
 
-  useEffect(() => {
-    if (isOpen && searchRef.current) {
-      setTimeout(() => searchRef.current?.focus(), 100);
-    }
-  }, [isOpen]);
-
+  // ── codeToId lookup ─────────────────────────────────────────
   const codeToId = useMemo(() => {
     const map = new Map<string, string>();
     if (!data) return map;
-    for (const facility of data.facilities) {
-      for (const unit of facility.units) {
-        for (const row of unit.rows) {
-          for (const day of Object.keys(row.cellsByDay)) {
-            for (const assignment of row.cellsByDay[Number(day)]) {
-              map.set(assignment.employeeCode, assignment.employeeId);
-            }
-          }
-        }
-      }
-    }
-    legend.forEach((employee) => {
-      if (!map.has(employee.code)) map.set(employee.code, employee.employeeId);
-    });
+    for (const facility of data.facilities)
+      for (const unit of facility.units)
+        for (const row of unit.rows)
+          for (const day of Object.keys(row.cellsByDay))
+            for (const a of row.cellsByDay[Number(day)])
+              map.set(a.employeeCode, a.employeeId);
+    legend.forEach((e) => { if (!map.has(e.code)) map.set(e.code, e.employeeId); });
     return map;
   }, [data, legend]);
 
-  const employeeByCode = useMemo(() => {
-    const map = new Map<string, { code: string; fullName: string }>();
-    legend.forEach((employee) => map.set(employee.code, employee));
-    return map;
-  }, [legend]);
-
-  const filtered = useMemo(() => {
-    const query = search.toLowerCase().trim();
-    if (!query) return legend;
-    return legend.filter(
-      (employee) =>
-        employee.code.toLowerCase().includes(query) ||
-        employee.fullName.toLowerCase().includes(query),
-    );
-  }, [legend, search]);
-
+  // ── Validation ───────────────────────────────────────────────
   const validate = useCallback(
     (code: string): ValidateResult => {
       if (!cell || !data) return { ok: true };
-      const employeeId = codeToId.get(code) || '';
       return validateAssignment(data, {
         facilityId: cell.facilityId,
         unitId: cell.unitId,
         rowId: cell.rowId,
         day: cell.day,
-        employeeId,
+        employeeId: codeToId.get(code) || '',
         timeRange: cell.timeRange,
       });
     },
     [cell, data, codeToId],
   );
 
-  const primaryConflict = primary ? validate(primary) : null;
-  const secondaryConflict = secondary ? validate(secondary) : null;
-  const hasConflict =
-    (primaryConflict && !primaryConflict.ok) ||
-    (secondaryConflict && !secondaryConflict.ok);
-  const selectedCount = Number(Boolean(primary)) + Number(Boolean(secondary));
-  const canSave = selectedCount > 0 && !hasConflict;
+  // ── Derived ──────────────────────────────────────────────────
+  const filledCodes = slots.filter((s): s is string => s !== null);
+  const hasConflict = filledCodes.some((c) => !validate(c).ok);
+  const canSave = filledCodes.length > 0 && !hasConflict;
+  const selectedCount = filledCodes.length;
 
-  const handleSelectEmployee = (code: string) => {
-    if (!primary || primary === code) {
-      if (code === primary) {
-        handleRemovePrimary();
-        return;
-      }
-      setPrimary(code);
-    } else if (!secondary || secondary === code) {
-      if (code === secondary) {
-        handleRemoveSecondary();
-        return;
-      }
-      setSecondary(code);
-    } else {
-      setSecondary(code);
-    }
-  };
-
+  // ── Build assignments array ──────────────────────────────────
   const buildAssignments = useCallback(
-    (primaryCode: string | null, secondaryCode: string | null): Assignment[] => {
-      const assignments: Assignment[] = [];
-      if (primaryCode) {
-        assignments.push({
-          employeeId: codeToId.get(primaryCode) || '',
-          employeeCode: primaryCode,
-        });
-      }
-      if (secondaryCode) {
-        assignments.push({
-          employeeId: codeToId.get(secondaryCode) || '',
-          employeeCode: secondaryCode,
-        });
-      }
-      return assignments;
-    },
+    (s: (string | null)[]): Assignment[] =>
+      s.filter((c): c is string => c !== null).map((code) => ({
+        employeeId: codeToId.get(code) || '',
+        employeeCode: code,
+      })),
     [codeToId],
   );
 
+  const persistNow = useCallback(
+    (updatedSlots: (string | null)[]) => {
+      if (!cell) return;
+      onSave(cell.rowId, cell.day, buildAssignments(updatedSlots));
+    },
+    [cell, onSave, buildAssignments],
+  );
+
+  // ── Slot mutations ───────────────────────────────────────────
+  const handleChange = (index: number, code: string | null) => {
+    setSlots((prev) => prev.map((s, i) => (i === index ? code : s)));
+  };
+
+  const handleRemove = (index: number) => {
+    setSlots((prev) => {
+      let next = prev.map((s, i) => (i === index ? null : s));
+      // Trim trailing nulls beyond the mandatory 2 slots
+      while (next.length > 2 && next[next.length - 1] === null) {
+        next = next.slice(0, -1);
+      }
+      persistNow(next);
+      return next;
+    });
+  };
+
+  const handleAddSlot = () => {
+    setSlots((prev) => [...prev, null]);
+  };
+
+  // ── Save / clear ─────────────────────────────────────────────
   const handleSave = () => {
     if (!cell || !canSave) return;
-    onSave(cell.rowId, cell.day, buildAssignments(primary, secondary));
+    onSave(cell.rowId, cell.day, buildAssignments(slots));
     onClose();
-  };
-
-  const handleRemovePrimary = () => {
-    if (!cell) return;
-    onSave(cell.rowId, cell.day, buildAssignments(null, secondary));
-    setPrimary(null);
-  };
-
-  const handleRemoveSecondary = () => {
-    if (!cell) return;
-    onSave(cell.rowId, cell.day, buildAssignments(primary, null));
-    setSecondary(null);
   };
 
   const handleClear = () => {
@@ -199,83 +166,45 @@ function AssignmentDrawer({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' && canSave) handleSave();
     if (event.key === 'Escape') onClose();
   };
 
-  const renderConflict = (result: ValidateResult | null) => {
-    if (!result || result.ok) return null;
-    return (
-      <div className="mt-2 flex items-start gap-1.5 rounded-md border border-danger/25 bg-danger-500/10 px-2 py-1.5 text-[11px] font-semibold text-danger">
-        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>
-          {t('schedule:assignment.conflictWith', {
-            facility: result.conflict.facility,
-            unit: result.conflict.unit,
-            shift: result.conflict.shiftLabel,
-          })}
-        </span>
-      </div>
-    );
-  };
+  // ── Per-slot legend: exclude codes used in other slots ──────
+  const legendForSlot = useCallback(
+    (index: number): LegendEmployee[] => {
+      const others = new Set(
+        slots.filter((s, i) => i !== index && s !== null) as string[],
+      );
+      return legend.filter((e) => !others.has(e.code));
+    },
+    [legend, slots],
+  );
 
-  const renderSlot = (
-    label: string,
-    code: string | null,
-    onRemove: () => void,
-    conflict: ValidateResult | null,
-  ) => {
-    const employee = code ? employeeByCode.get(code) : null;
-
-    return (
-      <div
-        className={cn(
-          'rounded-xl border p-3 transition-colors',
-          code
-            ? 'border-primary-teal/40 bg-primary-teal/5'
-            : 'border-dashed border-border bg-surface-muted/35',
-        )}
-      >
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-text-secondary">{label}</span>
-          {code && (
-            <button
-              type="button"
-              onClick={onRemove}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-danger-500/10 hover:text-danger"
-              aria-label={t('schedule:assignment.remove')}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        {code ? (
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary-teal/35 bg-primary-teal text-xs font-black text-white">
-              {code}
-            </span>
-            <div className="min-w-0 text-start">
-              <p className="truncate text-sm font-bold text-text-primary">{employee?.fullName ?? code}</p>
-              <p className="text-[11px] font-semibold text-text-secondary">{t('schedule:assignment.slotShift')}</p>
-            </div>
-          </div>
-        ) : (
-          <div className="mb-3 flex h-9 items-center rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-text-muted">
-            {t('schedule:assignment.emptySlot')}
-          </div>
-        )}
-
-        {renderConflict(conflict)}
-      </div>
-    );
-  };
+  const activeRow = useMemo(() => {
+    if (!cell) return undefined;
+    return data.facilities
+      .find((facility) => facility.id === cell.facilityId)
+      ?.units.find((unit) => unit.id === cell.unitId)
+      ?.rows.find((row) => row.id === cell.rowId);
+  }, [cell, data.facilities]);
 
   if (!isOpen || !cell) return null;
 
+  const shiftColorKey = activeRow?.colorKey ?? cell.defaultColorKey;
+  const shiftStyle = getShiftChipStyle(
+    shiftColorKey,
+    activeRow?.backgroundColor,
+    activeRow?.textColor,
+  );
+  const shiftLabel = activeRow?.shiftLabel || activeRow?.rowLabel || cell.shiftLabel;
+  const shiftTimeRange = activeRow?.timeRange || cell.timeRange;
+
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-ink/25 backdrop-blur-[2px] dark:bg-black/45" onClick={onClose} />
+      <div
+        className="fixed inset-0 z-40 bg-ink/25 backdrop-blur-[2px] dark:bg-black/45"
+        onClick={onClose}
+      />
 
       <div
         className={cn(
@@ -287,10 +216,13 @@ function AssignmentDrawer({
         role="dialog"
         aria-label={t('schedule:assignment.assignTitle')}
       >
+        {/* ── Header ── */}
         <header className="border-b border-border bg-surface px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h2 className="text-base font-bold text-text-primary">{t('schedule:assignment.assignTitle')}</h2>
+              <h2 className="text-base font-bold text-text-primary">
+                {t('schedule:assignment.assignTitle')}
+              </h2>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-text-secondary">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-muted px-2.5 py-1">
                   <CalendarDays className="h-3.5 w-3.5 text-primary-teal" />
@@ -302,9 +234,12 @@ function AssignmentDrawer({
                     {cell.facilityName} / {cell.unitName}
                   </span>
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-muted px-2.5 py-1">
-                  <Clock3 className="h-3.5 w-3.5 text-primary-teal" />
-                  {cell.shiftLabel} ({cell.timeRange})
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1"
+                  style={shiftStyle}
+                >
+                  <Clock3 className="h-3.5 w-3.5" />
+                  {shiftLabel} ({shiftTimeRange})
                 </span>
               </div>
             </div>
@@ -319,24 +254,37 @@ function AssignmentDrawer({
           </div>
         </header>
 
+        {/* ── Body ── */}
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+
+          {/* Shift type pill */}
           <section className="rounded-xl border border-border bg-surface-muted/35 p-3">
             <div>
-              <h3 className="text-sm font-bold text-text-primary">{t('schedule:assignment.shiftType')}</h3>
+              <h3 className="text-sm font-bold text-text-primary">
+                {t('schedule:assignment.shiftType')}
+              </h3>
               <p className="mt-0.5 text-xs font-medium text-text-secondary">
                 {t('schedule:assignment.shiftColorFromRow')}
               </p>
             </div>
             <div
               className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold"
-              style={getShiftChipStyle(cell.defaultColorKey)}
+              style={shiftStyle}
               data-testid="row-shift-color"
             >
               <span className="h-2.5 w-2.5 rounded-full bg-current" aria-hidden="true" />
-              <span>{t(`schedule:shiftColors.${cell.defaultColorKey}`)}</span>
+              <span>{shiftLabel}</span>
             </div>
           </section>
 
+          {/* Conflict banner */}
+          {hasConflict && (
+            <div className="flex items-center gap-2 rounded-xl border border-danger/25 bg-danger-500/10 px-3 py-2.5 text-xs font-bold text-danger">
+              <span>{t('schedule:assignment.cannotSaveConflict')}</span>
+            </div>
+          )}
+
+          {/* Employee slots */}
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -347,111 +295,51 @@ function AssignmentDrawer({
                   {t('schedule:assignment.selectedCount', { count: selectedCount })}
                 </p>
               </div>
-              {hasConflict && (
-                <span className="rounded-full border border-danger/25 bg-danger-500/10 px-2.5 py-1 text-[11px] font-bold text-danger">
-                  {t('schedule:assignment.cannotSaveConflict')}
-                </span>
-              )}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {renderSlot(
-                t('schedule:assignment.primary'),
-                primary,
-                handleRemovePrimary,
-                primaryConflict,
-              )}
-              {renderSlot(
-                t('schedule:assignment.secondary'),
-                secondary,
-                handleRemoveSecondary,
-                secondaryConflict,
-              )}
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-text-primary">{t('schedule:assignment.employeeList')}</h3>
-                <p className="text-xs font-semibold text-text-muted">
-                  {t('schedule:assignment.employeesFound', { count: filtered.length })}
-                </p>
-              </div>
-            </div>
-
-            <div className="relative">
-              <Search className="absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-              <input
-                ref={searchRef}
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t('schedule:assignment.searchPlaceholder')}
-                className={cn(
-                  'h-11 w-full rounded-xl border border-border bg-surface ps-10 pe-3 text-sm font-semibold text-text-primary shadow-inner outline-none',
-                  'transition-colors placeholder:text-text-muted focus:border-primary-teal focus:ring-2 focus:ring-primary-teal/20',
-                )}
-              />
-            </div>
-
-            <div ref={listRef} className="max-h-[38vh] overflow-y-auto rounded-xl border border-border bg-surface">
-              {filtered.map((employee) => {
-                const isPrimary = primary === employee.code;
-                const isSecondary = secondary === employee.code;
-                const isSelected = isPrimary || isSecondary;
-                const result = validate(employee.code);
-                const hasIssue = !result.ok;
-
-                return (
-                  <button
-                    key={employee.code}
-                    type="button"
-                    onClick={() => handleSelectEmployee(employee.code)}
-                    className={cn(
-                      'flex w-full items-center gap-3 border-b border-border px-3 py-3 text-start transition-colors last:border-b-0',
-                      isSelected
-                        ? 'bg-primary-teal/10'
-                        : 'hover:bg-hover',
-                      hasIssue && !isSelected && 'opacity-70',
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-xs font-black',
-                        isSelected
-                          ? 'border-primary-teal bg-primary-teal text-white'
-                          : 'border-border bg-surface-muted text-text-primary',
-                      )}
-                    >
-                      {employee.code}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold text-text-primary">{employee.fullName}</span>
-                      <span className="mt-0.5 block text-[11px] font-semibold text-text-muted">
-                        {isPrimary
-                          ? t('schedule:assignment.primary')
-                          : isSecondary
-                            ? t('schedule:assignment.secondary')
-                            : employee.code}
-                      </span>
-                    </span>
-                    {isSelected && <Check className="h-4 w-4 shrink-0 text-primary-teal" />}
-                    {hasIssue && !isSelected && (
-                      <AlertTriangle className="h-4 w-4 shrink-0 text-danger" />
-                    )}
-                  </button>
-                );
-              })}
-              {filtered.length === 0 && (
-                <div className="py-10 text-center text-sm font-semibold text-text-muted">
-                  {t('schedule:assignment.noResults')}
+            {/* Render slots in rows of 2 */}
+            {Array.from({ length: Math.ceil(slots.length / 2) }, (_, rowIdx) => {
+              const a = rowIdx * 2;
+              const b = a + 1;
+              return (
+                <div key={rowIdx} className="grid gap-3 sm:grid-cols-2">
+                  {[a, b].map((idx) =>
+                    idx < slots.length ? (
+                      <EmployeeCombobox
+                        key={idx}
+                        label={slotLabel(idx)}
+                        legend={legendForSlot(idx)}
+                        value={slots[idx]}
+                        onChange={(code) => handleChange(idx, code)}
+                        onRemove={() => handleRemove(idx)}
+                        onValidate={validate}
+                      />
+                    ) : (
+                      // Filler — keeps grid alignment when odd number of slots
+                      <div key={idx} />
+                    ),
+                  )}
                 </div>
+              );
+            })}
+
+            {/* Add extra employee button */}
+            <button
+              type="button"
+              onClick={handleAddSlot}
+              className={cn(
+                'flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border py-2.5',
+                'text-xs font-bold text-text-muted transition-colors',
+                'hover:border-primary-teal/50 hover:bg-primary-teal/5 hover:text-primary-teal',
               )}
-            </div>
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t('schedule:assignment.addEmployee')}
+            </button>
           </section>
         </div>
 
+        {/* ── Footer ── */}
         <footer className="border-t border-border bg-surface px-5 py-4">
           <div className="grid grid-cols-[1fr_auto_auto] gap-2">
             <button
@@ -464,7 +352,11 @@ function AssignmentDrawer({
                   ? 'bg-primary-teal text-white shadow-sm hover:bg-primary-teal/90'
                   : 'cursor-not-allowed bg-surface-muted text-text-muted',
               )}
-              title={hasConflict ? t('schedule:assignment.cannotSaveConflict') : t('schedule:assignment.saveTitle')}
+              title={
+                hasConflict
+                  ? t('schedule:assignment.cannotSaveConflict')
+                  : t('schedule:assignment.saveTitle')
+              }
             >
               {t('schedule:assignment.save')}
             </button>

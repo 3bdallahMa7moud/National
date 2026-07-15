@@ -63,6 +63,10 @@
     "deleteEmployeeAria": "حذف الموظف {{name}}",
     "deleteTitle": "حذف الموظف",
     "deleteMessage": "هل أنت متأكد من حذف هذا الموظف؟ لا يمكن التراجع عن هذا الإجراء.",
-    "deleteSuccess": "تم حذف الموظف بنجاح"
+    "deleteSuccess": "تم حذف الموظف بنجاح",
+    "resetPasswordBtn": "إعادة تعيين كلمة المرور للافتراضية",
+    "resetPasswordTitle": "إعادة تعيين كلمة المرور",
+    "resetPasswordMessage": "سيتم إعادة كلمة مرور {{name}} إلى الافتراضية (123456). يمكن للموظف تغييرها بعد تسجيل الدخول.",
+    "resetPasswordSuccess": "تم إعادة تعيين كلمة المرور إلى 123456 بنجاح"
   }
 }

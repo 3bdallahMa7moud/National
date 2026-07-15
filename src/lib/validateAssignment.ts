@@ -24,6 +24,8 @@ export function validateAssignment(
     timeRange: string;
   },
 ): ValidateResult {
+  void _data;
+  void _proposed;
   return { ok: true };
 }
 
@@ -38,6 +40,8 @@ export function validateAssignmentsForCell(
     assignments: Assignment[];
   },
 ): ValidateResult {
+  void _data;
+  void _proposed;
   return { ok: true };
 }
 
@@ -62,4 +66,3 @@ export function recalculateAllConflicts(data: ScheduleMatrixData): void {
     }
   }
 }
-

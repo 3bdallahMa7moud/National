@@ -57,6 +57,20 @@ export function shiftCssStyle(colorKey: ShiftColorKey) {
   };
 }
 
+export function shiftChipStyle(
+  colorKey: ShiftColorKey,
+  backgroundColor?: string,
+  textColor?: string,
+) {
+  const base = shiftCssStyle(colorKey);
+  return {
+    ...base,
+    ...(backgroundColor ? { backgroundColor } : {}),
+    ...(textColor ? { color: textColor } : {}),
+    ...(backgroundColor ? { borderColor: backgroundColor } : {}),
+  };
+}
+
 function luminance(hex: string) {
   const channels = hex.replace('#', '').match(/.{2}/g)?.map((channel) => Number.parseInt(channel, 16) / 255) || [];
   const [red = 0, green = 0, blue = 0] = channels.map((value) =>

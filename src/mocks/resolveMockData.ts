@@ -76,6 +76,7 @@ export function resolveNotification(notif: MockNotificationSource, lang: Languag
     newShiftType: getShiftLabelByKey(notif.newShiftTypeKey, lang),
     isRead: notif.isRead,
     isUrgent: notif.isUrgent,
+    actionUrl: notif.actionUrl,
     createdAt: notif.createdAt,
   };
 }

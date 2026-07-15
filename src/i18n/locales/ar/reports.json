@@ -43,8 +43,13 @@
       "archived_zero": "لا توجد أرشفة أو حذف", "archived_one": "عنصر واحد مؤرشف أو محذوف", "archived_two": "عنصران مؤرشفان أو محذوفان", "archived_few": "{{count}} عناصر مؤرشفة أو محذوفة", "archived_many": "{{count}} عنصرًا مؤرشفًا أو محذوفًا", "archived_other": "{{count}} عنصر مؤرشف أو محذوف",
       "restored_zero": "لا توجد استعادة", "restored_one": "عنصر واحد مستعاد", "restored_two": "عنصران مستعادان", "restored_few": "{{count}} عناصر مستعادة", "restored_many": "{{count}} عنصرًا مستعادًا", "restored_other": "{{count}} عنصر مستعاد"
     },
-    "actions": { "create": "إنشاء", "update": "تحديث", "delete": "حذف", "assign": "تعيين", "clear": "إخلاء", "archive": "أرشفة", "restore": "استعادة", "publish": "نشر", "discard": "تجاهل مسودة", "vacation": "إجازة", "settings": "إعدادات", "undo": "تراجع" },
-    "modules": { "schedule": "جدول المناوبات", "ot": "العمل الإضافي", "employees": "الموظفون", "profile": "الملف الشخصي", "settings": "الإعدادات" },
+    "actions": { "create": "إنشاء", "update": "تحديث", "delete": "حذف", "assign": "تعيين", "clear": "إخلاء", "archive": "أرشفة", "restore": "استعادة", "publish": "نشر", "discard": "تجاهل مسودة", "vacation": "إجازة", "settings": "إعدادات", "undo": "تراجع", "request": "طلب", "approve": "موافقة", "reject": "رفض", "cancel": "إلغاء", "expire": "انتهاء" },
+    "modules": { "schedule": "جدول المناوبات", "ot": "العمل الإضافي", "employees": "الموظفون", "profile": "الملف الشخصي", "settings": "الإعدادات", "shift_requests": "طلبات تبديل المناوبات" },
+    "entities": {
+      "exchangeRequest": "طلب تبديل شفت",
+      "replaceRequest": "طلب استبدال شفت",
+      "employeeAccess": "صلاحيات وصول الموظف"
+    },
     "details": {
       "title": "تفاصيل سجل التدقيق", "view": "عرض تفاصيل {{entity}}", "close": "إغلاق التفاصيل", "entity": "العنصر المتأثر", "actor": "المنفذ", "action": "الإجراء", "timestamp": "التاريخ والوقت", "before": "قبل", "after": "بعد", "notAvailable": "غير متاح", "facility": "معرّف المنشأة", "unit": "معرّف الوحدة", "row": "معرّف الصف", "day": "اليوم", "openRelated": "فتح الشاشة المرتبطة"
     }

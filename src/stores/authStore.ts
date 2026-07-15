@@ -6,6 +6,7 @@ import i18n from '@/i18n';
 import { mockEmployeesSource } from '@/mocks/sources';
 import { resolveAuthUser } from '@/mocks/resolveMockData';
 import { verifyEmployeePassword, setEmployeePassword } from '@/mocks/mockPasswordStore';
+import { resolveCurrentEmployeeAccess } from './employeeAccessStore';
 
 interface AuthState {
   user: AuthUser | null;
@@ -23,6 +24,12 @@ function getCurrentLanguage(): Language {
   return lang === 'ar' ? 'ar' : 'en';
 }
 
+function applyEmployeeAccess(user: AuthUser): AuthUser {
+  if (user.role !== 'employee') return user;
+  const access = resolveCurrentEmployeeAccess(user);
+  return { ...user, scheduleEmployeeId: access.scheduleEmployeeId };
+}
+
 const loadUser = (): AuthUser | null => {
   try {
     const stored = localStorage.getItem('user');
@@ -31,11 +38,11 @@ const loadUser = (): AuthUser | null => {
     const source = mockEmployeesSource.find((e) => e.id === parsed.id);
     if (source) {
       const localized = resolveAuthUser(source, getCurrentLanguage());
-      const updated = { ...localized, email: parsed.email, avatar: parsed.avatar };
+      const updated = applyEmployeeAccess({ ...localized, email: parsed.email, avatar: parsed.avatar });
       localStorage.setItem('user', JSON.stringify(updated));
       return updated;
     }
-    return parsed;
+    return applyEmployeeAccess(parsed);
   } catch {
     return null;
   }
@@ -45,9 +52,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: loadUser(),
   isAuthenticated: !!localStorage.getItem('token'),
   login: (user, token) => {
+    const resolvedUser = applyEmployeeAccess(user);
     localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    set({ user, isAuthenticated: true });
+    localStorage.setItem('user', JSON.stringify(resolvedUser));
+    set({ user: resolvedUser, isAuthenticated: true });
   },
   logout: () => {
     localStorage.removeItem('token');
@@ -55,13 +63,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: null, isAuthenticated: false });
   },
   setUser: (user) => {
-    localStorage.setItem('user', JSON.stringify(user));
-    set({ user });
+    const resolvedUser = applyEmployeeAccess(user);
+    localStorage.setItem('user', JSON.stringify(resolvedUser));
+    set({ user: resolvedUser });
   },
   updateProfile: (updates) => {
     const current = get().user;
     if (!current) return;
-    const updated = { ...current, ...updates };
+    const updated = applyEmployeeAccess({ ...current, ...updates });
     localStorage.setItem('user', JSON.stringify(updated));
     set({ user: updated });
   },
@@ -78,7 +87,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const source = mockEmployeesSource.find((e) => e.id === current.id);
     if (!source) return;
     const localized = resolveAuthUser(source, lang);
-    const updated = { ...localized, email: current.email, avatar: current.avatar };
+    const updated = applyEmployeeAccess({ ...localized, email: current.email, avatar: current.avatar });
     localStorage.setItem('user', JSON.stringify(updated));
     set({ user: updated });
   },

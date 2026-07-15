@@ -1,6 +1,7 @@
 import type { Shift } from '@/types';
 import { getStoredLanguage } from '@/i18n/constants';
 import { verifyEmployeePassword } from './mockPasswordStore';
+import { resolveCurrentEmployeeAccess } from '@/stores/employeeAccessStore';
 import {
   mockDepartmentsSource,
   mockShiftTypesSource,
@@ -75,8 +76,10 @@ export function mockLogin(identifier: string, password: string) {
   if (!verifyEmployeePassword(source.id, password)) return null;
 
   const lang = getStoredLanguage();
+  const user = resolveAuthUser(source, lang);
+  if (user.role === 'employee' && !resolveCurrentEmployeeAccess(user).active) return null;
   return {
-    user: resolveAuthUser(source, lang),
+    user,
     token: 'mock-jwt-token-' + source.id,
   };
 }

@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { Trans } from 'react-i18next';
 import RouteGuard from '@/features/auth/RouteGuard';
 
 const AppShell = lazy(() => import('@/layouts/AppShell'));
@@ -19,11 +20,12 @@ const EmployeeSchedulePage = lazy(() => import('@/features/schedule/EmployeeSche
 const DepartmentSchedulePage = lazy(() => import('@/features/schedule/DepartmentSchedulePage'));
 const CalendarSyncPage = lazy(() => import('@/features/calendar-sync/CalendarSyncPage'));
 const NotificationsPage = lazy(() => import('@/features/notifications/NotificationsPage'));
+const ShiftRequestsPage = lazy(() => import('@/features/shift-requests/ShiftRequestsPage'));
 const ProfilePage = lazy(() => import('@/features/employees/ProfilePage'));
 
 const routeFallback = (
   <div className="flex min-h-screen items-center justify-center bg-background text-sm font-semibold text-text-secondary">
-    Loading...
+    <Trans ns="common" i18nKey="loading" />
   </div>
 );
 
@@ -87,6 +89,10 @@ export const router = createBrowserRouter([
                 path: 'admin/audit-log',
                 element: lazyElement(<AuditLogPage />),
               },
+              {
+                path: 'admin/shift-requests',
+                element: lazyElement(<ShiftRequestsPage />),
+              },
             ],
           },
           // مسارات الموظف والعامة المشتركة (Employee Routes)
@@ -98,20 +104,45 @@ export const router = createBrowserRouter([
                 element: lazyElement(<EmployeeDashboardPage />),
               },
               {
-                path: 'schedule/me',
-                element: lazyElement(<EmployeeSchedulePage />),
+                element: <RouteGuard requiredAnyPermission={['schedule.own.view', 'schedule.ot.own.view']} />,
+                children: [{
+                  path: 'schedule/me',
+                  element: lazyElement(<EmployeeSchedulePage />),
+                }],
               },
               {
-                path: 'schedule/department',
-                element: lazyElement(<DepartmentSchedulePage />),
+                element: <RouteGuard requiredAnyPermission={['schedule.department.view', 'schedule.ot.department.view']} />,
+                children: [{
+                  path: 'schedule/department',
+                  element: lazyElement(<DepartmentSchedulePage />),
+                }],
               },
               {
-                path: 'late-schedule',
-                element: lazyElement(<LateSchedulePage />),
+                element: <RouteGuard requiredPermission="schedule.ot.own.view" />,
+                children: [{
+                  path: 'late-schedule',
+                  element: <Navigate to="/schedule/me?tab=ot" replace />,
+                }],
               },
               {
-                path: 'calendar-sync',
-                element: lazyElement(<CalendarSyncPage />),
+                element: <RouteGuard requiredPermission="schedule.calendar.sync" />,
+                children: [{
+                  path: 'calendar-sync',
+                  element: lazyElement(<CalendarSyncPage />),
+                }],
+              },
+              {
+                element: <RouteGuard requiredAnyPermission={[
+                  'schedule.exchange.create',
+                  'schedule.replace.create',
+                  'schedule.requests.respond',
+                  'schedule.requests.cancelOwn',
+                  'schedule.department.requests.view',
+                ]} />,
+                children: [{
+                  path: 'shift-requests',
+                  element: lazyElement(<ShiftRequestsPage />),
+                }],
               },
               {
                 path: 'notifications',

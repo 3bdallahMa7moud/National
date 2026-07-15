@@ -22,6 +22,16 @@
     "scheduleSource": "Schedule", "hours_one": "{{count}} hour", "hours_other": "{{count}} hours",
     "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" }
   },
+  "publishedTables": {
+    "tabsLabel": "Published schedule type",
+    "scheduleTab": "Schedule",
+    "otTab": "OT Schedule",
+    "readOnly": "Published · read-only",
+    "noAccess": "You do not have permission to view this schedule.",
+    "noSchedule": "No published Schedule table is available for this month.",
+    "noOT": "No published OT table is available for this month.",
+    "otExportTitle": "OT Schedule — {{month}}"
+  },
   "admin": {
     "title": "Monthly Schedule Management",
     "subtitle": "Manage and distribute shift schedules for CT Scan department employees",
@@ -75,7 +85,7 @@
     "clearCells": "Clear",
     "cancelSelection": "Cancel Selection",
     "brushActive": "Brush Active",
-    "brushClickToPaint": "Click cells to assign (up to 2 employees per cell)",
+    "brushClickToPaint": "Click cells to assign the selected employees",
     "cancelBrush": "Cancel",
     "highlightActive": "Highlighting employee in schedule",
     "cancelHighlight": "Clear Highlight",
@@ -101,6 +111,7 @@
     "modes": {
       "view": "View",
       "edit": "Edit",
+      "order": "Arrange",
       "vacations": "Vacations",
       "brush": "Brush",
       "settings": "Settings",
@@ -108,6 +119,7 @@
     },
     "viewMode": "View",
     "editMode": "Edit",
+    "orderMode": "Arrange",
     "vacationMode": "Vacations",
     "brushMode": "Brush Assign",
     "all": "All",
@@ -217,6 +229,11 @@
   },
   "settingsPanel": {
     "title": "Schedule Settings",
+    "workspace": {
+      "ariaLabel": "Schedule settings sections",
+      "shiftTypes": "Shift Types & Schedule Codes",
+      "tableOrder": "Table Order"
+    },
     "colorBlindMode": "Color Blind Mode",
     "shiftsSection": "Shift Types & Timings",
     "shiftsSubtitle": "Edits apply forward only",
@@ -244,7 +261,7 @@
     "highlightActive": "Employee highlight is active",
     "cancelHighlight": "Clear highlight",
     "brushActive": "Assignment brush is active",
-    "brushSelectionCount": "Selected {{count}}/2 employees",
+    "brushSelectionCount": "Selected {{count}} employees",
     "cancelBrush": "Clear brush selection",
     "cellsSelected": "{{count}} cells selected",
     "assignEmployee": "Assign employee",
@@ -271,6 +288,47 @@
     ,"assignmentCount": "{{count}} assignments"
     ,"showAllAssignments": "Show all {{count}} assignments"
     ,"showFewerAssignments": "Show fewer assignments"
+    ,"unitActions": "Manage unit"
+    ,"affectedAssignments": "{{count}} assignments affected"
+    ,"renameUnit": "Rename unit"
+    ,"addUnit": "Add unit"
+    ,"newUnitName": "New unit name"
+    ,"unitDelete": {
+      "title": "Delete unit",
+      "warningTitle": "Employee assignments will be affected",
+      "warningMessage": "{{unit}} contains {{count}} employee assignments in {{month}} {{year}}.",
+      "description": "Archiving keeps the unit and every assignment. Permanent deletion removes the unit, all its rows, and their assignments.",
+      "archivedTitle": "Unit archived",
+      "archivedMessage": "The unit and its assignments were kept.",
+      "archiveAction": "Archive unit",
+      "deletedTitle": "Unit deleted",
+      "deletedMessage": "The unit and {{count}} assignments were permanently deleted.",
+      "deleteAction": "Delete unit permanently"
+    }
+    ,"order": {
+      "title": "Arrange table",
+      "touchHint": "Press and hold a handle, then move the unit or shift.",
+      "dragUnit": "Drag unit {{label}}",
+      "dragRow": "Drag shift {{label}}",
+      "moveUnitUp": "Move {{label}} up",
+      "moveUnitDown": "Move {{label}} down",
+      "moveRowUp": "Move {{label}} up",
+      "moveRowDown": "Move {{label}} down",
+      "moveRowToUnit": "Move {{label}} to unit",
+      "emptyUnit": "This unit has no active rows. Drag a shift here or add a row.",
+      "noUnits": "There are no units to order.",
+      "unitKind": "Unit",
+      "rowKind": "Shift row",
+      "successTitle": "Table order saved",
+      "successMessage": "{{item}} moved successfully; {{count}} assignments were kept.",
+      "failureTitle": "Table order was not changed",
+      "errors": {
+        "not_found": "The unit or row no longer exists.",
+        "same_position": "The item is already in that position.",
+        "invalid_target": "This item cannot be moved to the selected location.",
+        "storage_error": "The new order could not be saved. The previous order was restored."
+      }
+    }
   },
   "months": [
     "January", "February", "March", "April", "May", "June",
@@ -291,7 +349,7 @@
     "drawerDay": "Day:",
     "drawerFacility": "Facility:",
     "drawerShift": "Shift:",
-    "selectedEmployees": "Selected Employees (Max 2)",
+    "selectedEmployees": "Assigned Employees",
     "primary": "Primary",
     "conflictWith": "Conflict with {{facility}} / {{unit}} / {{shift}}",
     "secondary": "Secondary",
@@ -299,10 +357,11 @@
     "saveOverride": "Save (override)",
     "saveTitle": "Save changes",
     "cancel": "Cancel",
+    "addEmployee": "Add Employee",
     "shiftType": "Shift type",
     "shiftTypeHint": "The chip color is inherited from the schedule row.",
     "shiftColorFromRow": "This color is fixed by the schedule row.",
-    "selectedCount": "{{count}} / 2 selected",
+    "selectedCount": "{{count}} assigned",
     "emptySlot": "Choose from the employee list",
     "slotShift": "Shift color",
     "employeeList": "Employee list",
@@ -341,10 +400,10 @@
     "undoMsg": "Successfully undone last edit",
     "brushAssignTitle": "Assigned with brush",
     "brushAssignMsg": "Assigned {{codes}} on day {{day}}",
-    "brushMaxCellTitle": "Cell is full",
-    "brushMaxCellMsg": "This shift cell already has 2 employees assigned.",
-    "brushMaxSelectionTitle": "Brush limit reached",
-    "brushMaxSelectionMsg": "You can select up to 2 employees for the brush.",
+    "brushMaxCellTitle": "Assignment not applied",
+    "brushMaxCellMsg": "The selected employees could not be added to this cell.",
+    "brushMaxSelectionTitle": "Brush selection",
+    "brushMaxSelectionMsg": "Select any number of employees for the brush.",
     "conflictWarningTitle": "Schedule Conflict Warning",
     "shiftSavedTitle": "Shift Saved",
     "shiftSavedMsg": "Edit saved to draft successfully",
@@ -372,6 +431,7 @@
     "clearSuccessMsg": "Cell cleared successfully",
     "convertToVacationTitle": "Converted shift to vacation",
     "convertToVacationMsg": "Recorded vacation for this day",
+    "auditLogTitle": "Cell change history",
     "auditLogMsg": "Edited by System Admin",
     "copyNextDayTitle": "Copied",
     "copyNextDayMsg": "Copied shift to next day"

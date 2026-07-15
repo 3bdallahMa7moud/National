@@ -63,6 +63,10 @@
     "deleteEmployeeAria": "Delete employee {{name}}",
     "deleteTitle": "Delete Employee",
     "deleteMessage": "Are you sure you want to delete this employee? This action cannot be undone.",
-    "deleteSuccess": "Employee deleted successfully"
+    "deleteSuccess": "Employee deleted successfully",
+    "resetPasswordBtn": "Reset Password to Default",
+    "resetPasswordTitle": "Reset Password",
+    "resetPasswordMessage": "This will reset {{name}}'s password back to the default (123456). The employee can change it after logging in.",
+    "resetPasswordSuccess": "Password has been reset to 123456 successfully"
   }
 }

@@ -1,4 +1,4 @@
-import type { OperationalShiftCategory } from './operationalSchedule';
+import type { OperationalShiftCategory, OperationalShiftVisual } from './operationalSchedule';
 
 export type CoverageCategory = 'day' | 'late' | 'night' | 'onCall' | 'ot';
 
@@ -13,9 +13,11 @@ export interface CoverageMetric {
   scheduledRows: number;
   conflicts: number;
   approvedAbsences: number;
+  /** Unique published row colors contributing to this aggregate. */
+  shiftColors?: OperationalShiftVisual[];
 }
 
-export interface DailyShiftItem {
+export interface DailyShiftItem extends OperationalShiftVisual {
   id: string;
   source: 'schedule' | 'ot';
   category: CoverageCategory;

@@ -48,6 +48,7 @@ export interface MockNotificationSource {
   newShiftTypeKey?: ShiftTypeKey;
   isRead: boolean;
   isUrgent: boolean;
+  actionUrl?: string;
   createdAt: string;
 }
 

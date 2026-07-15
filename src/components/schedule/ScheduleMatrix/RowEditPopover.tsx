@@ -3,11 +3,11 @@
 // ============================================================
 
 import { memo, useCallback, useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { Archive, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getShiftChipStyle } from './getShiftChipClasses';
 import { useTranslation } from 'react-i18next';
-import { SHIFT_COLOR_KEYS } from '@/lib/shiftColorOptions';
-import type { ShiftColorKey, ShiftRow } from '@/types/scheduleMatrix';
+import type { ShiftDefinition, ShiftRow } from '@/types/scheduleMatrix';
 
 export interface RowEditTarget {
   row: ShiftRow;
@@ -20,25 +20,24 @@ interface RowEditPopoverProps {
   onClose: () => void;
   onSave: (
     rowId: string,
-    updates: Partial<Pick<ShiftRow, 'rowLabel' | 'shiftLabel' | 'timeRange' | 'colorKey' | 'weekendOnly'>>,
+    updates: Partial<Pick<ShiftRow, 'rowLabel' | 'shiftLabel' | 'timeRange' | 'colorKey' | 'weekendOnly' | 'shiftDefinitionId'>>,
   ) => void;
+  shiftDefinitions?: ShiftDefinition[];
+  onArchive?: (rowId: string) => void;
+  onDelete?: (rowId: string) => void;
 }
 
-function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
+function RowEditPopover({ target, onClose, onSave, shiftDefinitions = [], onArchive, onDelete }: RowEditPopoverProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const [rowLabel, setRowLabel] = useState('');
-  const [shiftLabel, setShiftLabel] = useState('');
-  const [timeRange, setTimeRange] = useState('');
-  const [colorKey, setColorKey] = useState<ShiftColorKey>('morning');
+  const [shiftDefinitionId, setShiftDefinitionId] = useState('');
   const [weekendOnly, setWeekendOnly] = useState(false);
 
   useEffect(() => {
     if (!target) return;
     const { row, unitName } = target;
     setRowLabel(row.rowLabel || unitName);
-    setShiftLabel(row.shiftLabel);
-    setTimeRange(row.timeRange);
-    setColorKey(row.colorKey);
+    setShiftDefinitionId(row.shiftDefinitionId || '');
     setWeekendOnly(row.weekendOnly);
   }, [target]);
 
@@ -46,13 +45,11 @@ function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
     if (!target) return;
     onSave(target.row.id, {
       rowLabel: rowLabel.trim(),
-      shiftLabel: shiftLabel.trim(),
-      timeRange: timeRange.trim(),
-      colorKey,
+      shiftDefinitionId,
       weekendOnly,
     });
     onClose();
-  }, [target, rowLabel, shiftLabel, timeRange, colorKey, weekendOnly, onSave, onClose]);
+  }, [target, rowLabel, shiftDefinitionId, weekendOnly, onSave, onClose]);
 
   useEffect(() => {
     if (!target) return;
@@ -68,6 +65,7 @@ function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
 
   const top = Math.min(target.anchorRect.bottom + 8, window.innerHeight - 380);
   const left = Math.max(16, Math.min(target.anchorRect.left, window.innerWidth - 320));
+  const selectedDefinition = shiftDefinitions.find((definition) => definition.id === shiftDefinitionId);
 
   return (
     <>
@@ -108,41 +106,43 @@ function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
           </label>
           <label className="block">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
-              {t('schedule:rowEdit.shiftLabel')}
-            </span>
-            <input
-              value={shiftLabel}
-              onChange={(e) => setShiftLabel(e.target.value)}
-              className="h-8 w-full rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
-              {t('schedule:rowEdit.timeRange')}
-            </span>
-            <input
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              dir="ltr"
-              className="h-8 w-full rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
               {t('schedule:rowEdit.shiftType')}
             </span>
             <select
-              value={colorKey}
-              onChange={(e) => setColorKey(e.target.value as ShiftColorKey)}
+              value={shiftDefinitionId}
+              onChange={(e) => setShiftDefinitionId(e.target.value)}
               className="h-8 w-full rounded-md border border-border px-2 text-xs text-ink focus:border-primary-teal focus:outline-none"
             >
-              {SHIFT_COLOR_KEYS.map((key) => (
-                <option key={key} value={key}>
-                  {t(`schedule:shiftColors.${key}`)}
+              {shiftDefinitions.map((definition) => (
+                <option key={definition.id} value={definition.id}>
+                  {definition.englishName || definition.label} · {definition.timeRange}
                 </option>
               ))}
             </select>
           </label>
+          {selectedDefinition && (
+            <div className="rounded-md border border-border bg-surface-muted px-2 py-2 text-[11px] text-text-secondary">
+              <span
+                className="me-2 inline-block h-3 w-3 rounded-full align-middle"
+                style={getShiftChipStyle(
+                  selectedDefinition.colorKey,
+                  selectedDefinition.backgroundColor,
+                  selectedDefinition.textColor,
+                )}
+              />
+              <span
+                className="rounded px-1.5 py-0.5 font-semibold"
+                style={getShiftChipStyle(
+                  selectedDefinition.colorKey,
+                  selectedDefinition.backgroundColor,
+                  selectedDefinition.textColor,
+                )}
+              >
+                {selectedDefinition.englishName || selectedDefinition.label}
+              </span>
+              <span dir="ltr" className="ms-1" style={{ unicodeBidi: 'isolate' }}>{selectedDefinition.timeRange}</span>
+            </div>
+          )}
           <label className="flex items-center gap-2 pt-1">
             <input
               type="checkbox"
@@ -171,6 +171,32 @@ function RowEditPopover({ target, onClose, onSave }: RowEditPopoverProps) {
           >
             {t('schedule:rowEdit.cancel')}
           </button>
+          {onArchive && (
+            <button
+              type="button"
+              onClick={() => {
+                onArchive(target.row.id);
+                onClose();
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface-muted text-text-secondary hover:bg-hover"
+              aria-label={t('schedule:settingsPanel.archive', 'Archive')}
+            >
+              <Archive className="h-4 w-4" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                onDelete(target.row.id);
+                onClose();
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-danger/30 bg-danger-50 text-danger hover:bg-danger hover:text-white"
+              aria-label={t('common:actions.delete', 'Delete')}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
     </>

@@ -1,4 +1,5 @@
 import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
+import { operationalShiftVisualKey } from '@/lib/occurrenceShiftStyle';
 import type { UnifiedEmployee } from '@/lib/unifiedEmployeeRoster';
 import type { OTShiftRow } from '@/types/lateSchedule';
 import type {
@@ -8,7 +9,7 @@ import type {
   OperationalIssue,
   OperationalSnapshot,
 } from '@/types/operationalDashboard';
-import type { OperationalShiftCategory } from '@/types/operationalSchedule';
+import type { OperationalShiftCategory, OperationalShiftVisual } from '@/types/operationalSchedule';
 import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
 
 const COVERAGE_ORDER: CoverageCategory[] = ['day', 'late', 'night', 'onCall', 'ot'];
@@ -80,7 +81,15 @@ function blankMetric(category: CoverageCategory, hasMatrix: boolean): CoverageMe
     scheduledRows: 0,
     conflicts: 0,
     approvedAbsences: 0,
+    shiftColors: [],
   };
+}
+
+function addMetricShiftColor(metric: CoverageMetric, visual: OperationalShiftVisual): void {
+  const colors = metric.shiftColors ?? [];
+  const key = operationalShiftVisualKey(visual);
+  if (!colors.some((entry) => operationalShiftVisualKey(entry) === key)) colors.push(visual);
+  metric.shiftColors = colors;
 }
 
 export function buildOperationalSnapshot(
@@ -130,6 +139,12 @@ export function buildOperationalSnapshot(
           const category = coverageCategory(subcategory);
           const metric = metrics.get(category)!;
           const group = groups.get(category)!;
+          const shiftVisual = {
+            colorKey: row.colorKey,
+            backgroundColor: row.backgroundColor,
+            textColor: row.textColor,
+          } satisfies OperationalShiftVisual;
+          addMetricShiftColor(metric, shiftVisual);
           const assignments = (row.cellsByDay[day] ?? []).filter((assignment) => assignment.status !== 'draft');
           const href = scheduleHref(dateValue, category, row.id, day);
 
@@ -153,6 +168,7 @@ export function buildOperationalSnapshot(
                 source: 'schedule',
                 category,
                 subcategory,
+                ...shiftVisual,
                 facility: facility.name,
                 unit: unit.name,
                 label: row.shiftLabel,
@@ -214,6 +230,7 @@ export function buildOperationalSnapshot(
               source: 'schedule',
               category,
               subcategory,
+              ...shiftVisual,
               employeeId: assignment.employeeId,
               employeeCode: employee?.code ?? assignment.employeeCode,
               employeeName: employee?.fullNameEn || employee?.fullName || assignment.employeeCode,
@@ -242,6 +259,12 @@ export function buildOperationalSnapshot(
     if (assignments.length === 0) continue;
     const metric = metrics.get('ot')!;
     const group = groups.get('ot')!;
+    const shiftVisual = {
+      colorKey: 'overtime',
+      backgroundColor: row.backgroundColor,
+      textColor: row.textColor,
+    } satisfies OperationalShiftVisual;
+    addMetricShiftColor(metric, shiftVisual);
     metric.scheduledRows += 1;
     const href = otHref(year, month, row.id, day);
     for (const assignment of assignments) {
@@ -262,6 +285,7 @@ export function buildOperationalSnapshot(
           source: 'ot',
           category: 'ot',
           subcategory: 'ot',
+          ...shiftVisual,
           employeeCode: `${assignment.legacyCode}?`,
           facility: row.location,
           unit: row.title,
@@ -288,6 +312,7 @@ export function buildOperationalSnapshot(
         source: 'ot',
         category: 'ot',
         subcategory: 'ot',
+        ...shiftVisual,
         employeeId: assignment.employeeId,
         employeeCode: employee?.code ?? assignment.employeeId,
         employeeName: employee?.fullNameEn || employee?.fullName || assignment.employeeId,

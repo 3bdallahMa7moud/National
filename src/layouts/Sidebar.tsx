@@ -2,14 +2,23 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
+import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { useUIStore } from '@/stores/uiStore';
+import { resolveEffectiveEmployeeAccess, type EmployeePermission } from '@/types/employeeAccess';
 import {
   LayoutDashboard, Calendar, Users, Building2, BarChart3, FileText,
-  RefreshCw, Bell, User, Menu, X, Clock,
+  RefreshCw, Bell, User, Menu, X, Clock, ArrowLeftRight,
 } from 'lucide-react';
 import HospitalLogo from '@/components/common/HospitalLogo';
 
-const adminLinks = [
+interface SidebarLink {
+  to: string;
+  icon: typeof LayoutDashboard;
+  labelKey: string;
+  permissions?: EmployeePermission[];
+}
+
+const adminLinks: SidebarLink[] = [
   { to: '/admin/dashboard', icon: LayoutDashboard, labelKey: 'common:nav.dashboard' },
   { to: '/admin/schedule', icon: Calendar, labelKey: 'common:nav.scheduleAdmin' },
   { to: '/admin/late-schedule', icon: Clock, labelKey: 'common:nav.lateSchedule' },
@@ -17,15 +26,34 @@ const adminLinks = [
   { to: '/admin/reports', icon: BarChart3, labelKey: 'common:nav.reports' },
   { to: '/admin/departments', icon: Building2, labelKey: 'common:nav.departments' },
   { to: '/admin/audit-log', icon: FileText, labelKey: 'common:nav.auditLog' },
+  { to: '/admin/shift-requests', icon: ArrowLeftRight, labelKey: 'common:nav.shiftRequests' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
 ] as const;
 
-const employeeLinks = [
+const employeeLinks: SidebarLink[] = [
   { to: '/employee/dashboard', icon: LayoutDashboard, labelKey: 'common:nav.dashboard' },
-  { to: '/schedule/me', icon: Calendar, labelKey: 'common:nav.mySchedule' },
-  { to: '/schedule/department', icon: Users, labelKey: 'common:nav.departmentSchedule' },
-  { to: '/late-schedule', icon: Clock, labelKey: 'common:nav.lateSchedule' },
-  { to: '/calendar-sync', icon: RefreshCw, labelKey: 'common:nav.calendarSync' },
+  {
+    to: '/schedule/me', icon: Calendar, labelKey: 'common:nav.mySchedule',
+    permissions: ['schedule.own.view', 'schedule.ot.own.view'],
+  },
+  {
+    to: '/schedule/department', icon: Users, labelKey: 'common:nav.departmentSchedule',
+    permissions: ['schedule.department.view', 'schedule.ot.department.view'],
+  },
+  {
+    to: '/shift-requests', icon: ArrowLeftRight, labelKey: 'common:nav.shiftRequests',
+    permissions: [
+      'schedule.exchange.create',
+      'schedule.replace.create',
+      'schedule.requests.respond',
+      'schedule.requests.cancelOwn',
+      'schedule.department.requests.view',
+    ],
+  },
+  {
+    to: '/calendar-sync', icon: RefreshCw, labelKey: 'common:nav.calendarSync',
+    permissions: ['schedule.calendar.sync'],
+  },
   { to: '/notifications', icon: Bell, labelKey: 'common:nav.notifications' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
 ] as const;
@@ -33,9 +61,16 @@ const employeeLinks = [
 export default function Sidebar() {
   const { t } = useTranslation(['common']);
   const { user } = useAuthStore();
+  const accessProfile = useEmployeeAccessStore((state) => user ? state.profiles[user.id] : undefined);
   const { sidebarOpen, sidebarCollapsed, setSidebarOpen, toggleSidebarCollapse } = useUIStore();
   const location = useLocation();
-  const links = user?.role === 'admin' ? adminLinks : employeeLinks;
+  const employeeAccess = user?.role === 'employee'
+    ? resolveEffectiveEmployeeAccess(user, accessProfile)
+    : null;
+  const links = user?.role === 'admin'
+    ? adminLinks
+    : employeeLinks.filter((link) => !link.permissions?.length
+      || (employeeAccess?.active && link.permissions.some((permission) => employeeAccess.permissions[permission])));
   const isCollapsed = sidebarCollapsed && !sidebarOpen;
 
   const sidebarContent = (

@@ -6,7 +6,7 @@
 // NEVER uses plain black or --ink on colored chip backgrounds.
 
 import type { ShiftColorKey } from '@/types/scheduleMatrix';
-import { shiftCssStyle } from '@/lib/shiftColorPalette';
+import { shiftChipStyle } from '@/lib/shiftColorPalette';
 
 interface ChipStyle {
   backgroundColor: string;
@@ -17,6 +17,6 @@ interface ChipStyle {
 /**
  * Dark mode is resolved automatically by the token overrides on the root theme.
  */
-export function getShiftChipStyle(colorKey: ShiftColorKey): ChipStyle {
-  return shiftCssStyle(colorKey);
+export function getShiftChipStyle(colorKey: ShiftColorKey, backgroundColor?: string, textColor?: string): ChipStyle {
+  return shiftChipStyle(colorKey, backgroundColor, textColor);
 }

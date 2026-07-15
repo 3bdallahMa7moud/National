@@ -65,14 +65,25 @@
       "discard": "Discarded",
       "vacation": "Vacation",
       "settings": "Settings",
-      "undo": "Undone"
+      "undo": "Undone",
+      "request": "Requested",
+      "approve": "Approved",
+      "reject": "Rejected",
+      "cancel": "Cancelled",
+      "expire": "Expired"
     },
     "modules": {
       "schedule": "Schedule",
       "ot": "OT",
       "employees": "Employees",
       "profile": "Profile",
-      "settings": "Settings"
+      "settings": "Settings",
+      "shift_requests": "Shift requests"
+    },
+    "entities": {
+      "exchangeRequest": "Exchange shift request",
+      "replaceRequest": "Replace shift request",
+      "employeeAccess": "Employee access permissions"
     },
     "details": {
       "title": "Audit entry details",

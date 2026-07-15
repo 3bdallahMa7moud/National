@@ -7,7 +7,6 @@
 
 import ExcelJS from 'exceljs';
 import { resolveScheduleMatrixLocale } from '@/lib/scheduleMatrixLocale';
-import { resolveAssignmentColorKey } from '@/lib/shiftColorOptions';
 import { SHIFT_COLOR_PALETTE } from '@/lib/shiftColorPalette';
 import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
 import type {
@@ -151,8 +150,12 @@ function formatCellCodes(assigns: Assignment[]): string {
   return assigns.map((a) => a.employeeCode).join('\n');
 }
 
-function assignmentChipStyle(assignment: Assignment, rowColorKey: ShiftColorKey) {
-  return CHIP_COLORS[resolveAssignmentColorKey(assignment, rowColorKey)];
+function rowChipStyle(row: Pick<ShiftRow, 'colorKey' | 'backgroundColor' | 'textColor'>) {
+  const base = CHIP_COLORS[row.colorKey];
+  return {
+    bg: row.backgroundColor || base.bg,
+    text: row.textColor || base.text,
+  };
 }
 
 function renderLabelCellHtml(row: ShiftRow, unitName: string, layout: MatrixExportLayout): string {
@@ -166,13 +169,13 @@ function renderLabelCellHtml(row: ShiftRow, unitName: string, layout: MatrixExpo
   </td>`;
 }
 
-function renderChipsHtml(assigns: Assignment[], rowColorKey: ShiftColorKey, layout: MatrixExportLayout): string {
+function renderChipsHtml(assigns: Assignment[], row: ShiftRow, layout: MatrixExportLayout): string {
   if (!assigns.length) return '';
   const { px, fs } = layout;
+  const rowChip = rowChipStyle(row);
   return assigns
     .map((a) => {
-      const chip = CHIP_COLORS[resolveAssignmentColorKey(a, rowColorKey)];
-      return `<span style="display:block;margin:1px auto;padding:${px(2)}px ${px(6)}px;border-radius:${px(4)}px;border:1px solid ${BORDER_COLOR};background:${chip.bg};color:${chip.text};font-weight:700;font-size:${fs(10)}px;line-height:1.3;width:fit-content;min-width:${px(28)}px;text-align:center;">${escapeHtml(a.employeeCode)}</span>`;
+      return `<span style="display:block;margin:1px auto;padding:${px(2)}px ${px(6)}px;border-radius:${px(4)}px;border:1px solid ${BORDER_COLOR};background:${rowChip.bg};color:${rowChip.text};font-weight:700;font-size:${fs(10)}px;line-height:1.3;width:fit-content;min-width:${px(28)}px;text-align:center;">${escapeHtml(a.employeeCode)}</span>`;
     })
     .join('');
 }
@@ -189,7 +192,7 @@ function renderDayCellHtml(
   const emptyWeekdayOnCall = row.weekendOnly && !wknd;
   const bg = holiday ? '#FEF3C7' : wknd ? WEEKEND_TINT : '#FFFFFF';
   const assigns = row.cellsByDay[day] || [];
-  const content = emptyWeekdayOnCall ? '' : renderChipsHtml(assigns, row.colorKey, layout);
+  const content = emptyWeekdayOnCall ? '' : renderChipsHtml(assigns, row, layout);
   const { dayCell, px } = layout;
   return `<td style="border:1px solid ${BORDER_COLOR};background:${bg};text-align:center;vertical-align:middle;padding:${px(2)}px;min-width:${dayCell}px;width:${dayCell}px;height:${dayCell}px;">${content}</td>`;
 }
@@ -503,7 +506,7 @@ function styleLabelCell(cell: ExcelJS.Cell, row: ShiftRow, unitName: string) {
 function styleDayCell(
   cell: ExcelJS.Cell,
   assigns: Assignment[],
-  colorKey: ShiftColorKey,
+  row: Pick<ShiftRow, 'colorKey' | 'backgroundColor' | 'textColor'>,
   wknd: boolean,
   empty: boolean,
   holiday: boolean,
@@ -517,9 +520,7 @@ function styleDayCell(
     return;
   }
 
-  const chip = assigns.length
-    ? assignmentChipStyle(assigns[0], colorKey)
-    : CHIP_COLORS[colorKey];
+  const chip = rowChipStyle(row);
   cell.value = formatCellCodes(assigns);
   cell.font = { bold: true, size: 10, color: { argb: hexArgb(chip.text) } };
   cell.fill = {
@@ -631,7 +632,7 @@ export async function buildScheduleMatrixWorkbook(
           styleDayCell(
             sheet.getCell(rowNum, 2 + day),
             row.cellsByDay[day] || [],
-            row.colorKey,
+            row,
             wknd,
             emptyOnCall,
             !!holidayForDay(data, day),

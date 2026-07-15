@@ -8,8 +8,8 @@
 
 import { memo, useRef, useCallback, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronRight, Users } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ChevronDown, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday as isDateToday, getDay } from 'date-fns';
 import { GRID_CONFIG } from '../../utils/constants';

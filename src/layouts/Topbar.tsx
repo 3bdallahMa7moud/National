@@ -1,12 +1,12 @@
 import { useNavigate } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Menu, LogOut, User } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import NotificationCenter from '@/components/common/NotificationCenter';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
-import { useMockData } from '@/hooks/useMockData';
+import { useNotifications } from '@/hooks/useNotifications';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useTranslation } from 'react-i18next';
 
@@ -16,26 +16,12 @@ export default function Topbar() {
   const { toggleSidebar } = useUIStore();
   const navigate = useNavigate();
   const { dateLocale } = useLanguage();
-  const { notifications: baseNotifications } = useMockData();
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
-
-  const notifications = useMemo(
-    () => baseNotifications.map((n) => ({ ...n, isRead: n.isRead || readIds.has(n.id) })),
-    [baseNotifications, readIds],
-  );
+  const { notifications, markRead, markAllRead } = useNotifications();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  const handleMarkRead = (id: string) => {
-    setReadIds((prev) => new Set(prev).add(id));
-  };
-
-  const handleMarkAllRead = () => {
-    setReadIds(new Set(baseNotifications.map((n) => n.id)));
   };
 
   const today = new Date().toLocaleDateString(dateLocale, {
@@ -65,13 +51,11 @@ export default function Topbar() {
           <LanguageSwitcher variant="icon" />
           <ThemeSwitcher variant="icon" />
 
-          {user?.role !== 'admin' && (
-            <NotificationCenter
-              notifications={notifications}
-              onMarkRead={handleMarkRead}
-              onMarkAllRead={handleMarkAllRead}
-            />
-          )}
+          <NotificationCenter
+            notifications={notifications}
+            onMarkRead={markRead}
+            onMarkAllRead={markAllRead}
+          />
 
           <div className="relative">
             <button

@@ -12,8 +12,8 @@ interface AuditLogFiltersProps {
   onReset: () => void;
 }
 
-const actions: Array<OperationalAuditAction | 'all'> = ['all', 'create', 'update', 'delete', 'assign', 'clear', 'archive', 'restore', 'publish', 'discard', 'vacation', 'settings', 'undo'];
-const modules: Array<OperationalAuditModule | 'all'> = ['all', 'schedule', 'ot', 'employees', 'profile', 'settings'];
+const actions: Array<OperationalAuditAction | 'all'> = ['all', 'create', 'update', 'delete', 'assign', 'clear', 'archive', 'restore', 'publish', 'discard', 'vacation', 'settings', 'undo', 'request', 'approve', 'reject', 'cancel', 'expire'];
+const modules: Array<OperationalAuditModule | 'all'> = ['all', 'schedule', 'ot', 'employees', 'profile', 'settings', 'shift_requests'];
 
 export default function AuditLogFilters({ filters, actors, activeCount, onChange, onReset }: AuditLogFiltersProps) {
   const { t } = useTranslation('reports');

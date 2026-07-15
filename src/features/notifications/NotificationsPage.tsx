@@ -1,42 +1,24 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import { useMockData } from '@/hooks/useMockData';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useAuthStore } from '@/stores/authStore';
 import { Bell, CheckCheck, Trash2, Filter, AlertTriangle } from 'lucide-react';
 import dayjs from '@/lib/dayjs';
 
 export default function NotificationsPage() {
   const { t } = useTranslation(['notifications', 'common']);
-  const { notifications: baseNotifications } = useMockData();
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
+  const { notifications, markRead, markAllRead, deleteNotification } = useNotifications();
   const [filter, setFilter] = useState<'all' | 'unread' | 'urgent'>('all');
-
-  const notifications = useMemo(
-    () => baseNotifications
-      .filter((n) => !deletedIds.has(n.id))
-      .map((n) => ({ ...n, isRead: n.isRead || readIds.has(n.id) })),
-    [baseNotifications, readIds, deletedIds],
-  );
 
   const filtered = notifications.filter((n) => {
     if (filter === 'unread') return !n.isRead;
     if (filter === 'urgent') return n.isUrgent;
     return true;
   });
-
-  const handleMarkRead = (id: string) => {
-    setReadIds((prev) => new Set(prev).add(id));
-  };
-
-  const handleMarkAllRead = () => {
-    setReadIds(new Set(baseNotifications.map((n) => n.id)));
-  };
-
-  const handleDelete = (id: string) => {
-    setDeletedIds((prev) => new Set(prev).add(id));
-  };
 
   const filterTabs = [
     { id: 'all' as const, label: t('notifications:page.filters.all'), count: notifications.length },
@@ -52,7 +34,7 @@ export default function NotificationsPage() {
           <p className="mt-1 text-sm leading-6 text-text-secondary">{t('notifications:page.subtitle')}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={handleMarkAllRead} icon={<CheckCheck className="w-4 h-4" />}>
+          <Button variant="secondary" size="sm" onClick={markAllRead} icon={<CheckCheck className="w-4 h-4" />}>
             {t('notifications:page.markAllRead')}
           </Button>
         </div>
@@ -89,7 +71,20 @@ export default function NotificationsPage() {
             filtered.map((notif) => (
               <div
                 key={notif.id}
-                onClick={() => !notif.isRead && handleMarkRead(notif.id)}
+                onClick={() => {
+                  if (!notif.isRead) markRead(notif.id);
+                  if (notif.actionUrl) {
+                    const user = useAuthStore.getState().user;
+                    let url = notif.actionUrl;
+                    if (user?.role === 'admin') {
+                      if (url === '/schedule') url = '/admin/schedule';
+                      if (url === '/employees') url = '/admin/employees';
+                    } else {
+                      if (url === '/schedule') url = '/schedule/me';
+                    }
+                    navigate(url);
+                  }
+                }}
                 className={`flex cursor-pointer items-start justify-between gap-4 rounded-card px-3 py-4 transition-colors ${
                   !notif.isRead ? 'bg-primary-50/40 font-medium' : 'hover:bg-hover'
                 } ${notif.isUrgent && !notif.isRead ? 'border-s-4 border-danger bg-danger-50/30' : ''}`}
@@ -127,7 +122,7 @@ export default function NotificationsPage() {
 
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(notif.id); }}
+                    onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}
                     className="p-1.5 rounded hover:bg-danger-50 text-text-secondary hover:text-danger transition-colors"
                     title={t('notifications:page.deleteTitle')}
                   >

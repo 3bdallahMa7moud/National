@@ -37,10 +37,13 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
       window.requestAnimationFrame(() => {
+        const preferredFocus = dialogRef.current?.querySelector<HTMLElement>(
+          '[data-modal-autofocus], [autofocus]',
+        );
         const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
-        firstFocusable?.focus();
+        (preferredFocus ?? firstFocusable)?.focus();
       });
       return () => {
         document.removeEventListener('keydown', handleEscape);

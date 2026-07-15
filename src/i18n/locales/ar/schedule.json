@@ -22,6 +22,16 @@
     "scheduleSource": "جدول المناوبات", "hours_zero": "لا توجد ساعات", "hours_one": "ساعة واحدة", "hours_two": "ساعتان", "hours_few": "{{count}} ساعات", "hours_many": "{{count}} ساعة", "hours_other": "{{count}} ساعة",
     "categories": { "day": "الشفت النهاري", "late": "الشفت المتأخر", "night": "الشفت الليلي", "onCallDay": "تحت الطلب نهاري", "onCallNight": "تحت الطلب ليلي", "ot": "العمل الإضافي" }
   },
+  "publishedTables": {
+    "tabsLabel": "نوع الجدول المنشور",
+    "scheduleTab": "الجدول الأساسي",
+    "otTab": "جدول OT",
+    "readOnly": "منشور · للقراءة فقط",
+    "noAccess": "ليست لديك صلاحية لعرض هذا الجدول.",
+    "noSchedule": "لا يوجد جدول أساسي منشور لهذا الشهر.",
+    "noOT": "لا يوجد جدول OT منشور لهذا الشهر.",
+    "otExportTitle": "جدول OT — {{month}}"
+  },
   "admin": {
     "title": "إدارة الجدول الشهري",
     "subtitle": "إدارة وتوزيع جدول شيفتات موظفين قسم الأشعة المقطعية",
@@ -71,7 +81,7 @@
     "clearCells": "مسح",
     "cancelSelection": "إلغاء التحديد",
     "brushActive": "الفرشاة نشطة",
-    "brushClickToPaint": "انقر على الخلايا للتعيين (حد أقصى 2 موظفين لكل خلية)",
+    "brushClickToPaint": "انقر على الخلايا لتعيين الموظفين المحددين",
     "cancelBrush": "إلغاء",
     "highlightActive": "يتم تمييز موظف في الجدول",
     "cancelHighlight": "إلغاء التمييز",
@@ -109,7 +119,7 @@
     "day": "اليوم",
     "facility": "المنشأة",
     "shift": "الشيفت",
-    "selectedEmployees": "الموظفون المحددون (حد أقصى 2)",
+    "selectedEmployees": "الموظفون المحددون",
     "primarySlot": "أساسي",
     "secondarySlot": "ثانوي",
     "searchPlaceholder": "بحث بالرمز أو الاسم...",
@@ -137,6 +147,7 @@
     "modes": {
       "view": "عرض",
       "edit": "تعديل",
+      "order": "ترتيب الجدول",
       "vacations": "إجازات",
       "brush": "فرشاة",
       "settings": "إعدادات",
@@ -144,6 +155,7 @@
     },
     "viewMode": "عرض",
     "editMode": "تعديل",
+    "orderMode": "ترتيب",
     "vacationMode": "إجازات",
     "brushMode": "فرشاة تعيين",
     "all": "الكل",
@@ -253,6 +265,11 @@
   },
   "settingsPanel": {
     "title": "إعدادات الجدول",
+    "workspace": {
+      "ariaLabel": "أقسام إعدادات الجدول",
+      "shiftTypes": "أنواع الشفتات وأكواد الجدول",
+      "tableOrder": "ترتيب الجدول"
+    },
     "colorBlindMode": "وضع عمى الألوان",
     "shiftsSection": "أنواع الشيفتات ومواعيدها",
     "shiftsSubtitle": "التعديل يطبق للأمام فقط",
@@ -280,7 +297,7 @@
     "highlightActive": "تمييز الموظف مفعّل",
     "cancelHighlight": "إلغاء التمييز",
     "brushActive": "فرشاة التعيين مفعّلة",
-    "brushSelectionCount": "تم اختيار {{count}}/2 موظفين",
+    "brushSelectionCount": "تم اختيار {{count}} موظفين",
     "cancelBrush": "مسح تحديد الفرشاة",
     "cellsSelected": "تم تحديد {{count}} خلية",
     "assignEmployee": "تعيين موظف",
@@ -307,6 +324,47 @@
     ,"assignmentCount": "{{count}} تعيين"
     ,"showAllAssignments": "عرض كل التعيينات ({{count}})"
     ,"showFewerAssignments": "عرض عدد أقل"
+    ,"unitActions": "إدارة الوحدة"
+    ,"affectedAssignments": "{{count}} تعيين متأثر"
+    ,"renameUnit": "تعديل اسم الوحدة"
+    ,"addUnit": "إضافة وحدة"
+    ,"newUnitName": "اسم الوحدة الجديدة"
+    ,"unitDelete": {
+      "title": "حذف الوحدة",
+      "warningTitle": "سيتأثر تعيين الموظفين",
+      "warningMessage": "تحتوي {{unit}} على {{count}} تعيين للموظفين في {{month}} {{year}}.",
+      "description": "الأرشفة تحفظ الوحدة وكل التعيينات. الحذف النهائي يزيل الوحدة وكل صفوفها وتعييناتها.",
+      "archivedTitle": "تمت أرشفة الوحدة",
+      "archivedMessage": "تم الاحتفاظ بالوحدة وتعييناتها.",
+      "archiveAction": "أرشفة الوحدة",
+      "deletedTitle": "تم حذف الوحدة",
+      "deletedMessage": "تم حذف الوحدة و{{count}} تعيين نهائيًا.",
+      "deleteAction": "حذف الوحدة نهائيًا"
+    }
+    ,"order": {
+      "title": "ترتيب الجدول",
+      "touchHint": "اضغط مطولًا على المقبض ثم حرّك الوحدة أو الشفت.",
+      "dragUnit": "سحب الوحدة {{label}}",
+      "dragRow": "سحب الشفت {{label}}",
+      "moveUnitUp": "تحريك {{label}} لأعلى",
+      "moveUnitDown": "تحريك {{label}} لأسفل",
+      "moveRowUp": "تحريك {{label}} لأعلى",
+      "moveRowDown": "تحريك {{label}} لأسفل",
+      "moveRowToUnit": "نقل {{label}} إلى وحدة",
+      "emptyUnit": "لا توجد صفوف مفعّلة في هذه الوحدة. اسحب شفتًا هنا أو أضف صفًا.",
+      "noUnits": "لا توجد وحدات لترتيبها.",
+      "unitKind": "الوحدة",
+      "rowKind": "صف الشفت",
+      "successTitle": "تم حفظ ترتيب الجدول",
+      "successMessage": "تم نقل {{item}} بنجاح مع الحفاظ على {{count}} تعيين.",
+      "failureTitle": "لم يتغير ترتيب الجدول",
+      "errors": {
+        "not_found": "الوحدة أو الصف لم يعد موجودًا.",
+        "same_position": "العنصر موجود بالفعل في هذا الموضع.",
+        "invalid_target": "لا يمكن نقل العنصر إلى المكان المحدد.",
+        "storage_error": "تعذر حفظ الترتيب الجديد، وتمت استعادة الترتيب السابق."
+      }
+    }
   },
   "assignment": {
     "closeEditor": "إغلاق محرر الخلية",
@@ -323,7 +381,7 @@
     "drawerDay": "اليوم:",
     "drawerFacility": "المنشأة:",
     "drawerShift": "الشيفت:",
-    "selectedEmployees": "الموظفون المحددون (حد أقصى 2)",
+    "selectedEmployees": "الموظفون المعيّنون",
     "primary": "أساسي",
     "conflictWith": "تعارض مع {{facility}} / {{unit}} / {{shift}}",
     "secondary": "ثانوي",
@@ -331,10 +389,11 @@
     "saveOverride": "حفظ (تجاوز التحذير)",
     "saveTitle": "حفظ التعديلات",
     "cancel": "إلغاء",
+    "addEmployee": "إضافة موظف",
     "shiftType": "نوع الشيفت",
     "shiftTypeHint": "لون الشريحة موروث من صف الشفت.",
     "shiftColorFromRow": "هذا اللون ثابت حسب صف الشفت.",
-    "selectedCount": "{{count}} / 2 محدد",
+    "selectedCount": "{{count}} معيّن",
     "emptySlot": "اختر من قائمة الموظفين",
     "slotShift": "لون الشفت",
     "employeeList": "قائمة الموظفين",
@@ -366,10 +425,10 @@
     "undoMsg": "تم التراجع عن آخر تعديل بنجاح",
     "brushAssignTitle": "تم التعيين بالفرشاة",
     "brushAssignMsg": "تم تعيين {{codes}} في يوم {{day}}",
-    "brushMaxCellTitle": "الخلية ممتلئة",
-    "brushMaxCellMsg": "هذه الخلية تحتوي بالفعل على موظفين (الحد الأقصى 2).",
-    "brushMaxSelectionTitle": "حد الفرشاة",
-    "brushMaxSelectionMsg": "يمكنك اختيار موظفين اثنين فقط للفرشاة.",
+    "brushMaxCellTitle": "لم يتم التعيين",
+    "brushMaxCellMsg": "تعذرت إضافة الموظفين المحددين إلى هذه الخلية.",
+    "brushMaxSelectionTitle": "اختيار الفرشاة",
+    "brushMaxSelectionMsg": "يمكنك اختيار أي عدد من الموظفين للفرشاة.",
     "conflictWarningTitle": "تحذير تعارض في الجدول",
     "shiftSavedTitle": "تم حفظ الوردية",
     "shiftSavedMsg": "تم حفظ التعديل في المسودة بنجاح",
@@ -397,7 +456,7 @@
     "clearSuccessMsg": "تم مسح الخلية بنجاح",
     "convertToVacationTitle": "تم تحويل الوردية لإجازة",
     "convertToVacationMsg": "تم تسجيل إجازة لهذا اليوم",
-    "auditLogTitle": "سجل الخلية (Audit Log)",
+    "auditLogTitle": "سجل تغييرات الخلية",
     "auditLogMsg": "تعديل بواسطة مسؤول النظام",
     "copyNextDayTitle": "تم النسخ",
     "copyNextDayMsg": "تم نسخ الوردية إلى اليوم التالي"

@@ -32,10 +32,6 @@ export function mergeBrushAssignments(
   );
   const additions = uniqueSelected.filter((employee) => !currentIds.has(employee.employeeId));
 
-  if (current.length + additions.length > 2) {
-    return { ok: false, reason: 'cell_full' };
-  }
-
   return {
     ok: true,
     changed: additions.length > 0,

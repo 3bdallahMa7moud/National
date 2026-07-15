@@ -17,6 +17,9 @@ function scheduleAction(action: AuditEntry['action']): OperationalAuditAction {
     case 'undo': return 'undo';
     case 'archive': return 'archive';
     case 'restore': return 'restore';
+    case 'bulk-clear': return 'clear';
+    case 'delete': return 'delete';
+    default: return 'update';
   }
 }
 
@@ -92,4 +95,17 @@ export function filterAuditEntries(
     ].filter(Boolean).join(' ').toLocaleLowerCase();
     return haystack.includes(search);
   });
+}
+
+/** Keeps persisted audit data language-neutral while localizing known admin entities at render time. */
+export function operationalAuditEntityKey(entry: OperationalAuditEntry): string | null {
+  if (entry.module === 'shift_requests') {
+    return entry.entityLabel.toLocaleLowerCase().startsWith('replace')
+      ? 'audit.entities.replaceRequest'
+      : 'audit.entities.exchangeRequest';
+  }
+  if (entry.module === 'employees' && entry.entityLabel === 'Employee access permissions') {
+    return 'audit.entities.employeeAccess';
+  }
+  return null;
 }

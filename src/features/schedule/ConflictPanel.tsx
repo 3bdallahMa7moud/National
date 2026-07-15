@@ -72,7 +72,7 @@ function ConflictPanel({ data, onJumpToCell }: ConflictPanelProps) {
 
           const legend = data.legend.find(
             (l) => data.vacations.find((v) => v.employeeId === empId)?.employeeCode === l.code
-              || entries.some((e) => {
+              || entries.some(() => {
                 // Find code from the assignments
                 for (const f of data.facilities) {
                   for (const u of f.units) {

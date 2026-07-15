@@ -371,6 +371,7 @@ function buildMockData(year: number, month: number): ScheduleMatrixData {
   }
 
   return {
+    departmentId: 'dept-1',
     month,
     year,
     facilities,

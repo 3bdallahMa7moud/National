@@ -36,6 +36,16 @@ import {
   type AnalysisGranularity,
 } from '@/lib/analysisPeriod';
 import { buildEmployeeAnalysisView } from '@/lib/employeeAnalysisView';
+import {
+  operationalShiftBackgrounds,
+  operationalShiftGradient,
+  operationalShiftStyle,
+} from '@/lib/occurrenceShiftStyle';
+import {
+  collectPublishedShiftVisualsForPeriod,
+  defaultOperationalShiftVisual,
+} from '@/lib/operationalShiftVisuals';
+import type { CoverageCategory } from '@/types/operationalDashboard';
 
 type TabKey = 'overview' | 'workloadMatrix';
 
@@ -63,7 +73,7 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const matricesByMonth = useScheduleMatrixStore((state) => state.matricesByMonth);
-  const otRowsByMonth = useLateScheduleStore((state) => state.rowsByMonth);
+  const otRowsByMonth = useLateScheduleStore((state) => state.publishedRowsByMonth);
   const roster = useEmployeeRosterStore((state) => state.employees);
   const period = useMemo(
     () => createAnalysisPeriod(granularity, anchorDate, isRtl ? 'ar-SA' : 'en-US'),
@@ -71,6 +81,10 @@ export default function ReportsPage() {
   );
   const coverage = useMemo(
     () => getAnalysisCoverage(period, matricesByMonth, otRowsByMonth),
+    [matricesByMonth, otRowsByMonth, period],
+  );
+  const publishedShiftVisuals = useMemo(
+    () => collectPublishedShiftVisualsForPeriod(matricesByMonth, otRowsByMonth, period),
     [matricesByMonth, otRowsByMonth, period],
   );
   const analysisRows = useMemo(
@@ -132,17 +146,36 @@ export default function ReportsPage() {
   const averageNightPerAssignedEmployee = assignedEmployeeCount > 0
     ? Math.round((totalNight / assignedEmployeeCount) * 10) / 10
     : 0;
+  const visualsForCategory = (category: CoverageCategory) => publishedShiftVisuals[category].length > 0
+    ? publishedShiftVisuals[category]
+    : [defaultOperationalShiftVisual(category)];
+  const chartSeriesBackgrounds = {
+    morning: operationalShiftBackgrounds(visualsForCategory('day')),
+    evening: operationalShiftBackgrounds(visualsForCategory('late')),
+    night: operationalShiftBackgrounds(visualsForCategory('night')),
+    oncall: operationalShiftBackgrounds(visualsForCategory('onCall')),
+    ot: operationalShiftBackgrounds(visualsForCategory('ot')),
+    vacation: [operationalShiftStyle({ colorKey: 'vacation' }).backgroundColor],
+  };
+  const chartFill = (series: keyof typeof chartSeriesBackgrounds) => {
+    const backgrounds = chartSeriesBackgrounds[series];
+    return backgrounds.length > 1 ? `url(#reports-shift-${series})` : backgrounds[0];
+  };
   const shiftDistribution = [
-    { name: t('common:shifts.morning'), value: analysisView.summary.totalDay, color: '#22C55E' },
-    { name: t('common:shifts.evening'), value: analysisView.summary.totalLate, color: '#F59E0B' },
-    { name: t('common:shifts.night'), value: totalNight, color: '#8B5CF6' },
-    { name: t('common:shifts.oncall'), value: analysisView.summary.totalOnCall, color: '#2563EB' },
-    { name: isRtl ? 'عمل إضافي' : 'Overtime', value: analysisView.summary.totalOTShifts, color: '#F97316' },
+    { name: t('common:shifts.morning'), value: analysisView.summary.totalDay, color: operationalShiftGradient(visualsForCategory('day')) },
+    { name: t('common:shifts.evening'), value: analysisView.summary.totalLate, color: operationalShiftGradient(visualsForCategory('late')) },
+    { name: t('common:shifts.night'), value: totalNight, color: operationalShiftGradient(visualsForCategory('night')) },
+    { name: t('common:shifts.oncall'), value: analysisView.summary.totalOnCall, color: operationalShiftGradient(visualsForCategory('onCall')) },
+    { name: isRtl ? 'عمل إضافي' : 'Overtime', value: analysisView.summary.totalOTShifts, color: operationalShiftGradient(visualsForCategory('ot')) },
   ].filter((item) => item.value > 0);
   const totalShiftDistribution = shiftDistribution.reduce((sum, item) => sum + item.value, 0);
   const totalVacationDays = analysisView.summary.totalVacationDays;
   const leaveDistribution = totalVacationDays > 0
-    ? [{ name: isRtl ? 'إجازة' : 'Vacation', value: totalVacationDays, color: '#94A3B8' }]
+    ? [{
+        name: isRtl ? 'إجازة' : 'Vacation',
+        value: totalVacationDays,
+        color: operationalShiftStyle({ colorKey: 'vacation' }).backgroundColor,
+      }]
     : [];
 
   const handleExportExcel = async () => {
@@ -442,6 +475,19 @@ export default function ReportsPage() {
                   data={chartData}
                   margin={{ top: 10, right: 20, left: 0, bottom: 40 }}
                 >
+                  <defs>
+                    {Object.entries(chartSeriesBackgrounds).map(([series, backgrounds]) => backgrounds.length > 1 && (
+                      <linearGradient key={series} id={`reports-shift-${series}`} x1="0" y1="0" x2="1" y2="0">
+                        {backgrounds.map((background, index) => (
+                          <stop
+                            key={`${series}-${background}`}
+                            offset={`${(index / Math.max(1, backgrounds.length - 1)) * 100}%`}
+                            stopColor={background}
+                          />
+                        ))}
+                      </linearGradient>
+                    ))}
+                  </defs>
                   <XAxis
                     dataKey="name"
                     stroke="#64748B"
@@ -469,31 +515,31 @@ export default function ReportsPage() {
                     }}
                   />
                   <Legend wrapperStyle={{ paddingTop: '12px' }} />
-                  <Bar dataKey="morning" name={t('common:shifts.morning')} stackId="a" fill="#22C55E" />
-                  <Bar dataKey="evening" name={t('common:shifts.evening')} stackId="a" fill="#F59E0B" />
+                  <Bar dataKey="morning" name={t('common:shifts.morning')} stackId="a" fill={chartFill('morning')} />
+                  <Bar dataKey="evening" name={t('common:shifts.evening')} stackId="a" fill={chartFill('evening')} />
                   <Bar
                     dataKey="night"
                     name={t('common:shifts.night')}
                     stackId="a"
-                    fill="#8B5CF6"
+                    fill={chartFill('night')}
                   />
                   <Bar
                     dataKey="oncall"
                     name={t('common:shifts.oncall')}
                     stackId="a"
-                    fill="#2563EB"
+                    fill={chartFill('oncall')}
                   />
                   <Bar
                     dataKey="ot"
                     name={isRtl ? 'عمل إضافي' : 'Overtime'}
                     stackId="a"
-                    fill="#F97316"
+                    fill={chartFill('ot')}
                   />
                   <Bar
                     dataKey="vacation"
                     name={isRtl ? 'إجازة' : 'Vacation'}
                     stackId="a"
-                    fill="#94A3B8"
+                    fill={chartFill('vacation')}
                     radius={[4, 4, 0, 0]}
                   />
                 </BarChart>
@@ -518,7 +564,7 @@ export default function ReportsPage() {
                       <div className="flex items-center gap-2">
                         <span
                           className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: item.color }}
+                          style={{ background: item.color }}
                         />
                         <span className="font-medium text-text-primary">{item.name}</span>
                       </div>
@@ -530,7 +576,7 @@ export default function ReportsPage() {
                     <div className="h-2 overflow-hidden rounded-pill bg-surface-muted">
                       <div
                         className="h-full rounded-pill transition-all duration-300"
-                        style={{ width: `${percentage}%`, backgroundColor: item.color }}
+                        style={{ width: `${percentage}%`, background: item.color }}
                       />
                     </div>
                   </div>
@@ -555,7 +601,7 @@ export default function ReportsPage() {
                           <div className="flex items-center gap-2">
                             <span
                               className="h-2.5 w-2.5 rounded-full"
-                              style={{ backgroundColor: item.color }}
+                              style={{ background: item.color }}
                             />
                             <span className="font-medium text-text-primary">{item.name}</span>
                           </div>
@@ -567,7 +613,7 @@ export default function ReportsPage() {
                         <div className="h-2 overflow-hidden rounded-pill bg-surface-muted">
                           <div
                             className="h-full rounded-pill transition-all duration-300"
-                            style={{ width: `${percentage}%`, backgroundColor: item.color }}
+                            style={{ width: `${percentage}%`, background: item.color }}
                           />
                         </div>
                       </div>

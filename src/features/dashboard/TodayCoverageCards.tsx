@@ -1,6 +1,7 @@
 import { CalendarDays, Clock3, Moon, PhoneCall, TimerReset } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { operationalShiftGradient, operationalShiftStyle } from '@/lib/occurrenceShiftStyle';
 import type { CoverageCategory, CoverageMetric } from '@/types/operationalDashboard';
 
 interface TodayCoverageCardsProps {
@@ -26,6 +27,8 @@ export default function TodayCoverageCards({ metrics, hasPublishedSchedule, sele
           const label = t(`coverage.categories.${metric.category}`);
           const isSelected = selectedCategory === metric.category;
           const noPublishedData = metric.category !== 'ot' && !hasPublishedSchedule;
+          const shiftColors = metric.shiftColors ?? [];
+          const primaryShiftColor = shiftColors[0];
           return (
             <button
               key={metric.category}
@@ -34,10 +37,18 @@ export default function TodayCoverageCards({ metrics, hasPublishedSchedule, sele
               aria-pressed={isSelected}
               onClick={() => onSelect(metric.category)}
               className={cn(
-                'min-h-[132px] rounded-card border bg-surface p-4 text-start shadow-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30',
+                'relative min-h-[132px] overflow-hidden rounded-card border bg-surface p-4 text-start shadow-card transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30',
                 isSelected ? 'border-primary ring-1 ring-primary/20' : 'border-border hover:border-primary/40 hover:bg-hover',
               )}
             >
+              {shiftColors.length > 0 && (
+                <span
+                  className="absolute inset-x-0 top-0 h-1"
+                  style={{ background: operationalShiftGradient(shiftColors) }}
+                  data-coverage-shift-color={metric.category}
+                  aria-hidden="true"
+                />
+              )}
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-text-primary">{label}</p>
@@ -57,7 +68,13 @@ export default function TodayCoverageCards({ metrics, hasPublishedSchedule, sele
                     </>
                   )}
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn bg-primary-50 text-primary ring-1 ring-primary/10">
+                <span
+                  className={cn(
+                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-btn border',
+                    !primaryShiftColor && 'border-primary/10 bg-primary-50 text-primary',
+                  )}
+                  style={primaryShiftColor ? operationalShiftStyle(primaryShiftColor) : undefined}
+                >
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
               </div>

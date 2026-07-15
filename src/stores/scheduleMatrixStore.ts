@@ -20,7 +20,13 @@ import type {
   FacilitySettings,
   MatrixAdminMode,
   MatrixCellRef,
+  MatrixReorderCommand,
+  MatrixReorderResult,
+  MatrixDeleteResult,
   ScheduleMatrixData,
+  ScheduleAdminMutationResult,
+  ScheduleMatrixVersion,
+  ScheduleMonthStatus,
   ShiftColorKey,
   ShiftDefinition,
   ShiftRow,
@@ -33,6 +39,7 @@ import type {
 import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
 import { recalculateAllConflicts, validateAssignmentsForCell } from '@/lib/validateAssignment';
 import { getOfficialEmployeeRoster, useEmployeeRosterStore } from './employeeRosterStore';
+import { useOperationalAuditStore } from './operationalAuditStore';
 
 type DrawerCell = MatrixCellRef & {
   facilityName: string;
@@ -53,6 +60,15 @@ interface PublishResult {
   message: string;
 }
 
+interface ScheduleTableClipboard {
+  sourceKey: string;
+  sourceYear: number;
+  sourceMonth: number;
+  copiedAt: string;
+  assignmentCount: number;
+  data: ScheduleMatrixData;
+}
+
 export type EmployeeIdentityUpdateResult =
   | { ok: true; fullName: string; code: string }
   | {
@@ -64,11 +80,18 @@ interface ScheduleMatrixState {
   data: ScheduleMatrixData | null;
   /** Published month snapshots only; reports must never treat generated or draft months as available. */
   matricesByMonth: Record<string, ScheduleMatrixData>;
+  /** Persisted draft snapshots, including manual unit and shift ordering. */
+  draftsByMonth: Record<string, ScheduleMatrixData>;
   /** Last published snapshot, used by discard and dirty checks */
   snapshot: string;
   /** Draft cell/settings/vacation keys changed since last publish */
   draftCellKeys: string[];
   undoStack: UndoSnapshot[];
+  monthStatuses: Record<string, ScheduleMonthStatus>;
+  versionsByMonth: Record<string, ScheduleMatrixVersion[]>;
+  tableClipboard: ScheduleTableClipboard | null;
+  deletedMonths: string[];
+  storageError: string | null;
 
   month: number;
   year: number;
@@ -91,11 +114,8 @@ interface ScheduleMatrixState {
   clearSelection: () => void;
 
   brushEmployeeCodes: string[];
-  toggleBrushEmployeeCode: (code: string) => { ok: boolean; reason?: 'max_selection' };
+  toggleBrushEmployeeCode: (code: string) => { ok: true };
   clearBrushEmployees: () => void;
-
-  colorblindMode: boolean;
-  setColorblindMode: (value: boolean) => void;
 
   drawerCell: DrawerCell | null;
   openDrawer: (cell: DrawerCell) => void;
@@ -127,16 +147,32 @@ interface ScheduleMatrixState {
 
   addShiftDefinition: (facilityId: string, payload: Omit<ShiftDefinition, 'id' | 'facilityId'>) => void;
   updateShiftDefinition: (facilityId: string, shiftId: string, updates: Partial<ShiftDefinition>) => void;
+  deleteShiftDefinition: (facilityId: string, shiftId: string) => void;
   archiveShiftDefinition: (facilityId: string, shiftId: string) => void;
   restoreShiftDefinition: (facilityId: string, shiftId: string) => void;
   addUnit: (facilityId: string, name: string) => void;
   renameUnit: (facilityId: string, unitId: string, name: string) => void;
   archiveUnit: (facilityId: string, unitId: string) => void;
   restoreUnit: (facilityId: string, unitId: string) => void;
+  deleteUnit: (facilityId: string, unitId: string, removeAssignments?: boolean, actorName?: string) => MatrixDeleteResult;
+  reorderMatrixItem: (command: MatrixReorderCommand, actorName?: string) => MatrixReorderResult;
   updateMatrixRow: (
     rowId: string,
-    updates: Partial<Pick<ShiftRow, 'rowLabel' | 'shiftLabel' | 'timeRange' | 'colorKey' | 'weekendOnly'>>,
+    updates: Partial<Pick<ShiftRow, 'rowLabel' | 'shiftLabel' | 'timeRange' | 'colorKey' | 'weekendOnly' | 'shiftDefinitionId' | 'backgroundColor' | 'textColor'>>,
   ) => void;
+  addMatrixRow: (facilityId: string, unitId: string, shiftDefinitionId: string, rowLabel: string) => void;
+  archiveMatrixRow: (rowId: string) => void;
+  restoreMatrixRow: (rowId: string) => void;
+  deleteMatrixRow: (rowId: string, removeAssignments?: boolean) => void;
+  clearAllAssignments: (actorName?: string) => number;
+  copyCurrentTable: (actorName?: string) => ScheduleAdminMutationResult;
+  pasteCopiedTable: (actorName?: string) => ScheduleAdminMutationResult;
+  resetCurrentMonth: (actorName?: string) => ScheduleAdminMutationResult;
+  deleteCurrentMonth: (actorName?: string) => ScheduleAdminMutationResult;
+  currentMonthStatus: () => ScheduleMonthStatus;
+
+  expandedCellsView: boolean;
+  setExpandedCellsView: (value: boolean | ((prev: boolean) => boolean)) => void;
 
   isDirty: () => boolean;
   pendingDraftCount: () => number;
@@ -147,9 +183,208 @@ function cloneData(data: ScheduleMatrixData): ScheduleMatrixData {
   return JSON.parse(JSON.stringify(data));
 }
 
+function compactMatrixForStorage(data: ScheduleMatrixData): ScheduleMatrixData {
+  const compacted = cloneData(data);
+  compacted.auditLog = [];
+  compacted.legend = [];
+  for (const facility of compacted.facilities) {
+    for (const unit of facility.units) {
+      for (const row of unit.rows) {
+        row.cellsByDay = Object.fromEntries(
+          Object.entries(row.cellsByDay).filter(([, assignments]) => assignments.length > 0),
+        ) as Record<number, Assignment[]>;
+      }
+    }
+  }
+  return compacted;
+}
+
+function hydrateMatrixFromStorage(data: ScheduleMatrixData): ScheduleMatrixData {
+  const hydrated = cloneData(data);
+  hydrated.departmentId = hydrated.departmentId || 'dept-1';
+  const daysInMonth = new Date(hydrated.year, hydrated.month + 1, 0).getDate();
+  hydrated.auditLog = Array.isArray(hydrated.auditLog) ? hydrated.auditLog : [];
+  for (const facility of hydrated.facilities) {
+    for (const unit of facility.units) {
+      for (const row of unit.rows) {
+        for (let day = 1; day <= daysInMonth; day += 1) {
+          if (!Array.isArray(row.cellsByDay[day])) row.cellsByDay[day] = [];
+        }
+      }
+    }
+  }
+  linkShiftDefinitionIds(hydrated);
+  synchronizeRowsWithShiftDefinitions(hydrated);
+  synchronizeMatrixRoster(hydrated);
+  return hydrated;
+}
+
+function clearScheduleContent(data: ScheduleMatrixData, clearVacations = false): number {
+  let affected = 0;
+  for (const facility of data.facilities) {
+    for (const unit of facility.units) {
+      for (const row of unit.rows) {
+        for (const day of Object.keys(row.cellsByDay)) {
+          affected += row.cellsByDay[Number(day)]?.length || 0;
+          row.cellsByDay[Number(day)] = [];
+        }
+      }
+    }
+  }
+  if (clearVacations) data.vacations = [];
+  return affected;
+}
+
+function structureOnly(data: ScheduleMatrixData, year = data.year, month = data.month): ScheduleMatrixData {
+  const copy = cloneData(data);
+  copy.year = year;
+  copy.month = month;
+  clearScheduleContent(copy, true);
+  copy.auditLog = [];
+  return copy;
+}
+
+function countMatrixAssignments(data: ScheduleMatrixData): number {
+  return data.facilities.reduce((facilityTotal, facility) => facilityTotal + facility.units.reduce(
+    (unitTotal, unit) => unitTotal + unit.rows.reduce(
+      (rowTotal, row) => rowTotal + Object.values(row.cellsByDay)
+        .reduce((cellTotal, assignments) => cellTotal + assignments.length, 0),
+      0,
+    ),
+    0,
+  ), 0);
+}
+
+function pasteMatrixIntoMonth(
+  source: ScheduleMatrixData,
+  year: number,
+  month: number,
+): { data: ScheduleMatrixData; omittedAssignments: number } {
+  const data = cloneData(source);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let omittedAssignments = 0;
+  data.year = year;
+  data.month = month;
+  data.auditLog = [];
+
+  for (const facility of data.facilities) {
+    for (const unit of facility.units) {
+      for (const row of unit.rows) {
+        const cellsByDay: Record<number, Assignment[]> = {};
+        for (const [dayText, assignments] of Object.entries(row.cellsByDay)) {
+          if (Number(dayText) > daysInMonth) omittedAssignments += assignments.length;
+        }
+        for (let day = 1; day <= daysInMonth; day += 1) {
+          cellsByDay[day] = (row.cellsByDay[day] || []).map((assignment) => ({
+            ...assignment,
+            status: 'draft',
+            hasConflict: false,
+            conflictReason: undefined,
+            conflictType: undefined,
+          }));
+        }
+        row.cellsByDay = cellsByDay;
+      }
+    }
+  }
+
+  data.vacations = data.vacations.map((vacation) => ({
+    ...vacation,
+    daysOff: vacation.daysOff.filter((day) => day >= 1 && day <= daysInMonth),
+    ranges: vacation.ranges
+      ?.filter((range) => range.startDay <= daysInMonth && range.endDay >= 1)
+      .map((range) => ({
+        ...range,
+        startDay: Math.max(1, range.startDay),
+        endDay: Math.min(daysInMonth, range.endDay),
+        status: 'draft',
+      })),
+  }));
+  data.holidays = data.holidays
+    .filter((holiday) => holiday.startDay <= daysInMonth && holiday.endDay >= 1)
+    .map((holiday) => ({
+      ...holiday,
+      startDay: Math.max(1, holiday.startDay),
+      endDay: Math.min(daysInMonth, holiday.endDay),
+    }));
+
+  linkShiftDefinitionIds(data);
+  synchronizeRowsWithShiftDefinitions(data);
+  synchronizeMatrixRoster(data);
+  recalculateAllConflicts(data);
+  return { data, omittedAssignments };
+}
+
+function deletedMonthShell(year: number, month: number): ScheduleMatrixData {
+  const generated = generateScheduleMatrixMock(year, month);
+  return {
+    ...generated,
+    facilities: [],
+    settings: [],
+    vacations: [],
+    holidays: [],
+    auditLog: [],
+  };
+}
+
+function addMonthVersion(
+  versionsByMonth: Record<string, ScheduleMatrixVersion[]>,
+  key: string,
+  data: ScheduleMatrixData,
+  actorName: string | undefined,
+  reason: ScheduleMatrixVersion['reason'],
+): Record<string, ScheduleMatrixVersion[]> {
+  const version: ScheduleMatrixVersion = {
+    id: `schedule-version-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    createdAt: new Date().toISOString(),
+    actorName: actorName?.trim() || 'Administrator',
+    reason,
+    data: cloneData(data),
+  };
+  return { ...versionsByMonth, [key]: [version, ...(versionsByMonth[key] || [])].slice(0, 5) };
+}
+
+function recordScheduleAdminAudit(
+  actorName: string | undefined,
+  action: 'delete' | 'clear' | 'restore' | 'publish' | 'update',
+  state: Pick<ScheduleMatrixState, 'year' | 'month'>,
+  label: string,
+  before?: string,
+  after?: string,
+): void {
+  useOperationalAuditStore.getState().record({
+    actorName: actorName?.trim() || 'Administrator',
+    action,
+    module: 'schedule',
+    entityId: `${state.year}-${String(state.month + 1).padStart(2, '0')}`,
+    entityLabel: label,
+    before,
+    after,
+    context: { year: state.year, month: state.month, route: '/admin/schedule' },
+  });
+}
+
 // v2 stores published snapshots only. The previous key auto-saved generated and draft months,
 // so reading it would reintroduce invented annual-analysis coverage.
 export const SCHEDULE_MATRIX_HISTORY_STORAGE_KEY = 'ngh_schedule_matrix_months_v2';
+export const SCHEDULE_ADMIN_CONTROL_STORAGE_KEY = 'ngh_schedule_admin_control_v1';
+export const SCHEDULE_MONTHLY_STORAGE_KEY = 'ngh_schedule_monthly_admin_v3';
+
+interface PersistedScheduleAdminControl {
+  version: 1;
+  monthStatuses: Record<string, ScheduleMonthStatus>;
+  versionsByMonth: Record<string, ScheduleMatrixVersion[]>;
+  deletedMonths: string[];
+}
+
+interface PersistedScheduleMonthlyState {
+  version: 3;
+  matricesByMonth: Record<string, ScheduleMatrixData>;
+  draftsByMonth: Record<string, ScheduleMatrixData>;
+  monthStatuses: Record<string, ScheduleMonthStatus>;
+  versionsByMonth: Record<string, ScheduleMatrixVersion[]>;
+  deletedMonths: string[];
+}
 
 function matrixMonthKey(data: Pick<ScheduleMatrixData, 'year' | 'month'>): string {
   return `${data.year}-${String(data.month + 1).padStart(2, '0')}`;
@@ -161,6 +396,16 @@ function browserStorage(): Storage | null {
   } catch {
     return null;
   }
+}
+
+function normalizeScheduleMonthStatuses(value: unknown): Record<string, ScheduleMonthStatus> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const normalized: Record<string, ScheduleMonthStatus> = {};
+  for (const [key, status] of Object.entries(value)) {
+    if (status === 'published' || status === 'locked') normalized[key] = 'published';
+    else if (status === 'draft') normalized[key] = 'draft';
+  }
+  return normalized;
 }
 
 function readStoredMatrices(): Record<string, ScheduleMatrixData> {
@@ -179,18 +424,93 @@ function readStoredMatrices(): Record<string, ScheduleMatrixData> {
           && Array.isArray(candidate.vacations);
       }),
     ) as Record<string, ScheduleMatrixData>;
-    for (const matrix of Object.values(matrices)) linkShiftDefinitionIds(matrix);
+    for (const matrix of Object.values(matrices)) {
+      linkShiftDefinitionIds(matrix);
+      synchronizeRowsWithShiftDefinitions(matrix);
+    }
     return matrices;
   } catch {
     return {};
   }
 }
 
-function persistMatrices(matricesByMonth: Record<string, ScheduleMatrixData>): void {
+function readAdminControl(): Omit<PersistedScheduleAdminControl, 'version'> {
+  const fallback = { monthStatuses: {}, versionsByMonth: {}, deletedMonths: [] };
   try {
-    browserStorage()?.setItem(SCHEDULE_MATRIX_HISTORY_STORAGE_KEY, JSON.stringify(matricesByMonth));
+    const parsed = JSON.parse(browserStorage()?.getItem(SCHEDULE_ADMIN_CONTROL_STORAGE_KEY) || 'null') as Partial<PersistedScheduleAdminControl> | null;
+    if (!parsed || parsed.version !== 1) return fallback;
+    return {
+      monthStatuses: normalizeScheduleMonthStatuses(parsed.monthStatuses),
+      versionsByMonth: parsed.versionsByMonth && typeof parsed.versionsByMonth === 'object' ? parsed.versionsByMonth : {},
+      deletedMonths: Array.isArray(parsed.deletedMonths) ? parsed.deletedMonths : [],
+    };
   } catch {
-    // The current in-memory history remains usable when storage is unavailable.
+    return fallback;
+  }
+}
+
+function readMonthlyState(): PersistedScheduleMonthlyState | null {
+  try {
+    const parsed = JSON.parse(browserStorage()?.getItem(SCHEDULE_MONTHLY_STORAGE_KEY) || 'null') as Partial<PersistedScheduleMonthlyState> | null;
+    if (!parsed || parsed.version !== 3) return null;
+    const storedMatrices = parsed.matricesByMonth && typeof parsed.matricesByMonth === 'object' ? parsed.matricesByMonth : {};
+    const storedDrafts = parsed.draftsByMonth && typeof parsed.draftsByMonth === 'object' ? parsed.draftsByMonth : {};
+    const storedVersions = parsed.versionsByMonth && typeof parsed.versionsByMonth === 'object' ? parsed.versionsByMonth : {};
+    const matricesByMonth = Object.fromEntries(
+      Object.entries(storedMatrices).map(([key, matrix]) => [key, hydrateMatrixFromStorage(matrix)]),
+    );
+    const draftsByMonth = Object.fromEntries(
+      Object.entries(storedDrafts).map(([key, matrix]) => [key, hydrateMatrixFromStorage(matrix)]),
+    );
+    const versionsByMonth = Object.fromEntries(
+      Object.entries(storedVersions).map(([key, versions]) => [
+        key,
+        versions.map((version) => ({ ...version, data: hydrateMatrixFromStorage(version.data) })),
+      ]),
+    );
+    return {
+      version: 3,
+      matricesByMonth,
+      draftsByMonth,
+      monthStatuses: normalizeScheduleMonthStatuses(parsed.monthStatuses),
+      versionsByMonth,
+      deletedMonths: Array.isArray(parsed.deletedMonths) ? parsed.deletedMonths : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistMonthlyState(
+  state: Pick<ScheduleMatrixState, 'matricesByMonth' | 'monthStatuses' | 'versionsByMonth' | 'deletedMonths'>,
+  draftsByMonth: Record<string, ScheduleMatrixData>,
+): boolean {
+  const storage = browserStorage();
+  if (!storage) return true;
+  try {
+    const compactMatrices = Object.fromEntries(
+      Object.entries(state.matricesByMonth).map(([key, matrix]) => [key, compactMatrixForStorage(matrix)]),
+    );
+    const compactDrafts = Object.fromEntries(
+      Object.entries(draftsByMonth).map(([key, matrix]) => [key, compactMatrixForStorage(matrix)]),
+    );
+    const compactVersions = Object.fromEntries(
+      Object.entries(state.versionsByMonth).map(([key, versions]) => [
+        key,
+        versions.map((version) => ({ ...version, data: compactMatrixForStorage(version.data) })),
+      ]),
+    );
+    storage.setItem(SCHEDULE_MONTHLY_STORAGE_KEY, JSON.stringify({
+      version: 3,
+      matricesByMonth: compactMatrices,
+      draftsByMonth: compactDrafts,
+      monthStatuses: normalizeScheduleMonthStatuses(state.monthStatuses),
+      versionsByMonth: compactVersions,
+      deletedMonths: state.deletedMonths,
+    } satisfies PersistedScheduleMonthlyState));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -286,7 +606,13 @@ function synchronizeMatrixRoster(data: ScheduleMatrixData): void {
 }
 
 function setCellAssignments(row: ShiftRow, day: number, assignments: Assignment[]) {
-  row.cellsByDay[day] = assignments.slice(0, 2).map((assignment) => ({
+  const seen = new Set<string>();
+  row.cellsByDay[day] = assignments.filter((assignment) => {
+    const key = assignment.employeeId || assignment.employeeCode.trim().toUpperCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((assignment) => ({
     ...assignment,
     status: 'draft',
     hasConflict: false,
@@ -301,55 +627,101 @@ function emptyCells(daysInMonth: number): Record<number, Assignment[]> {
   return cells;
 }
 
-function makeEmptyUnit(facilityId: string, name: string, year: number, month: number): Unit {
+function normalizeTimeRange(definition: ShiftDefinition): string {
+  if (definition.startTime && definition.endTime) return `${definition.startTime} - ${definition.endTime}`;
+  return definition.timeRange;
+}
+
+function definitionDisplayName(definition: ShiftDefinition): string {
+  return definition.englishName?.trim() || definition.label;
+}
+
+function applyShiftDefinitionToRow(row: ShiftRow, definition: ShiftDefinition): void {
+  row.shiftDefinitionId = definition.id;
+  row.shiftLabel = definitionDisplayName(definition);
+  row.timeRange = normalizeTimeRange(definition);
+  row.colorKey = definition.colorKey;
+  row.backgroundColor = definition.backgroundColor;
+  row.textColor = definition.textColor;
+}
+
+function synchronizeShiftTypeColors(data: ScheduleMatrixData): void {
+  const styleByColorKey = new Map<ShiftColorKey, Pick<ShiftDefinition, 'backgroundColor' | 'textColor'>>();
+
+  for (const settings of data.settings) {
+    for (const definition of settings.shiftDefinitions) {
+      const style = styleByColorKey.get(definition.colorKey) ?? {};
+      if (!style.backgroundColor && definition.backgroundColor) {
+        style.backgroundColor = definition.backgroundColor;
+      }
+      if (!style.textColor && definition.textColor) {
+        style.textColor = definition.textColor;
+      }
+      styleByColorKey.set(definition.colorKey, style);
+    }
+  }
+
+  for (const settings of data.settings) {
+    for (const definition of settings.shiftDefinitions) {
+      const style = styleByColorKey.get(definition.colorKey);
+      definition.backgroundColor = style?.backgroundColor;
+      definition.textColor = style?.textColor;
+    }
+  }
+}
+
+function synchronizeRowsWithShiftDefinitions(data: ScheduleMatrixData): void {
+  synchronizeShiftTypeColors(data);
+  for (const facility of data.facilities) {
+    const definitions = data.settings
+      .find((entry) => entry.facilityId === facility.id)
+      ?.shiftDefinitions ?? [];
+    const definitionById = new Map(definitions.map((definition) => [definition.id, definition]));
+    for (const unit of facility.units) {
+      for (const row of unit.rows) {
+        const definition = row.shiftDefinitionId ? definitionById.get(row.shiftDefinitionId) : undefined;
+        if (definition) applyShiftDefinitionToRow(row, definition);
+      }
+    }
+  }
+}
+
+function makeShiftRowFromDefinition(
+  facilityId: string,
+  unit: Unit,
+  definition: ShiftDefinition,
+  rowLabel: string,
+  year: number,
+  month: number,
+): ShiftRow {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const shiftRow: ShiftRow = {
+    id: `${unit.id}-row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    shiftDefinitionId: definition.id,
+    blockType: unit.blockType,
+    unitLabel: unit.name,
+    rowLabel: rowLabel.trim(),
+    shiftLabel: definitionDisplayName(definition),
+    timeRange: normalizeTimeRange(definition),
+    colorKey: definition.colorKey,
+    backgroundColor: definition.backgroundColor,
+    textColor: definition.textColor,
+    weekendOnly: definition.colorKey === 'onCall' || definition.colorKey === 'onCallNight',
+    cellsByDay: emptyCells(daysInMonth),
+  };
+
+  if (facilityId.includes('oncall')) shiftRow.weekendOnly = true;
+  return shiftRow;
+}
+
+function makeEmptyUnit(facilityId: string, name: string): Unit {
   const id = `${facilityId}-${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
-  const timeRange = '08:00 - 17:00';
 
   return {
     id,
     name,
     blockType: 'equipmentDay',
-    rows: [
-      {
-        id: `${id}-primary`,
-        shiftDefinitionId: `${facilityId}-morning`,
-        blockType: 'equipmentDay',
-        unitLabel: name,
-        rowLabel: name,
-        shiftLabel: 'Day Shift',
-        timeRange,
-        colorKey: 'morning',
-        weekendOnly: false,
-        cellsByDay: emptyCells(daysInMonth),
-      },
-      {
-        id: `${id}-time`,
-        shiftDefinitionId: `${facilityId}-morning`,
-        blockType: 'equipmentDay',
-        unitLabel: name,
-        rowLabel: timeRange,
-        shiftLabel: 'Day Shift',
-        timeRange,
-        colorKey: 'morning',
-        weekendOnly: false,
-        cellsByDay: emptyCells(daysInMonth),
-        isOverflowRow: true,
-      },
-      {
-        id: `${id}-scdp`,
-        shiftDefinitionId: `${facilityId}-morning`,
-        blockType: 'equipmentDay',
-        unitLabel: name,
-        rowLabel: 'SCDP',
-        shiftLabel: 'Day Shift',
-        timeRange,
-        colorKey: 'morning',
-        weekendOnly: false,
-        cellsByDay: emptyCells(daysInMonth),
-        isOverflowRow: true,
-      },
-    ],
+    rows: [],
   };
 }
 
@@ -366,13 +738,21 @@ function pushUndo(state: ScheduleMatrixState): UndoSnapshot[] {
 }
 
 const now = new Date();
+const initialMonthlyState = readMonthlyState();
+const initialAdminControl = initialMonthlyState ?? readAdminControl();
 
 export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => ({
   data: null,
-  matricesByMonth: readStoredMatrices(),
+  matricesByMonth: initialMonthlyState?.matricesByMonth ?? readStoredMatrices(),
+  draftsByMonth: initialMonthlyState?.draftsByMonth ?? {},
   snapshot: '',
   draftCellKeys: [],
   undoStack: [],
+  monthStatuses: initialAdminControl.monthStatuses,
+  versionsByMonth: initialAdminControl.versionsByMonth,
+  tableClipboard: null,
+  deletedMonths: initialAdminControl.deletedMonths,
+  storageError: null,
   month: now.getMonth(),
   year: now.getFullYear(),
   locale: getStoredLanguage(),
@@ -385,6 +765,19 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
   facilityFilter: '',
   setFacilityFilter: (id) => set({ facilityFilter: id }),
 
+  expandedCellsView: false,
+  setExpandedCellsView: (val) =>
+    set((state) => ({
+      expandedCellsView: typeof val === 'function' ? val(state.expandedCellsView) : val,
+    })),
+
+  currentMonthStatus: () => {
+    const state = get();
+    const key = `${state.year}-${String(state.month + 1).padStart(2, '0')}`;
+    const storedStatus = normalizeScheduleMonthStatuses({ [key]: state.monthStatuses[key] })[key];
+    if (state.draftCellKeys.length > 0) return 'draft';
+    return storedStatus || (state.matricesByMonth[key] ? 'published' : 'draft');
+  },
   highlightedEmployeeId: null,
   setHighlightedEmployeeId: (id) => set((state) => ({
     highlightedEmployeeId: state.highlightedEmployeeId === id ? null : id,
@@ -425,9 +818,6 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     if (state.brushEmployeeCodes.includes(code)) {
       set({ brushEmployeeCodes: state.brushEmployeeCodes.filter((c) => c !== code) });
       return { ok: true };
-    }
-    if (state.brushEmployeeCodes.length >= 2) {
-      return { ok: false, reason: 'max_selection' };
     }
     set({ brushEmployeeCodes: [...state.brushEmployeeCodes, code] });
     return { ok: true };
@@ -501,9 +891,6 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     return { ok: true, fullName: normalizedName, code: normalizedCode };
   },
 
-  colorblindMode: false,
-  setColorblindMode: (value) => set({ colorblindMode: value }),
-
   drawerCell: null,
   openDrawer: (cell) => set({ drawerCell: cell }),
   closeDrawer: () => set({ drawerCell: null }),
@@ -511,19 +898,27 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
   loadMonth: (month, year) => {
     const key = `${year}-${String(month + 1).padStart(2, '0')}`;
     const stored = get().matricesByMonth[key];
-    const data = cloneData(stored ?? generateScheduleMatrixMock(year, month));
+    const draft = get().draftsByMonth[key];
+    const isDeleted = get().deletedMonths.includes(key);
+    const data = isDeleted
+      ? deletedMonthShell(year, month)
+      : cloneData(draft ?? stored ?? generateScheduleMatrixMock(year, month));
     linkShiftDefinitionIds(data);
+    synchronizeRowsWithShiftDefinitions(data);
     synchronizeMatrixRoster(data);
     recalculateAllConflicts(data);
     set({
       data,
       month,
       year,
-      snapshot: JSON.stringify(data),
-      draftCellKeys: [],
+      snapshot: JSON.stringify(stored ?? data),
+      draftCellKeys: draft && !isDeleted ? [`restored-draft|${key}`] : [],
       undoStack: [],
       selectedCells: [],
       brushEmployeeCodes: [],
+      monthStatuses: get().monthStatuses[key]
+        ? get().monthStatuses
+        : { ...get().monthStatuses, [key]: stored ? 'published' : 'draft' },
     });
   },
 
@@ -563,6 +958,13 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       draftCellKeys: draftWith(state.draftCellKeys, cellKey(rowId, day)),
       undoStack: pushUndo(state),
     });
+
+    if (get().storageError) {
+      return {
+        ok: false,
+        conflict: { day, type: 'storage', reason: get().storageError! },
+      };
+    }
 
     return { ok: true };
   },
@@ -912,7 +1314,11 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
 
   publishDrafts: () => {
     const state = get();
-    if (!state.data || state.draftCellKeys.length === 0) {
+    if (!state.data) {
+      return { ok: false, message: 'Schedule is unavailable.' };
+    }
+    const currentKey = matrixMonthKey(state.data);
+    if (state.draftCellKeys.length === 0 && state.matricesByMonth[currentKey]) {
       return { ok: true, message: getMatrixStoreText(state.locale, 'noUnpublished') };
     }
 
@@ -989,13 +1395,19 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       ...state.matricesByMonth,
       [key]: cloneData(data),
     };
+    const versionsByMonth = addMonthVersion(state.versionsByMonth, key, state.data, undefined, 'publish');
     set({
       data,
       matricesByMonth,
       snapshot,
       draftCellKeys: [],
       undoStack: [],
+      versionsByMonth,
+      deletedMonths: state.deletedMonths.filter((item) => item !== key),
+      monthStatuses: { ...state.monthStatuses, [key]: 'published' },
     });
+    if (get().storageError) return { ok: false, message: get().storageError! };
+    recordScheduleAdminAudit(undefined, 'publish', state, 'Publish schedule month', `${state.draftCellKeys.length} draft changes`, 'published');
     return { ok: true, message: getMatrixStoreText(state.locale, 'publishedBatch') };
   },
 
@@ -1045,15 +1457,39 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     const data = cloneData(state.data);
     const settings = data.settings.find((item) => item.facilityId === facilityId);
     if (!settings) return;
-    settings.shiftDefinitions.push({
+    const label = payload.englishName?.trim() || payload.label.trim();
+    const startTime = payload.startTime || payload.timeRange.split(' - ')[0] || '08:00';
+    const endTime = payload.endTime || payload.timeRange.split(' - ')[1] || '17:00';
+    const existingTypeDefinition = data.settings
+      .flatMap((entry) => entry.shiftDefinitions)
+      .find((definition) => definition.colorKey === payload.colorKey);
+    const definition: ShiftDefinition = {
       id: `${facilityId}-shift-${Date.now()}`,
       facilityId,
       ...payload,
-    });
+      backgroundColor: payload.backgroundColor || existingTypeDefinition?.backgroundColor,
+      textColor: payload.textColor || existingTypeDefinition?.textColor,
+      label,
+      englishName: payload.englishName || label,
+      startTime,
+      endTime,
+      timeRange: `${startTime} - ${endTime}`,
+    };
+    settings.shiftDefinitions.push(definition);
+    if (payload.backgroundColor || payload.textColor) {
+      for (const facilitySettings of data.settings) {
+        for (const candidate of facilitySettings.shiftDefinitions) {
+          if (candidate.colorKey !== definition.colorKey) continue;
+          if (payload.backgroundColor) candidate.backgroundColor = definition.backgroundColor;
+          if (payload.textColor) candidate.textColor = definition.textColor;
+        }
+      }
+    }
+    synchronizeRowsWithShiftDefinitions(data);
     addAudit(data, state.locale, {
       action: 'settings',
       facilityId,
-      newValue: formatSettingsMessage(state.locale, 'addShift', payload.label),
+      newValue: formatSettingsMessage(state.locale, 'addShift', label),
     });
     set({
       data,
@@ -1069,7 +1505,35 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     const settings = data.settings.find((item) => item.facilityId === facilityId);
     const shift = settings?.shiftDefinitions.find((item) => item.id === shiftId);
     if (!shift) return;
+    const previousColorKey = shift.colorKey;
+    const colorKeyChanged = !!updates.colorKey && updates.colorKey !== previousColorKey;
+    const targetTypeDefinition = colorKeyChanged
+      ? data.settings
+        .flatMap((entry) => entry.shiftDefinitions)
+        .find((candidate) => candidate.id !== shift.id && candidate.colorKey === updates.colorKey)
+      : undefined;
     Object.assign(shift, updates);
+    if (colorKeyChanged) {
+      if (!updates.backgroundColor) shift.backgroundColor = targetTypeDefinition?.backgroundColor;
+      if (!updates.textColor) shift.textColor = targetTypeDefinition?.textColor;
+    }
+    shift.label = shift.englishName?.trim() || shift.label.trim();
+    shift.timeRange = normalizeTimeRange(shift);
+    const backgroundChanged = Object.prototype.hasOwnProperty.call(updates, 'backgroundColor')
+      && (!colorKeyChanged || !!updates.backgroundColor);
+    const textChanged = Object.prototype.hasOwnProperty.call(updates, 'textColor')
+      && (!colorKeyChanged || !!updates.textColor);
+    if (backgroundChanged || textChanged) {
+      for (const facilitySettings of data.settings) {
+        for (const candidate of facilitySettings.shiftDefinitions) {
+          if (candidate.id === shift.id || candidate.colorKey !== shift.colorKey) continue;
+          if (backgroundChanged) candidate.backgroundColor = shift.backgroundColor;
+          if (textChanged) candidate.textColor = shift.textColor;
+        }
+      }
+    }
+    synchronizeRowsWithShiftDefinitions(data);
+    recalculateAllConflicts(data);
     const archiveAction = Object.keys(updates).length === 1 && updates.archived === true;
     const restoreAction = Object.keys(updates).length === 1 && updates.archived === false;
     addAudit(data, state.locale, {
@@ -1081,6 +1545,37 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     set({
       data,
       draftCellKeys: draftWith(state.draftCellKeys, `settings|shift|${shiftId}`),
+      undoStack: pushUndo(state),
+    });
+  },
+
+  deleteShiftDefinition: (facilityId, shiftId) => {
+    const state = get();
+    if (!state.data) return;
+    const data = cloneData(state.data);
+    const settings = data.settings.find((item) => item.facilityId === facilityId);
+    if (!settings) return;
+
+    const isUsed = data.facilities.some((facility) =>
+      facility.id === facilityId
+      && facility.units.some((unit) => unit.rows.some((row) => row.shiftDefinitionId === shiftId)),
+    );
+    if (isUsed) {
+      const shift = settings.shiftDefinitions.find((item) => item.id === shiftId);
+      if (shift) shift.archived = true;
+    } else {
+      settings.shiftDefinitions = settings.shiftDefinitions.filter((item) => item.id !== shiftId);
+    }
+
+    addAudit(data, state.locale, {
+      action: isUsed ? 'archive' : 'delete',
+      facilityId,
+      oldValue: shiftId,
+      newValue: isUsed ? 'Archived shift definition in use' : 'Deleted shift definition',
+    });
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `settings|shift-delete|${shiftId}`),
       undoStack: pushUndo(state),
     });
   },
@@ -1101,7 +1596,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     const settings = data.settings.find((item) => item.facilityId === facilityId);
     if (!facility || !settings) return;
 
-    const unit = makeEmptyUnit(facilityId, name.trim(), data.year, data.month);
+    const unit = makeEmptyUnit(facilityId, name.trim());
     facility.units.push(unit);
     settings.units.push({ id: unit.id, facilityId, name: unit.name });
     addAudit(data, state.locale, {
@@ -1192,6 +1687,170 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     });
   },
 
+  deleteUnit: (facilityId, unitId, removeAssignments = false, actorName) => {
+    const state = get();
+    if (!state.data) return { ok: false, reason: 'not_found' };
+    const sourceFacility = state.data.facilities.find((item) => item.id === facilityId);
+    const sourceUnit = sourceFacility?.units.find((item) => item.id === unitId);
+    if (!sourceFacility || !sourceUnit) return { ok: false, reason: 'not_found' };
+    const affectedAssignments = sourceUnit.rows.reduce((unitTotal, row) => unitTotal
+      + Object.values(row.cellsByDay).reduce((rowTotal, assignments) => rowTotal + assignments.length, 0), 0);
+    if (affectedAssignments > 0 && !removeAssignments) {
+      return { ok: false, reason: 'has_assignments', affectedAssignments };
+    }
+
+    const data = cloneData(state.data);
+    const facility = data.facilities.find((item) => item.id === facilityId);
+    const settings = data.settings.find((item) => item.facilityId === facilityId);
+    const unit = facility?.units.find((item) => item.id === unitId);
+    if (!facility || !settings || !unit) return { ok: false, reason: 'not_found' };
+    facility.units = facility.units.filter((item) => item.id !== unitId);
+    settings.units = settings.units.filter((item) => item.id !== unitId);
+    addAudit(data, state.locale, {
+      actorName,
+      action: 'delete',
+      facilityId,
+      unitId,
+      oldValue: `${unit.name} · ${affectedAssignments} assignments`,
+      newValue: `Deleted unit ${unit.name}`,
+    });
+    recalculateAllConflicts(data);
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `settings|unit-delete|${unitId}`),
+      undoStack: pushUndo(state),
+    });
+    if (get().data !== data || get().storageError) {
+      return { ok: false, reason: 'storage_error', affectedAssignments, message: get().storageError || undefined };
+    }
+    recordScheduleAdminAudit(
+      actorName,
+      'delete',
+      state,
+      `Delete schedule unit ${unit.name}`,
+      `${affectedAssignments} assignments`,
+      'deleted',
+    );
+    return { ok: true, affectedAssignments };
+  },
+
+  reorderMatrixItem: (command, actorName) => {
+    const state = get();
+    if (!state.data) return { ok: false, reason: 'not_found' };
+    const data = cloneData(state.data);
+    const facility = data.facilities.find((item) => item.id === command.facilityId);
+    if (!facility) return { ok: false, reason: 'not_found' };
+
+    const moveRelative = <T extends { id: string }>(arr: T[], sourceId: string, targetId: string) => {
+      const before = arr.map((item) => item.id).join('|');
+      const sourceIndex = arr.findIndex((item) => item.id === sourceId);
+      const targetIndex = arr.findIndex((item) => item.id === targetId);
+      if (sourceIndex === -1 || targetIndex === -1) return false;
+      const [movedItem] = arr.splice(sourceIndex, 1);
+      const targetAfterRemoval = arr.findIndex((item) => item.id === targetId);
+      const insertIndex = command.position === 'before' ? targetAfterRemoval : targetAfterRemoval + 1;
+      arr.splice(insertIndex, 0, movedItem);
+      return before !== arr.map((item) => item.id).join('|');
+    };
+
+    let affectedAssignments = 0;
+    let beforeLabel = '';
+    let afterLabel = '';
+
+    if (command.kind === 'unit') {
+      if (command.sourceUnitId === command.targetUnitId) {
+        return { ok: false, reason: 'same_position' };
+      }
+      const sourceUnit = facility.units.find((unit) => unit.id === command.sourceUnitId);
+      const targetUnit = facility.units.find((unit) => unit.id === command.targetUnitId);
+      if (!sourceUnit || !targetUnit) return { ok: false, reason: 'not_found' };
+      affectedAssignments = sourceUnit.rows.reduce((total, row) => total + Object.values(row.cellsByDay)
+        .reduce((rowTotal, assignments) => rowTotal + assignments.length, 0), 0);
+      beforeLabel = `${sourceUnit.name} @ ${facility.units.indexOf(sourceUnit) + 1}`;
+      if (!moveRelative(facility.units, command.sourceUnitId, command.targetUnitId)) {
+        return { ok: false, reason: 'same_position' };
+      }
+      afterLabel = `${sourceUnit.name} @ ${facility.units.indexOf(sourceUnit) + 1}`;
+
+      const settings = data.settings.find((item) => item.facilityId === command.facilityId);
+      if (settings) {
+        moveRelative(settings.units, command.sourceUnitId, command.targetUnitId);
+      }
+    } else {
+      const sourceUnit = facility.units.find((unit) => unit.id === command.sourceUnitId);
+      const targetUnit = facility.units.find((unit) => unit.id === command.targetUnitId);
+      if (!sourceUnit || !targetUnit) return { ok: false, reason: 'not_found' };
+      const sourceIndex = sourceUnit.rows.findIndex((row) => row.id === command.sourceRowId);
+      if (sourceIndex === -1) return { ok: false, reason: 'not_found' };
+      if (command.targetRowId === command.sourceRowId) {
+        return { ok: false, reason: 'same_position' };
+      }
+      if (command.targetRowId && !targetUnit.rows.some((row) => row.id === command.targetRowId)) {
+        return { ok: false, reason: 'invalid_target' };
+      }
+      const beforeSourceIds = sourceUnit.rows.map((row) => row.id).join('|');
+      const beforeTargetIds = targetUnit.rows.map((row) => row.id).join('|');
+      const sourceRow = sourceUnit.rows[sourceIndex];
+      affectedAssignments = Object.values(sourceRow.cellsByDay)
+        .reduce((total, assignments) => total + assignments.length, 0);
+      beforeLabel = `${sourceUnit.name} / ${sourceRow.rowLabel} @ ${sourceIndex + 1}`;
+      const [movedRow] = sourceUnit.rows.splice(sourceIndex, 1);
+
+      if (!command.targetRowId) {
+        targetUnit.rows.push(movedRow);
+      } else {
+        const targetIndex = targetUnit.rows.findIndex((row) => row.id === command.targetRowId);
+        targetUnit.rows.splice(command.position === 'before' ? targetIndex : targetIndex + 1, 0, movedRow);
+      }
+
+      const rowOrderChanged = sourceUnit !== targetUnit
+        || beforeSourceIds !== sourceUnit.rows.map((row) => row.id).join('|')
+        || beforeTargetIds !== targetUnit.rows.map((row) => row.id).join('|');
+      if (!rowOrderChanged) {
+        return { ok: false, reason: 'same_position' };
+      }
+      movedRow.unitLabel = targetUnit.name;
+      movedRow.blockType = targetUnit.blockType;
+      afterLabel = `${targetUnit.name} / ${movedRow.rowLabel} @ ${targetUnit.rows.indexOf(movedRow) + 1}`;
+    }
+
+    addAudit(data, state.locale, {
+      action: 'reorder',
+      actorName,
+      facilityId: command.facilityId,
+      unitId: command.targetUnitId,
+      rowId: command.kind === 'row' ? command.sourceRowId : undefined,
+      oldValue: beforeLabel,
+      newValue: `${afterLabel} (${affectedAssignments} assignments)`,
+    });
+    set({
+      data,
+      draftCellKeys: draftWith(
+        state.draftCellKeys,
+        `settings|reorder|${command.kind === 'row' ? command.sourceRowId : command.sourceUnitId}`,
+      ),
+      undoStack: pushUndo(state),
+    });
+    if (get().data !== data || get().storageError) {
+      return { ok: false, reason: 'storage_error', message: get().storageError || undefined };
+    }
+    recordScheduleAdminAudit(
+      actorName,
+      'update',
+      state,
+      command.kind === 'row' ? 'Reorder schedule row' : 'Reorder schedule unit',
+      beforeLabel,
+      afterLabel,
+    );
+    return {
+      ok: true,
+      kind: command.kind,
+      affectedAssignments,
+      sourceUnitId: command.sourceUnitId,
+      targetUnitId: command.targetUnitId,
+    };
+  },
+
   updateMatrixRow: (rowId, updates) => {
     const state = get();
     if (!state.data) return;
@@ -1200,7 +1859,12 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     if (!context) return;
 
     Object.assign(context.row, updates);
-    if (updates.colorKey || updates.timeRange) {
+    if (updates.shiftDefinitionId) {
+      const definition = data.settings
+        .find((entry) => entry.facilityId === context.facility.id)
+        ?.shiftDefinitions.find((candidate) => candidate.id === updates.shiftDefinitionId);
+      if (definition) applyShiftDefinitionToRow(context.row, definition);
+    } else if (updates.colorKey || updates.timeRange) {
       const definitions = data.settings
         .find((entry) => entry.facilityId === context.facility.id)
         ?.shiftDefinitions ?? [];
@@ -1222,6 +1886,260 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       draftCellKeys: draftWith(state.draftCellKeys, `settings|row|${rowId}`),
       undoStack: pushUndo(state),
     });
+  },
+
+  addMatrixRow: (facilityId, unitId, shiftDefinitionId, rowLabel) => {
+    const state = get();
+    if (!state.data || !rowLabel.trim()) return;
+    const data = cloneData(state.data);
+    const facility = data.facilities.find((item) => item.id === facilityId);
+    const unit = facility?.units.find((item) => item.id === unitId);
+    const definition = data.settings
+      .find((item) => item.facilityId === facilityId)
+      ?.shiftDefinitions.find((item) => item.id === shiftDefinitionId && !item.archived);
+    if (!facility || !unit || !definition) return;
+
+    const row = makeShiftRowFromDefinition(facilityId, unit, definition, rowLabel, data.year, data.month);
+    unit.rows.push(row);
+    addAudit(data, state.locale, {
+      action: 'settings',
+      facilityId,
+      unitId,
+      rowId: row.id,
+      newValue: `Added row ${row.rowLabel} (${row.shiftLabel})`,
+    });
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `settings|row-add|${row.id}`),
+      undoStack: pushUndo(state),
+    });
+  },
+
+  archiveMatrixRow: (rowId) => {
+    const state = get();
+    if (!state.data) return;
+    const data = cloneData(state.data);
+    const context = findRowContext(data, rowId);
+    if (!context) return;
+    context.row.archived = true;
+    addAudit(data, state.locale, {
+      action: 'archive',
+      facilityId: context.facility.id,
+      unitId: context.unit.id,
+      rowId,
+      newValue: `Archived row ${context.row.rowLabel}`,
+    });
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `settings|row-archive|${rowId}`),
+      undoStack: pushUndo(state),
+    });
+  },
+
+  restoreMatrixRow: (rowId) => {
+    const state = get();
+    if (!state.data) return;
+    const data = cloneData(state.data);
+    const context = findRowContext(data, rowId);
+    if (!context) return;
+    context.row.archived = false;
+    addAudit(data, state.locale, {
+      action: 'restore',
+      facilityId: context.facility.id,
+      unitId: context.unit.id,
+      rowId,
+      newValue: `Restored row ${context.row.rowLabel}`,
+    });
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `settings|row-restore|${rowId}`),
+      undoStack: pushUndo(state),
+    });
+  },
+
+  deleteMatrixRow: (rowId, removeAssignments = false) => {
+    const state = get();
+    if (!state.data) return;
+    const data = cloneData(state.data);
+    const context = findRowContext(data, rowId);
+    if (!context) return;
+    const assignmentsCount = Object.values(context.row.cellsByDay).reduce((sum, assignments) => sum + assignments.length, 0);
+    if (assignmentsCount > 0 && !removeAssignments) {
+      context.row.archived = true;
+    } else {
+      context.unit.rows = context.unit.rows.filter((row) => row.id !== rowId);
+    }
+    addAudit(data, state.locale, {
+      action: assignmentsCount > 0 && !removeAssignments ? 'archive' : 'delete',
+      facilityId: context.facility.id,
+      unitId: context.unit.id,
+      rowId,
+      oldValue: `${assignmentsCount} assignments`,
+      newValue: assignmentsCount > 0 && !removeAssignments ? `Archived row ${context.row.rowLabel}` : `Deleted row ${context.row.rowLabel}`,
+    });
+    recalculateAllConflicts(data);
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `settings|row-delete|${rowId}`),
+      undoStack: pushUndo(state),
+    });
+  },
+
+  clearAllAssignments: (actorName) => {
+    const state = get();
+    if (!state.data) return 0;
+    const data = cloneData(state.data);
+    const removed = clearScheduleContent(data);
+    if (removed === 0) return 0;
+    const key = matrixMonthKey(data);
+    const versionsByMonth = addMonthVersion(state.versionsByMonth, key, state.data, actorName, 'clear');
+    addAudit(data, state.locale, {
+      actorName,
+      action: 'bulk-clear',
+      oldValue: `${removed} assignments`,
+      newValue: `Clear Assignments Only | ${data.year}-${String(data.month + 1).padStart(2, '0')} | all facilities`,
+    });
+    recalculateAllConflicts(data);
+    set({
+      data,
+      draftCellKeys: draftWith(state.draftCellKeys, `bulk-clear|${data.year}|${data.month}|${Date.now()}`),
+      selectedCells: [],
+      undoStack: pushUndo(state),
+      versionsByMonth,
+      monthStatuses: { ...state.monthStatuses, [key]: 'draft' },
+    });
+    if (get().storageError) return 0;
+    recordScheduleAdminAudit(actorName, 'clear', state, 'Clear all schedule assignments', `${removed} assignments`, '0 assignments');
+    return removed;
+  },
+
+  copyCurrentTable: (actorName) => {
+    const state = get();
+    if (!state.data || state.data.facilities.length === 0) {
+      return { ok: false, reason: 'not_found', message: 'There is no schedule table to copy.' };
+    }
+    const sourceKey = matrixMonthKey(state.data);
+    const assignmentCount = countMatrixAssignments(state.data);
+    set({
+      tableClipboard: {
+        sourceKey,
+        sourceYear: state.data.year,
+        sourceMonth: state.data.month,
+        copiedAt: new Date().toISOString(),
+        assignmentCount,
+        data: cloneData(state.data),
+      },
+    });
+    recordScheduleAdminAudit(actorName, 'update', state, 'Copy schedule table', sourceKey, `${assignmentCount} assignments copied`);
+    return { ok: true, affected: assignmentCount };
+  },
+
+  pasteCopiedTable: (actorName) => {
+    const state = get();
+    if (!state.data) return { ok: false, reason: 'not_found', message: 'The target schedule month is unavailable.' };
+    if (!state.tableClipboard) return { ok: false, reason: 'not_found', message: 'Copy a schedule table first.' };
+
+    const targetKey = matrixMonthKey(state.data);
+    const { data, omittedAssignments } = pasteMatrixIntoMonth(
+      state.tableClipboard.data,
+      state.year,
+      state.month,
+    );
+    const affected = countMatrixAssignments(data);
+    addAudit(data, state.locale, {
+      actorName,
+      action: 'paste',
+      oldValue: state.tableClipboard.sourceKey,
+      newValue: `${targetKey} | ${affected} assignments | ${omittedAssignments} omitted`,
+    });
+    const versionsByMonth = addMonthVersion(
+      state.versionsByMonth,
+      targetKey,
+      state.data,
+      actorName,
+      'paste',
+    );
+    set({
+      data,
+      draftCellKeys: [`table-paste|${state.tableClipboard.sourceKey}|${targetKey}|${Date.now()}`],
+      undoStack: [],
+      selectedCells: [],
+      versionsByMonth,
+      deletedMonths: state.deletedMonths.filter((item) => item !== targetKey),
+      monthStatuses: { ...state.monthStatuses, [targetKey]: 'draft' },
+    });
+    if (get().storageError) {
+      return { ok: false, reason: 'storage_error', message: get().storageError! };
+    }
+    recordScheduleAdminAudit(
+      actorName,
+      'update',
+      state,
+      'Paste schedule table',
+      state.tableClipboard.sourceKey,
+      `${targetKey} | ${affected} assignments | ${omittedAssignments} omitted`,
+    );
+    return {
+      ok: true,
+      affected,
+      message: omittedAssignments > 0
+        ? `Table pasted. ${omittedAssignments} assignments outside the target month were omitted.`
+        : 'Table pasted successfully.',
+    };
+  },
+
+  resetCurrentMonth: (actorName) => {
+    const state = get();
+    if (!state.data) return { ok: false, reason: 'not_found' };
+    const key = matrixMonthKey(state.data);
+    const source = generateScheduleMatrixMock(state.year, state.month);
+    const data = structureOnly(source, state.year, state.month);
+    data.legend = cloneData(state.data).legend;
+    addAudit(data, state.locale, {
+      actorName,
+      action: 'reset',
+      oldValue: key,
+      newValue: 'Default layout',
+    });
+    const versionsByMonth = addMonthVersion(state.versionsByMonth, key, state.data, actorName, 'reset');
+    const deletedMonths = state.deletedMonths.filter((item) => item !== key);
+    set({
+      data,
+      snapshot: JSON.stringify(data),
+      draftCellKeys: [`month-reset|${key}`],
+      undoStack: [],
+      selectedCells: [],
+      versionsByMonth,
+      deletedMonths,
+      monthStatuses: { ...state.monthStatuses, [key]: 'draft' },
+    });
+    if (get().storageError) return { ok: false, reason: 'storage_error', message: get().storageError! };
+    recordScheduleAdminAudit(actorName, 'update', state, 'Reset schedule to default layout', key, 'Default layout');
+    return { ok: true };
+  },
+
+  deleteCurrentMonth: (actorName) => {
+    const state = get();
+    if (!state.data) return { ok: false, reason: 'not_found' };
+    const key = matrixMonthKey(state.data);
+    const versionsByMonth = addMonthVersion(state.versionsByMonth, key, state.data, actorName, 'delete');
+    const matricesByMonth = { ...state.matricesByMonth };
+    delete matricesByMonth[key];
+    const data = deletedMonthShell(state.year, state.month);
+    set({
+      data,
+      matricesByMonth,
+      snapshot: JSON.stringify(data),
+      draftCellKeys: [],
+      undoStack: [],
+      selectedCells: [],
+      versionsByMonth,
+      deletedMonths: [...new Set([...state.deletedMonths, key])],
+      monthStatuses: { ...state.monthStatuses, [key]: 'draft' },
+    });
+    if (get().storageError) return { ok: false, reason: 'storage_error', message: get().storageError! };
+    recordScheduleAdminAudit(actorName, 'delete', state, 'Delete schedule month', key, 'Deleted');
+    return { ok: true };
   },
 
   isDirty: () => get().draftCellKeys.length > 0,
@@ -1247,10 +2165,59 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
   },
 }));
 
+let isSchedulePersistenceRollback = false;
+
 useScheduleMatrixStore.subscribe((state, previousState) => {
-  if (state.matricesByMonth !== previousState.matricesByMonth) {
-    persistMatrices(state.matricesByMonth);
+  if (isSchedulePersistenceRollback) return;
+  const changed = state.data !== previousState.data
+    || state.draftCellKeys !== previousState.draftCellKeys
+    || state.matricesByMonth !== previousState.matricesByMonth
+    || state.draftsByMonth !== previousState.draftsByMonth
+    || state.monthStatuses !== previousState.monthStatuses
+    || state.versionsByMonth !== previousState.versionsByMonth
+    || state.deletedMonths !== previousState.deletedMonths;
+  if (!changed) return;
+
+  const previousDrafts = previousState.draftsByMonth;
+  let nextDrafts = state.draftsByMonth;
+  if (state.data) {
+    const key = matrixMonthKey(state.data);
+    if (state.draftCellKeys.length > 0 && !state.deletedMonths.includes(key)) {
+      nextDrafts = { ...state.draftsByMonth, [key]: cloneData(state.data) };
+    } else if (state.draftsByMonth[key] && (state.matricesByMonth[key] || state.deletedMonths.includes(key))) {
+      nextDrafts = { ...state.draftsByMonth };
+      delete nextDrafts[key];
+    }
   }
+
+  if (persistMonthlyState(state, nextDrafts)) {
+    if (nextDrafts !== state.draftsByMonth) {
+      isSchedulePersistenceRollback = true;
+      useScheduleMatrixStore.setState({ draftsByMonth: nextDrafts });
+      isSchedulePersistenceRollback = false;
+    }
+    if (state.storageError) useScheduleMatrixStore.setState({ storageError: null });
+    return;
+  }
+
+  isSchedulePersistenceRollback = true;
+  useScheduleMatrixStore.setState({
+    data: previousState.data,
+    matricesByMonth: previousState.matricesByMonth,
+    draftsByMonth: previousDrafts,
+    snapshot: previousState.snapshot,
+    draftCellKeys: previousState.draftCellKeys,
+    undoStack: previousState.undoStack,
+    monthStatuses: previousState.monthStatuses,
+    versionsByMonth: previousState.versionsByMonth,
+    deletedMonths: previousState.deletedMonths,
+    month: previousState.month,
+    year: previousState.year,
+    selectedCells: previousState.selectedCells,
+    brushEmployeeCodes: previousState.brushEmployeeCodes,
+    storageError: 'Unable to save schedule administration data.',
+  });
+  isSchedulePersistenceRollback = false;
 });
 
 export type { FacilitySettings, ShiftDefinition, UnitDefinition, ShiftColorKey };

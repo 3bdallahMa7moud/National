@@ -21,6 +21,8 @@ export interface LateScheduleExportRow {
   location: string;
   timeRange: string;
   hours: number;
+  backgroundColor?: string;
+  textColor?: string;
   highlightedDays?: number[];
   assignments: Record<number, LateScheduleExportEmployee[]>;
 }
@@ -59,6 +61,8 @@ export function buildLateScheduleExportModel(
       location: row.location,
       timeRange: row.timeRange,
       hours: row.hours,
+      backgroundColor: row.backgroundColor,
+      textColor: row.textColor,
       highlightedDays: row.highlightedDays,
       assignments: Object.fromEntries(
         Object.entries(row.assignments).map(([day, assignments]) => [
@@ -89,6 +93,17 @@ export function buildLateScheduleExportModel(
 
 function solidFill(argb: string): ExcelJS.Fill {
   return { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+}
+
+function colorArgb(value: string | undefined, fallback: string): string {
+  const hex = value?.trim().replace(/^#/, '');
+  if (/^[0-9a-f]{6}$/i.test(hex || '')) return `FF${hex!.toUpperCase()}`;
+  if (/^[0-9a-f]{8}$/i.test(hex || '')) return hex!.toUpperCase();
+  return fallback;
+}
+
+function safeCssColor(value: string | undefined): string | undefined {
+  return /^#[0-9a-f]{6}$/i.test(value?.trim() || '') ? value!.trim() : undefined;
 }
 
 function border(style: ExcelJS.BorderStyle = 'thin'): Partial<ExcelJS.Borders> {
@@ -208,7 +223,10 @@ export function buildLateScheduleWorkbook(
       const cell = schedule.getCell(excelRow, index + 1);
       cell.value = value;
       styleCell(cell, {
-        fill: rowIndex % 2 === 0 ? EXPORT_COLORS.surface : EXPORT_COLORS.surfaceMuted,
+        fill: index === 0
+          ? colorArgb(row.backgroundColor, rowIndex % 2 === 0 ? EXPORT_COLORS.surface : EXPORT_COLORS.surfaceMuted)
+          : rowIndex % 2 === 0 ? EXPORT_COLORS.surface : EXPORT_COLORS.surfaceMuted,
+        color: index === 0 ? colorArgb(row.textColor, EXPORT_COLORS.text) : EXPORT_COLORS.text,
         bold: index === 0,
         horizontal: index < 3 ? 'left' : 'center',
       });
@@ -222,12 +240,21 @@ export function buildLateScheduleWorkbook(
       const hasUnresolved = assignments.some((assignment) => assignment.unresolved);
       const fill = hasUnresolved
         ? EXPORT_COLORS.unresolved
-        : row.highlightedDays?.includes(day.dayNum)
+        : assignments.length > 0 && row.backgroundColor
+          ? colorArgb(row.backgroundColor, EXPORT_COLORS.accent)
+          : row.highlightedDays?.includes(day.dayNum)
           ? EXPORT_COLORS.accent
           : day.isWeekend
             ? EXPORT_COLORS.weekend
             : rowIndex % 2 === 0 ? EXPORT_COLORS.surface : EXPORT_COLORS.surfaceMuted;
-      styleCell(cell, { fill, bold: assignments.length > 0, size: 9 });
+      styleCell(cell, {
+        fill,
+        color: assignments.length > 0 && !hasUnresolved
+          ? colorArgb(row.textColor, EXPORT_COLORS.text)
+          : hasUnresolved ? 'FF9F1239' : EXPORT_COLORS.text,
+        bold: assignments.length > 0,
+        size: 9,
+      });
     });
   });
 
@@ -332,6 +359,11 @@ export function buildLateSchedulePrintHtml(
 
   const schedulePages = pages.map((pageRows, pageIndex) => {
     const body = pageRows.map((row) => {
+      const rowBackground = safeCssColor(row.backgroundColor);
+      const rowText = safeCssColor(row.textColor);
+      const rowStyle = rowBackground
+        ? ` style="background:${rowBackground};color:${rowText || '#101b2d'}"`
+        : '';
       const dayCells = daysList.map((day) => {
         const assignments = row.assignments[day.dayNum] ?? [];
         const classes = [
@@ -339,9 +371,14 @@ export function buildLateSchedulePrintHtml(
           row.highlightedDays?.includes(day.dayNum) ? 'highlighted' : '',
           assignments.some((assignment) => assignment.unresolved) ? 'unresolved' : '',
         ].filter(Boolean).join(' ');
-        return `<td class="${classes}">${assignments.map((assignment) => escapeHtml(printableEmployeeCode(assignment))).join('-')}</td>`;
+        const assignmentStyle = assignments.length > 0
+          && !assignments.some((assignment) => assignment.unresolved)
+          && rowBackground
+          ? ` style="background:${rowBackground};color:${rowText || '#101b2d'}"`
+          : '';
+        return `<td class="${classes}"${assignmentStyle}>${assignments.map((assignment) => escapeHtml(printableEmployeeCode(assignment))).join('-')}</td>`;
       }).join('');
-      return `<tr><th class="metadata-column shift-name">${escapeHtml(row.title)}</th><td class="metadata-column">${escapeHtml(row.location)}</td><td class="metadata-column time" dir="ltr">${escapeHtml(row.timeRange)}</td><td class="metadata-column">${row.hours}</td>${dayCells}</tr>`;
+      return `<tr><th class="metadata-column shift-name"${rowStyle}>${escapeHtml(row.title)}</th><td class="metadata-column">${escapeHtml(row.location)}</td><td class="metadata-column time" dir="ltr">${escapeHtml(row.timeRange)}</td><td class="metadata-column">${row.hours}</td>${dayCells}</tr>`;
     }).join('');
     return `<main class="schedule-page" data-schedule-page="${pageIndex + 1}">
       <header class="print-header"><div><span class="brand-kicker">CT Scan Department</span><h1>OT Schedule</h1><p>${escapeHtml(currentTitle)}</p></div>${notice ? `<aside>${escapeHtml(notice)}</aside>` : ''}</header>

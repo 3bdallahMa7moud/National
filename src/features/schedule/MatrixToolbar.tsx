@@ -10,7 +10,9 @@ import {
   ChevronRight,
   Eye,
   FileSpreadsheet,
+  Flame,
   Maximize2,
+  ListOrdered,
   MoreHorizontal,
   Paintbrush,
   Pencil,
@@ -64,15 +66,15 @@ interface MatrixToolbarProps {
   searchMatchCount: number;
   onJumpToSearchMatch: () => void;
   shiftFilter: ShiftColorKey | '';
+  shiftStyles?: Partial<Record<ShiftColorKey, { backgroundColor?: string; textColor?: string }>>;
   onShiftFilterChange: (value: ShiftColorKey | '') => void;
   conflictsOnly: boolean;
   onToggleConflictsOnly: () => void;
-  colorblindMode: boolean;
-  onToggleColorblindMode: () => void;
   onUndo?: () => void;
   canUndo?: boolean;
   onExportExcel?: () => void;
   onExportPDF?: () => void;
+  onClearAllAssignments?: () => void;
 }
 
 
@@ -105,18 +107,18 @@ function MatrixToolbar({
   onBulkAssign,
   onBulkClear,
   onOpenFullscreen,
-  onExportExcel,
-  onExportPDF,
   searchQuery,
   onSearchQueryChange,
   searchMatchCount,
   onJumpToSearchMatch,
   shiftFilter,
+  shiftStyles,
   onShiftFilterChange,
-  colorblindMode,
-  onToggleColorblindMode,
   onUndo,
   canUndo = false,
+  onExportExcel,
+  onExportPDF,
+  onClearAllAssignments,
 }: MatrixToolbarProps) {
   const { t, i18n } = useTranslation(['schedule', 'common']);
   const isRtl = i18n.dir() === 'rtl';
@@ -127,6 +129,7 @@ function MatrixToolbar({
   const modeConfig = [
     { mode: 'view' as const, label: t('schedule:toolbar.modes.view'), icon: <Eye className="h-3.5 w-3.5" /> },
     { mode: 'edit' as const, label: t('schedule:toolbar.modes.edit'), icon: <Pencil className="h-3.5 w-3.5" /> },
+    { mode: 'order' as const, label: t('schedule:toolbar.modes.order', 'Arrange'), icon: <ListOrdered className="h-3.5 w-3.5" /> },
     { mode: 'vacations' as const, label: t('schedule:toolbar.modes.vacations'), icon: <CalendarOff className="h-3.5 w-3.5" /> },
     { mode: 'brush' as const, label: t('schedule:toolbar.modes.brush'), icon: <Paintbrush className="h-3.5 w-3.5" /> },
     { mode: 'settings' as const, label: t('schedule:toolbar.modes.settings'), icon: <Settings2 className="h-3.5 w-3.5" /> },
@@ -178,18 +181,6 @@ function MatrixToolbar({
         </div>
 
         <div className="hidden items-center gap-2 flex-wrap md:flex">
-
-          <button
-            onClick={onToggleColorblindMode}
-            className={cn(
-              'min-h-11 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors shadow-sm',
-              colorblindMode
-                ? 'border-primary-teal bg-primary-teal text-white'
-                : 'border-border bg-surface text-text-primary hover:bg-hover',
-            )}
-          >
-            {t('schedule:toolbar.legendAndColors')}
-          </button>
 
           {onUndo && (
             <button
@@ -256,6 +247,17 @@ function MatrixToolbar({
             </button>
           )}
 
+          {onClearAllAssignments && (
+            <button
+              onClick={onClearAllAssignments}
+              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-danger/40 bg-danger-50 px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger hover:text-white transition-all shadow-sm"
+              title="Clear All Shift Assignments"
+            >
+              <Flame className="h-4 w-4" />
+              <span className="hidden lg:inline">Clear Assignments</span>
+            </button>
+          )}
+
           {onOpenFullscreen && (
             <button
               onClick={onOpenFullscreen}
@@ -280,9 +282,6 @@ function MatrixToolbar({
             <button type="button" onClick={() => onModeChange('settings')} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
               {t('schedule:toolbar.modes.settings')}
             </button>
-            <button type="button" onClick={onToggleColorblindMode} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
-              {t('schedule:toolbar.legendAndColors')}
-            </button>
             {onUndo && (
               <button type="button" onClick={onUndo} disabled={!canUndo} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover disabled:opacity-40">
                 {t('schedule:toolbar.undo')}
@@ -296,6 +295,11 @@ function MatrixToolbar({
             {onExportPDF && (
               <button type="button" onClick={onExportPDF} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
                 {t('schedule:toolbar.exportPDF')}
+              </button>
+            )}
+            {onClearAllAssignments && (
+              <button type="button" onClick={onClearAllAssignments} className="col-span-2 min-h-11 rounded-btn border border-danger/40 px-3 text-xs font-semibold text-danger">
+                Clear All Shift Assignments
               </button>
             )}
             {onOpenFullscreen && (
@@ -410,7 +414,15 @@ function MatrixToolbar({
               )}
             >
               {filter.colorKey && (
-                <span className="me-1 inline-block h-2.5 w-2.5 rounded-full border" style={getShiftChipStyle(filter.colorKey)} aria-hidden="true" />
+                <span
+                  className="me-1 inline-block h-2.5 w-2.5 rounded-full border"
+                  style={getShiftChipStyle(
+                    filter.colorKey,
+                    shiftStyles?.[filter.colorKey]?.backgroundColor,
+                    shiftStyles?.[filter.colorKey]?.textColor,
+                  )}
+                  aria-hidden="true"
+                />
               )}
               {filter.label}
             </button>

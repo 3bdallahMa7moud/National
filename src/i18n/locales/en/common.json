@@ -26,6 +26,7 @@
     "departments": "Departments",
     "reports": "Employee Analysis",
     "auditLog": "Audit Log",
+    "shiftRequests": "Shift Requests",
     "mySchedule": "My Schedule",
     "departmentSchedule": "Department Schedule",
     "calendarSync": "Calendar Sync",
@@ -122,8 +123,10 @@
   "toast": {
     "saved": "Saved",
     "deleted": "Deleted",
-    "changed": "Changed"
+    "changed": "Changed",
+    "error": "Error"
   },
+  "loading": "Loading...",
   "labels": {
     "name": "Name",
     "email": "Email",
@@ -153,7 +156,7 @@
   "lateSchedule": {
     "assignment": {
       "selectedEmployees": "Selected employees",
-      "maxTwo": "Choose one or two employees",
+      "maxTwo": "Choose employees",
       "unresolved": "Unresolved legacy codes:",
       "search": "Search by name or code",
       "cancel": "Cancel",

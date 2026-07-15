@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Bell } from 'lucide-react';
+import { useAuthStore } from '@/stores/authStore';
 import type { AppNotification } from '@/types';
 import dayjs from '@/lib/dayjs';
 
@@ -13,6 +15,7 @@ interface NotificationCenterProps {
 
 export default function NotificationCenter({ notifications, onMarkRead, onMarkAllRead }: NotificationCenterProps) {
   const { t } = useTranslation(['notifications']);
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -58,7 +61,23 @@ export default function NotificationCenter({ notifications, onMarkRead, onMarkAl
                       !notif.isRead && 'bg-primary-50/30',
                       notif.isUrgent && !notif.isRead && 'bg-danger-50/30 border-s-2 border-danger'
                     )}
-                    onClick={() => onMarkRead(notif.id)}
+                    onClick={() => {
+                      onMarkRead(notif.id);
+                      if (notif.actionUrl) {
+                        setIsOpen(false);
+                        let url = notif.actionUrl;
+                        const user = useAuthStore.getState().user;
+
+                        if (user?.role === 'admin') {
+                          if (url === '/schedule') url = '/admin/schedule';
+                          if (url === '/employees') url = '/admin/employees';
+                        } else {
+                          if (url === '/schedule') url = '/schedule/me';
+                        }
+
+                        navigate(url);
+                      }
+                    }}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">

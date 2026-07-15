@@ -1,3 +1,5 @@
+import type { ShiftColorKey } from './scheduleMatrix';
+
 export type OperationalShiftCategory =
   | 'day'
   | 'late'
@@ -11,7 +13,13 @@ export interface OperationalPeriod {
   endDate: string;
 }
 
-export interface OperationalOccurrence {
+export interface OperationalShiftVisual {
+  colorKey: ShiftColorKey;
+  backgroundColor?: string;
+  textColor?: string;
+}
+
+export interface OperationalOccurrence extends OperationalShiftVisual {
   id: string;
   date: string;
   source: 'schedule' | 'ot';

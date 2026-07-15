@@ -12,7 +12,7 @@ interface LegendPanelProps {
   year: number;
   highlightedEmployeeId: string | null;
   brushEmployeeCodes?: string[];
-  onEmployeeClick: (employeeId: string) => void;
+  onEmployeeClick?: (employeeId: string) => void;
   /** Map code → id */
   codeToId: Map<string, string>;
 }
@@ -30,7 +30,6 @@ function LegendPanel({
 }: LegendPanelProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const months = (t('schedule:months', { returnObjects: true }) as string[]) || [];
-  const brushAtCapacity = brushEmployeeCodes.length >= 2;
 
   return (
     <div
@@ -57,15 +56,15 @@ function LegendPanel({
           return (
             <button
               key={entry.code}
-              onClick={() => onEmployeeClick(empId)}
-              disabled={brushAtCapacity && !isBrushSelected}
+              type="button"
+              disabled={!onEmployeeClick}
+              onClick={() => onEmployeeClick?.(empId)}
               className={cn(
                 'flex w-full items-center gap-2.5 px-3 py-2 text-right',
                 'border-b border-border last:border-b-0',
-                'transition-colors duration-100 hover:bg-hover',
+                onEmployeeClick && 'transition-colors duration-100 hover:bg-hover',
                 isActive && 'bg-signal-cyan/10',
                 isBrushSelected && 'bg-violet-50',
-                brushAtCapacity && !isBrushSelected && 'cursor-not-allowed opacity-45 hover:bg-transparent',
               )}
             >
               <span className="text-[10px] text-text-secondary font-medium w-4 text-center shrink-0">

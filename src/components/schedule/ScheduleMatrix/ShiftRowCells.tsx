@@ -3,7 +3,7 @@
 // ============================================================
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Maximize2, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import EmployeeChip from './EmployeeChip';
@@ -29,17 +29,18 @@ interface ShiftRowCellsProps {
   auditLog?: AuditEntry[];
   highlightedEmployeeId: string | null;
   selectedCells: MatrixCellRef[];
+  readOnly?: boolean;
   isEditable: boolean;
   isVacationMode: boolean;
   isBrushMode: boolean;
   brushEmployeeCodes: string[];
-  colorblindMode?: boolean;
   holidays?: HolidayRange[];
   onCellClick: (ref: MatrixCellRef, meta?: CellInteractionMeta) => void;
-  onChipClick: (ref: MatrixCellRef, assignment: Assignment, meta?: CellInteractionMeta) => void;
+  onChipClick?: (ref: MatrixCellRef, assignment: Assignment, meta?: CellInteractionMeta) => void;
   onCellContextMenu?: (ref: MatrixCellRef, position: { x: number; y: number }) => void;
   onRangeSelect?: (start: MatrixCellRef, end: MatrixCellRef) => void;
   onDragFill?: (source: MatrixCellRef, target: MatrixCellRef) => void;
+  expandedCellsView?: boolean;
 }
 
 const MONTH_LABELS = [
@@ -68,16 +69,17 @@ function ShiftRowCells({
   auditLog = [],
   highlightedEmployeeId,
   selectedCells,
+  readOnly = false,
   isEditable,
   isBrushMode,
   brushEmployeeCodes,
-  colorblindMode = false,
   holidays = [],
   onCellClick,
   onChipClick,
   onCellContextMenu,
   onRangeSelect,
   onDragFill,
+  expandedCellsView = false,
 }: ShiftRowCellsProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const today = new Date();
@@ -88,6 +90,7 @@ function ShiftRowCells({
   const longPressTimer = useRef<number | null>(null);
   const fillSourceRef = useRef<MatrixCellRef | null>(null);
   const [fillTargetDay, setFillTargetDay] = useState<number | null>(null);
+  const [previewCell, setPreviewCell] = useState<{ day: number; assignments: Assignment[]; cellRef: MatrixCellRef } | null>(null);
 
   const legendMap = useMemo(() => new Map(legend.map((item) => [item.code, item.fullName])), [legend]);
 
@@ -100,8 +103,8 @@ function ShiftRowCells({
   );
 
   const historyForCell = useCallback(
-    (day: number) => auditLog.filter((entry) => entry.rowId === row.id && entry.day === day).slice(0, 3),
-    [auditLog, row.id],
+    (day: number) => readOnly ? [] : auditLog.filter((entry) => entry.rowId === row.id && entry.day === day).slice(0, 3),
+    [auditLog, readOnly, row.id],
   );
 
   const makeAriaLabel = (day: number, assignments: Assignment[]) => {
@@ -134,7 +137,7 @@ function ShiftRowCells({
             data-row-id={row.id}
             data-holiday-day={isHoliday ? day : undefined}
             className={cn(
-              'group relative flex flex-col items-center justify-center gap-1 px-[2px]',
+              'group relative flex flex-col items-center justify-center gap-1 px-[2px] overflow-hidden',
               'border-b border-e border-border outline-none',
               'transition-colors duration-100',
               isWeekend && 'bg-[var(--weekend-tint)]',
@@ -150,14 +153,16 @@ function ShiftRowCells({
             style={{
               minWidth: 'var(--matrix-day-col)',
               width: 'var(--matrix-day-col)',
-              height: 'var(--matrix-row-height)',
+              minHeight: 'var(--matrix-row-height)',
+              height: expandedCellsView ? 'auto' : 'var(--matrix-row-height)',
             }}
             onContextMenu={(event) => {
+              if (readOnly || !onCellContextMenu) return;
               event.preventDefault();
-              onCellContextMenu?.(cellRef, { x: event.clientX, y: event.clientY });
+              onCellContextMenu(cellRef, { x: event.clientX, y: event.clientY });
             }}
             onPointerDown={(event) => {
-              if (event.pointerType === 'touch' && onCellContextMenu) {
+              if (!readOnly && event.pointerType === 'touch' && onCellContextMenu) {
                 longPressTimer.current = window.setTimeout(() => {
                   onCellContextMenu(cellRef, { x: event.clientX, y: event.clientY });
                 }, 520);
@@ -253,25 +258,105 @@ function ShiftRowCells({
               </span>
             )}
 
-            {assignments.map((assignment, assignmentIndex) => (
-              <EmployeeChip
-                key={`${assignment.employeeCode}-${assignmentIndex}`}
-                assignment={assignment}
-                rowColorKey={row.colorKey}
-                fullName={legendMap.get(assignment.employeeCode)}
-                shiftLabel={row.shiftLabel}
-                timeRange={row.timeRange}
-                facilityName={facilityName}
-                unitName={unitName}
-                day={day}
-                monthLabel={monthLabel}
-                isHighlighted={highlightedEmployeeId === assignment.employeeId}
-                colorblindMode={colorblindMode}
-                historyEntries={historyForCell(day)}
-                suppressPopover={isBrushMode}
-                onClick={() => onChipClick(cellRef, assignment, { hasAssignments: true })}
-              />
-            ))}
+            {assignments.length > 2 && !expandedCellsView && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPreviewCell({ day, assignments, cellRef });
+                }}
+                className="absolute top-0.5 end-0.5 z-10 flex h-4 w-4 items-center justify-center rounded bg-surface/90 text-text-secondary opacity-0 shadow hover:bg-primary-teal hover:text-white group-hover:opacity-100 transition-opacity"
+                title="Expand cell"
+              >
+                <Maximize2 className="h-2.5 w-2.5" />
+              </button>
+            )}
+
+            {expandedCellsView && assignments.length > 0 ? (
+              <div className="flex flex-col items-center justify-center gap-1 w-full py-1 px-1">
+                {assignments.map((assignment, assignmentIndex) => (
+                  <EmployeeChip
+                    key={`${assignment.employeeCode}-${assignmentIndex}`}
+                    assignment={assignment}
+                    rowColorKey={row.colorKey}
+                    rowBackgroundColor={row.backgroundColor}
+                    rowTextColor={row.textColor}
+                    fullName={legendMap.get(assignment.employeeCode)}
+                    shiftLabel={row.shiftLabel}
+                    timeRange={row.timeRange}
+                    facilityName={facilityName}
+                    unitName={unitName}
+                    day={day}
+                    monthLabel={monthLabel}
+                    isHighlighted={highlightedEmployeeId === assignment.employeeId}
+                    historyEntries={historyForCell(day)}
+                    readOnly={readOnly}
+                    suppressPopover={isBrushMode}
+                    compact={false}
+                    onClick={onChipClick ? () => onChipClick(cellRef, assignment, { hasAssignments: true }) : undefined}
+                  />
+                ))}
+              </div>
+            ) : assignments.length > 2 ? (
+              <div className="flex h-full w-full flex-col items-stretch justify-center gap-[2px] overflow-hidden px-[2px] py-[2px]">
+                {assignments.slice(0, 2).map((assignment, assignmentIndex) => (
+                  <EmployeeChip
+                    key={`${assignment.employeeCode}-${assignmentIndex}`}
+                    assignment={assignment}
+                    rowColorKey={row.colorKey}
+                    rowBackgroundColor={row.backgroundColor}
+                    rowTextColor={row.textColor}
+                    fullName={legendMap.get(assignment.employeeCode)}
+                    shiftLabel={row.shiftLabel}
+                    timeRange={row.timeRange}
+                    facilityName={facilityName}
+                    unitName={unitName}
+                    day={day}
+                    monthLabel={monthLabel}
+                    isHighlighted={highlightedEmployeeId === assignment.employeeId}
+                    historyEntries={historyForCell(day)}
+                    readOnly={readOnly}
+                    suppressPopover={isBrushMode}
+                    compact={true}
+                    onClick={onChipClick ? () => onChipClick(cellRef, assignment, { hasAssignments: true }) : undefined}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setPreviewCell({ day, assignments, cellRef });
+                  }}
+                  className="w-full truncate rounded-[3px] border border-primary-teal/25 bg-primary-teal/10 px-1 py-[1px] text-center text-[9px] font-extrabold leading-none text-primary-teal hover:bg-primary-teal hover:text-white"
+                  aria-label={`Show ${assignments.length - 2} more employees`}
+                >
+                  +{assignments.length - 2}
+                </button>
+              </div>
+            ) : (
+              assignments.map((assignment, assignmentIndex) => (
+                <EmployeeChip
+                  key={`${assignment.employeeCode}-${assignmentIndex}`}
+                  assignment={assignment}
+                  rowColorKey={row.colorKey}
+                  rowBackgroundColor={row.backgroundColor}
+                  rowTextColor={row.textColor}
+                  fullName={legendMap.get(assignment.employeeCode)}
+                  shiftLabel={row.shiftLabel}
+                  timeRange={row.timeRange}
+                  facilityName={facilityName}
+                  unitName={unitName}
+                  day={day}
+                  monthLabel={monthLabel}
+                  isHighlighted={highlightedEmployeeId === assignment.employeeId}
+                  historyEntries={historyForCell(day)}
+                  readOnly={readOnly}
+                  suppressPopover={isBrushMode}
+                  compact={false}
+                  onClick={onChipClick ? () => onChipClick(cellRef, assignment, { hasAssignments: true }) : undefined}
+                />
+              ))
+            )}
 
             {assignments.length > 0 && canEditCell && (
               <button
@@ -293,6 +378,36 @@ function ShiftRowCells({
           </div>
         );
       })}
+
+      {previewCell && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-in fade-in duration-150" onClick={() => setPreviewCell(null)}>
+          <div className="w-80 rounded-2xl border border-border bg-surface p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
+              <div>
+                <h4 className="text-sm font-bold text-text-primary">{facilityName} — {unitName}</h4>
+                <p className="text-xs font-semibold text-primary-teal">{row.shiftLabel} ({row.timeRange}) • Day {previewCell.day}</p>
+              </div>
+              <button type="button" onClick={() => setPreviewCell(null)} className="rounded-lg p-1 text-text-muted hover:bg-hover hover:text-text-primary">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {previewCell.assignments.map((assignment, idx) => (
+                <div key={idx} className="flex items-center justify-between rounded-xl border border-border bg-surface-muted/50 p-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded bg-primary-teal text-xs font-black text-white">
+                      {assignment.employeeCode}
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-text-primary">{legendMap.get(assignment.employeeCode) || assignment.employeeCode}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

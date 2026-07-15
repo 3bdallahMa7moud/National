@@ -34,6 +34,8 @@ interface StatItem {
   activeRing: string;
   textColor: string;
   paletteKey?: ShiftColorKey;
+  backgroundColor?: string;
+  shiftTextColor?: string;
 }
 
 interface StatCardProps {
@@ -45,7 +47,9 @@ interface StatCardProps {
 }
 
 function StatCard({ item, isActive, isRtl, locale, onClick }: StatCardProps) {
-  const paletteStyle = item.paletteKey ? getShiftChipStyle(item.paletteKey) : undefined;
+  const paletteStyle = item.paletteKey
+    ? getShiftChipStyle(item.paletteKey, item.backgroundColor, item.shiftTextColor)
+    : undefined;
   return (
     <button
       type="button"
@@ -319,10 +323,22 @@ function MatrixStatsCards({
     },
   ];
 
+  const coloredCards = cards.map((item) => {
+    if (!item.paletteKey) return item;
+    const definition = data.settings
+      .flatMap((settings) => settings.shiftDefinitions)
+      .find((candidate) => candidate.colorKey === item.paletteKey);
+    return {
+      ...item,
+      backgroundColor: definition?.backgroundColor,
+      shiftTextColor: definition?.textColor,
+    };
+  });
+
   return (
     <section aria-label={isRtl ? 'إحصائيات وتصفية الجدول' : 'Schedule Statistics & Filter'} className="mb-6">
       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4 xl:grid-cols-8">
-        {cards.map((item) => {
+        {coloredCards.map((item) => {
           const isCardActive = item.filterKey !== undefined && activeShiftFilter === item.filterKey && activeShiftFilter !== '';
           return (
             <StatCard

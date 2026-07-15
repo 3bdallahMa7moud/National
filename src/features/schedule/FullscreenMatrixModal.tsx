@@ -9,14 +9,23 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X, Pencil, Eye, CalendarOff, Paintbrush, FileSpreadsheet, Printer,
-  ZoomIn, ZoomOut, Minimize2, AlertTriangle, Undo2,
+  Pencil, Eye, CalendarOff, Paintbrush, FileSpreadsheet, Printer,
+  ZoomIn, ZoomOut, Minimize2, Undo2, ListOrdered,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import ScheduleMatrix from '@/components/schedule/ScheduleMatrix/ScheduleMatrix';
 import AssignmentDrawer from './AssignmentDrawer';
-import type { ScheduleMatrixData, MatrixCellRef, Assignment, MatrixAdminMode, ShiftColorKey, ShiftRow } from '@/types/scheduleMatrix';
+import type {
+  ScheduleMatrixData,
+  MatrixCellRef,
+  Assignment,
+  MatrixAdminMode,
+  MatrixReorderCommand,
+  MatrixReorderResult,
+  ShiftColorKey,
+  ShiftRow,
+} from '@/types/scheduleMatrix';
 
 
 
@@ -61,6 +70,14 @@ interface FullscreenMatrixModalProps {
     rowId: string,
     updates: Partial<Pick<ShiftRow, 'rowLabel' | 'shiftLabel' | 'timeRange' | 'colorKey' | 'weekendOnly'>>,
   ) => void;
+  onAddRow?: (facilityId: string, unitId: string, shiftDefinitionId: string, rowLabel: string) => void;
+  onArchiveRow?: (rowId: string) => void;
+  onDeleteRow?: (rowId: string) => void;
+  onAddUnit?: (facilityId: string, name: string) => void;
+  onRenameUnit?: (facilityId: string, unitId: string, name: string) => void;
+  onArchiveUnit?: (facilityId: string, unitId: string) => void;
+  onDeleteUnit?: (facilityId: string, unitId: string) => void;
+  onReorder?: (command: MatrixReorderCommand) => MatrixReorderResult;
 
   // Drawer
   drawerCell: (MatrixCellRef & {
@@ -90,7 +107,6 @@ function FullscreenMatrixModal({
   facilityFilter,
   onFacilityFilterChange,
   isDirty,
-  conflictCount,
   onDiscard,
   highlightedEmployeeId,
   selectedCells,
@@ -104,6 +120,14 @@ function FullscreenMatrixModal({
   onVacationToggle,
   onLegendEmployeeClick,
   onUpdateRow,
+  onAddRow,
+  onArchiveRow,
+  onDeleteRow,
+  onAddUnit,
+  onRenameUnit,
+  onArchiveUnit,
+  onDeleteUnit,
+  onReorder,
   drawerCell,
   drawerCurrentAssignments,
   onDrawerClose,
@@ -118,6 +142,7 @@ function FullscreenMatrixModal({
   const modeConfig: { mode: MatrixAdminMode; label: string; icon: React.ReactNode }[] = [
     { mode: 'view', label: t('schedule:toolbar.viewMode'), icon: <Eye className="h-3.5 w-3.5" /> },
     { mode: 'edit', label: t('schedule:toolbar.editMode'), icon: <Pencil className="h-3.5 w-3.5" /> },
+    { mode: 'order', label: t('schedule:toolbar.orderMode', 'Arrange'), icon: <ListOrdered className="h-3.5 w-3.5" /> },
     { mode: 'vacations', label: t('schedule:toolbar.vacationMode'), icon: <CalendarOff className="h-3.5 w-3.5" /> },
     { mode: 'brush', label: t('schedule:toolbar.brushMode'), icon: <Paintbrush className="h-3.5 w-3.5" /> },
   ];
@@ -144,7 +169,8 @@ function FullscreenMatrixModal({
   }, [isOpen, onClose, drawerCell]);
 
   const handleZoomStep = useCallback((dir: 'in' | 'out') => {
-    dir === 'in' ? onZoomIn() : onZoomOut();
+    if (dir === 'in') onZoomIn();
+    else onZoomOut();
   }, [onZoomIn, onZoomOut]);
 
   if (!isOpen) return null;
@@ -304,6 +330,14 @@ function FullscreenMatrixModal({
             onVacationToggle={onVacationToggle}
             onLegendEmployeeClick={onLegendEmployeeClick}
             onUpdateRow={onUpdateRow}
+            onAddRow={onAddRow}
+            onArchiveRow={onArchiveRow}
+            onDeleteRow={onDeleteRow}
+            onAddUnit={onAddUnit}
+            onRenameUnit={onRenameUnit}
+            onArchiveUnit={onArchiveUnit}
+            onDeleteUnit={onDeleteUnit}
+            onReorder={onReorder}
           />
         </div>
       </div>

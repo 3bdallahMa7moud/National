@@ -3,11 +3,12 @@ import { useTranslation } from 'react-i18next';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import type { OTShiftInput, OTShiftRow } from '@/types/lateSchedule';
+import type { OTShiftInput, OTShiftRow, OTUnit } from '@/types/lateSchedule';
 
 interface OTShiftFormModalProps {
   isOpen: boolean;
   row?: OTShiftRow | null;
+  units?: OTUnit[];
   onClose(): void;
   onSave(input: OTShiftInput): void;
   onArchive?(): void;
@@ -15,21 +16,41 @@ interface OTShiftFormModalProps {
 
 type FieldErrors = Partial<Record<keyof OTShiftInput, string>>;
 
-export default function OTShiftFormModal({ isOpen, row, onClose, onSave, onArchive }: OTShiftFormModalProps) {
+export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onSave, onArchive }: OTShiftFormModalProps) {
   const { t, i18n } = useTranslation(['common']);
   const isRtl = i18n.language === 'ar';
-  const [form, setForm] = useState<OTShiftInput>({ title: '', location: '', timeRange: '', hours: 0 });
+  const [form, setForm] = useState<OTShiftInput>({ title: '', location: '', timeRange: '', hours: 0, backgroundColor: '#E0F2FE', textColor: '#075985' });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setForm(row
-      ? { title: row.title, location: row.location, timeRange: row.timeRange, hours: row.hours }
-      : { title: '', location: '', timeRange: '', hours: 0 });
+      ? {
+          unitId: row.unitId,
+          title: row.title,
+          location: row.location,
+          timeRange: row.timeRange,
+          hours: row.hours,
+          backgroundColor: row.backgroundColor || '#E0F2FE',
+          textColor: row.textColor || '#075985',
+          shortCode: row.shortCode || '',
+          icon: row.icon || '',
+        }
+      : {
+          unitId: units.find((unit) => !unit.archived)?.id,
+          title: '',
+          location: units.find((unit) => !unit.archived)?.name || 'General OT',
+          timeRange: '',
+          hours: 0,
+          backgroundColor: '#E0F2FE',
+          textColor: '#075985',
+          shortCode: '',
+          icon: '',
+        });
     setErrors({});
     setConfirmArchive(false);
-  }, [isOpen, row]);
+  }, [isOpen, row, units]);
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
@@ -49,6 +70,11 @@ export default function OTShiftFormModal({ isOpen, row, onClose, onSave, onArchi
       location: form.location.trim(),
       timeRange: form.timeRange.trim(),
       hours: form.hours,
+      unitId: form.unitId,
+      backgroundColor: form.backgroundColor,
+      textColor: form.textColor,
+      shortCode: form.shortCode,
+      icon: form.icon,
     });
   };
 
@@ -63,9 +89,28 @@ export default function OTShiftFormModal({ isOpen, row, onClose, onSave, onArchi
     >
       <div className="space-y-4">
         <Input label={t('common:lateSchedule.form.title', { defaultValue: isRtl ? 'اسم الشفت' : 'Shift title' })} value={form.title} error={errors.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+        <label className="block text-sm font-medium text-text-primary">
+          <span className="mb-1.5 block">{isRtl ? 'الوحدة' : 'Unit'}</span>
+          <select
+            className="input-field min-h-11"
+            value={form.unitId || ''}
+            onChange={(event) => {
+              const unit = units.find((item) => item.id === event.target.value);
+              setForm({ ...form, unitId: event.target.value, location: unit?.name || form.location });
+            }}
+          >
+            {units.filter((unit) => !unit.archived).map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+          </select>
+        </label>
         <Input label={t('common:lateSchedule.form.location', { defaultValue: isRtl ? 'الموقع' : 'Location' })} value={form.location} error={errors.location} onChange={(event) => setForm({ ...form, location: event.target.value })} />
         <Input label={t('common:lateSchedule.form.timeRange', { defaultValue: isRtl ? 'الوقت' : 'Time range' })} value={form.timeRange} error={errors.timeRange} placeholder="17:00-21:00" dir="ltr" onChange={(event) => setForm({ ...form, timeRange: event.target.value })} />
         <Input label={t('common:lateSchedule.form.hours', { defaultValue: isRtl ? 'الساعات' : 'Hours' })} value={form.hours || ''} error={errors.hours} type="number" min="0.5" step="0.5" onChange={(event) => setForm({ ...form, hours: Number(event.target.value) })} />
+        <div className="grid grid-cols-2 gap-3">
+          <Input label={isRtl ? 'الكود المختصر' : 'Short code'} value={form.shortCode || ''} onChange={(event) => setForm({ ...form, shortCode: event.target.value })} />
+          <Input label={isRtl ? 'الأيقونة' : 'Icon'} value={form.icon || ''} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
+          <Input label={isRtl ? 'لون الخلفية' : 'Background color'} type="color" value={form.backgroundColor || '#E0F2FE'} onChange={(event) => setForm({ ...form, backgroundColor: event.target.value })} />
+          <Input label={isRtl ? 'لون النص' : 'Text color'} type="color" value={form.textColor || '#075985'} onChange={(event) => setForm({ ...form, textColor: event.target.value })} />
+        </div>
 
         {row && onArchive && (
           <div className="rounded-xl border border-danger/30 bg-danger/5 p-3">

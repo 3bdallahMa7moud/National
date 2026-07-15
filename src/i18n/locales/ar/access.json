@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "title": "صلاحيات الموظف",
+    "subtitle": "اختر قالب صلاحيات آمنًا، ثم خصص صلاحيات الموظف بشكل مستقل.",
+    "template": "قالب الصلاحيات",
+    "templates": {
+      "standard": "قياسي",
+      "view_only": "عرض فقط",
+      "coordinator": "منسق"
+    },
+    "rosterLink": "الموظف الرسمي في الجدول",
+    "unlinked": "غير مربوط",
+    "unlinkedWarning": "يمكن للحساب عرض الصفحات المسموح بها، لكنه لا يستطيع إنشاء أو استقبال طلبات الشفتات حتى يتم ربطه بموظف رسمي واحد.",
+    "saved": "تم حفظ الصلاحيات",
+    "storageError": "تعذر حفظ الصلاحيات، وما زالت الإعدادات السابقة فعالة.",
+    "duplicateLink": "هذا الموظف الرسمي مربوط بالفعل بحساب آخر.",
+    "customized": "مخصص",
+    "inherit": "حسب القالب",
+    "enabled": "مسموح",
+    "disabled": "غير مسموح",
+    "items": {
+      "schedule.own.view": "عرض جدول الموظف",
+      "schedule.department.view": "عرض جدول القسم",
+      "schedule.ot.own.view": "عرض OT الخاص بالموظف",
+      "schedule.ot.department.view": "عرض OT للقسم",
+      "schedule.exchange.create": "إنشاء طلبات تبديل الشفتات",
+      "schedule.replace.create": "إنشاء طلبات استبدال الشفت",
+      "schedule.requests.respond": "الرد على الطلبات الواردة",
+      "schedule.requests.cancelOwn": "إلغاء الطلبات الشخصية المعلقة",
+      "schedule.own.export": "تصدير الجدول الشخصي",
+      "schedule.calendar.sync": "مزامنة التقويم الشخصي",
+      "schedule.department.export": "تصدير جدول القسم",
+      "schedule.department.requests.view": "عرض سجل طلبات القسم"
+    }
+  }
+}

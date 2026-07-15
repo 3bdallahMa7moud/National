@@ -2,8 +2,7 @@
 // EmployeeChip - LTR employee code chip with conflict/history hints
 // ============================================================
 
-import { memo, useState, useRef, type ReactNode } from 'react';
-import { Bell, Clock3, Moon, SunMedium } from 'lucide-react';
+import { memo, useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { getShiftChipStyle } from './getShiftChipClasses';
@@ -14,6 +13,8 @@ interface EmployeeChipProps {
   assignment: Assignment;
   /** Row default when assignment has no colorKey override */
   rowColorKey: ShiftColorKey;
+  rowBackgroundColor?: string;
+  rowTextColor?: string;
   fullName?: string;
   shiftLabel: string;
   timeRange: string;
@@ -22,25 +23,19 @@ interface EmployeeChipProps {
   day: number;
   monthLabel: string;
   isHighlighted: boolean;
-  colorblindMode?: boolean;
   historyEntries?: AuditEntry[];
+  /** Employee-facing mode: keep shift details, but never expose audit or edit actions. */
+  readOnly?: boolean;
   suppressPopover?: boolean;
+  compact?: boolean;
   onClick?: () => void;
 }
-
-const markerIcons: Record<ShiftColorKey, ReactNode> = {
-  morning: <SunMedium className="h-3 w-3" />,
-  evening: <Clock3 className="h-3 w-3" />,
-  night: <Moon className="h-3 w-3" />,
-  onCall: <Bell className="h-3 w-3" />,
-  onCallNight: <Moon className="h-3 w-3" />,
-  overtime: <Bell className="h-3 w-3" />,
-  vacation: <Clock3 className="h-3 w-3" />,
-};
 
 function EmployeeChip({
   assignment,
   rowColorKey,
+  rowBackgroundColor,
+  rowTextColor,
   fullName,
   shiftLabel,
   timeRange,
@@ -49,16 +44,21 @@ function EmployeeChip({
   day,
   monthLabel,
   isHighlighted,
-  colorblindMode = false,
   historyEntries = [],
+  readOnly = false,
   suppressPopover = false,
+  compact = false,
   onClick,
 }: EmployeeChipProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const [showPopover, setShowPopover] = useState(false);
   const chipRef = useRef<HTMLButtonElement>(null);
 
-  const chipStyle = getShiftChipStyle(resolveAssignmentColorKey(assignment, rowColorKey));
+  const chipStyle = getShiftChipStyle(
+    resolveAssignmentColorKey(assignment, rowColorKey),
+    rowBackgroundColor,
+    rowTextColor,
+  );
   const isDraft = assignment.status === 'draft';
   const ariaLabel = `${fullName || assignment.employeeCode} - ${shiftLabel} - ${day} ${monthLabel} - ${facilityName} ${unitName}`;
   const lastHistory = historyEntries.slice(0, 3);
@@ -72,13 +72,17 @@ function EmployeeChip({
         data-employee-id={assignment.employeeId}
         onClick={(event) => {
           event.stopPropagation();
+          if (readOnly && onClick) {
+            onClick();
+            return;
+          }
           if (!suppressPopover) setShowPopover(!showPopover);
           onClick?.();
         }}
         onBlur={() => setTimeout(() => setShowPopover(false), 200)}
         className={cn(
-          'inline-flex min-w-0 items-center justify-center font-bold leading-tight border border-black/10',
-          'gap-1 rounded-[6px] px-1.5 py-[3px] text-[11px] shadow-sm',
+          'inline-flex min-w-0 items-center justify-center font-bold leading-none border',
+          compact ? 'w-full rounded-[3px] px-1 py-[1px] text-[10px] shadow-none border-black/5' : 'gap-1 rounded-[6px] px-1.5 py-[3px] text-[11px] shadow-sm border-black/10',
           'transition-all duration-150 cursor-pointer select-none hover:opacity-90',
           'focus:outline-none focus:ring-2 focus:ring-signal-cyan',
           isHighlighted && 'ring-2 ring-signal-cyan ring-offset-1 scale-105 z-10',
@@ -87,15 +91,10 @@ function EmployeeChip({
         style={{
           ...chipStyle,
           unicodeBidi: 'isolate',
-          maxWidth: 'calc(var(--matrix-day-col) - 8px)',
+          maxWidth: compact ? '100%' : 'calc(var(--matrix-day-col) - 8px)',
         }}
         aria-label={ariaLabel}
       >
-        {colorblindMode && (
-          <span className="shrink-0" aria-hidden="true">
-            {markerIcons[resolveAssignmentColorKey(assignment, rowColorKey)]}
-          </span>
-        )}
         <span className="truncate">{assignment.employeeCode}</span>
       </button>
 
@@ -122,7 +121,7 @@ function EmployeeChip({
             )}
           </div>
 
-          {lastHistory.length > 0 && (
+          {!readOnly && lastHistory.length > 0 && (
             <div className="mt-3 border-t border-border pt-2">
               <p className="mb-1.5 text-[10px] font-bold text-text-secondary">{t('schedule:employeeChip.recentChanges')}</p>
               <div className="space-y-1">
@@ -136,21 +135,23 @@ function EmployeeChip({
             </div>
           )}
 
-          <button
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={(event) => {
-              event.stopPropagation();
-              onClick?.();
-              setShowPopover(false);
-            }}
-            className={cn(
-              'mt-2.5 w-full rounded-md px-3 py-1.5 text-xs font-semibold',
-              'bg-primary-teal text-white hover:bg-primary-teal/90',
-              'transition-colors duration-150',
-            )}
-          >
-            {t('schedule:employeeChip.editAssignment')}
-          </button>
+          {!readOnly && (
+            <button
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.stopPropagation();
+                onClick?.();
+                setShowPopover(false);
+              }}
+              className={cn(
+                'mt-2.5 w-full rounded-md px-3 py-1.5 text-xs font-semibold',
+                'bg-primary-teal text-white hover:bg-primary-teal/90',
+                'transition-colors duration-150',
+              )}
+            >
+              {t('schedule:employeeChip.editAssignment')}
+            </button>
+          )}
         </div>
       )}
     </div>

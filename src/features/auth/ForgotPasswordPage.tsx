@@ -19,7 +19,8 @@ import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
-import { mockEmployeesSource } from '@/mocks/sources';
+import { mockEmployeesSource, mockNotificationsSource } from '@/mocks/sources';
+import { triggerMockDataChange } from '@/hooks/useMockData';
 import { setEmployeePassword } from '@/mocks/mockPasswordStore';
 import AuthSplitLayout, {
   AUTH_FORM_COLUMN_CLASS,
@@ -28,7 +29,7 @@ import AuthSplitLayout, {
 } from './AuthSplitLayout';
 
 /* ─── Types ─── */
-type Step = 1 | 2 | 3 | 'success';
+type Step = 1 | 2 | 3 | 'success' | 'no-email' | 'no-email-success';
 
 /* ─── Password strength helper ─── */
 function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
@@ -77,6 +78,7 @@ export default function ForgotPasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [pwError, setPwError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isRequestingReset, setIsRequestingReset] = useState(false);
 
   /* ─── OTP input refs ─── */
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -109,12 +111,19 @@ export default function ForgotPasswordPage() {
 
     setIsChecking(false);
 
-    if (!found || !found.email) {
+    if (!found) {
       setIdentifierError(
         isRtl
-          ? 'لم يتم العثور على حساب بهذا البريد الإلكتروني أو الرقم الوظيفي، أو أن البريد الإلكتروني غير مسجل.'
-          : 'No account found with this email or employee number, or no email is registered.'
+          ? 'لم يتم العثور على حساب بهذا الرقم الوظيفي أو البريد الإلكتروني.'
+          : 'No account found with this employee number or email.'
       );
+      return;
+    }
+
+    if (!found.email) {
+      setFoundEmployeeId(found.id);
+      setFoundEmployeeName(typeof found.name === 'string' ? found.name : isRtl ? found.name.ar : found.name.en);
+      setStep('no-email');
       return;
     }
 
@@ -215,6 +224,33 @@ export default function ForgotPasswordPage() {
     setEmployeePassword(foundEmployeeId, newPassword);
     setIsSaving(false);
     setStep('success');
+  };
+
+  const handleRequestAdminReset = async () => {
+    setIsRequestingReset(true);
+    await new Promise((r) => setTimeout(r, 800));
+
+    mockNotificationsSource.push({
+      id: 'notif-' + Date.now(),
+      type: 'general',
+      title: {
+        ar: 'طلب إعادة تعيين كلمة المرور',
+        en: 'Password Reset Request'
+      },
+      message: {
+        ar: `الموظف ${foundEmployeeName} يطلب إعادة تعيين كلمة المرور الخاصة به.`,
+        en: `Employee ${foundEmployeeName} has requested a password reset.`
+      },
+      isRead: false,
+      isUrgent: true,
+      actionUrl: '/admin/employees',
+      createdAt: new Date().toISOString()
+    });
+
+    triggerMockDataChange();
+
+    setIsRequestingReset(false);
+    setStep('no-email-success');
   };
 
   /* ─── Password strength ─── */
@@ -320,7 +356,7 @@ export default function ForgotPasswordPage() {
           </div>
 
           {/* Step indicator */}
-          {step !== 'success' && (
+          {(step === 1 || step === 2 || step === 3) && (
             <div className="flex items-center justify-between gap-1">
               {steps.map((s, i) => {
                 const isDone = currentStepNum > s.num;
@@ -643,6 +679,80 @@ export default function ForgotPasswordPage() {
                 onClick={() => navigate('/login')}
               >
                 {isRtl ? 'الذهاب لتسجيل الدخول' : 'Go to Login'}
+              </Button>
+            </div>
+          )}
+
+          {/* ═══ STEP: No Email ═══ */}
+          {step === 'no-email' && (
+            <div className="card !p-6 text-center space-y-5">
+              <div className="flex justify-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <AlertCircle className="h-8 w-8" />
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold text-text-primary">
+                  {isRtl ? 'لا يوجد بريد إلكتروني مسجل' : 'No Email Registered'}
+                </h2>
+                <p className="mt-2 text-sm text-text-secondary leading-6">
+                  {isRtl
+                    ? `مرحباً ${foundEmployeeName}، حسابك غير مرتبط ببريد إلكتروني حالياً. يمكنك طلب إعادة تعيين كلمة المرور من مسؤول النظام، وسيقوم بإعادتها للرقم الافتراضي (123456).`
+                    : `Hi ${foundEmployeeName}, your account is not linked to an email. You can request a password reset from your admin, who will reset it to the default (123456).`}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 pt-2">
+                <Button
+                  className="w-full"
+                  onClick={handleRequestAdminReset}
+                  loading={isRequestingReset}
+                  icon={<ShieldCheck className="h-4 w-4" />}
+                >
+                  {isRtl ? 'إرسال طلب لمسؤول النظام' : 'Send Request to Admin'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setStep(1)}
+                  disabled={isRequestingReset}
+                >
+                  {isRtl ? 'رجوع' : 'Back'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ STEP: No Email Success ═══ */}
+          {step === 'no-email-success' && (
+            <div className="card !p-8 text-center space-y-5">
+              <div className="flex justify-center">
+                <div className="relative flex h-20 w-20 items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-emerald-500/10 animate-ping" />
+                  <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/30">
+                    <CheckCircle2 className="h-8 w-8 text-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold text-text-primary">
+                  {isRtl ? 'تم إرسال الطلب بنجاح!' : 'Request Sent Successfully!'}
+                </h2>
+                <p className="mt-2 text-sm text-text-secondary leading-6">
+                  {isRtl
+                    ? 'تم إرسال إشعار إلى مسؤول النظام. يرجى المتابعة معه أو المحاولة لاحقاً باستخدام كلمة المرور الافتراضية (123456) بعد إعادة تعيينها.'
+                    : 'A notification has been sent to the admin. Please follow up or try logging in later with the default password (123456) after it is reset.'}
+                </p>
+              </div>
+
+              <Button
+                className="w-full mt-4"
+                icon={<ArrowLeft className="h-4 w-4" />}
+                onClick={() => navigate('/login')}
+              >
+                {isRtl ? 'العودة لتسجيل الدخول' : 'Back to Login'}
               </Button>
             </div>
           )}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import {
   mockEmployeesSource,
@@ -17,10 +17,22 @@ import {
   resolveShift,
 } from '@/mocks/resolveMockData';
 
+export function triggerMockDataChange() {
+  window.dispatchEvent(new Event('mock-data-changed'));
+}
+
 export function useMockData() {
   const { language } = useLanguage();
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const handler = () => setTick((t) => t + 1);
+    window.addEventListener('mock-data-changed', handler);
+    return () => window.removeEventListener('mock-data-changed', handler);
+  }, []);
 
   return useMemo(() => {
+    void tick;
     const employees = mockEmployeesSource.map((e) => resolveEmployee(e, language));
     const departments = mockDepartmentsSource.map((d) => resolveDepartment(d, language));
     const notifications = mockNotificationsSource.map((n) => resolveNotification(n, language));
@@ -37,5 +49,5 @@ export function useMockData() {
       shiftTypes,
       shifts,
     };
-  }, [language]);
+  }, [language, tick]);
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { operationalAuditEntityKey } from '@/lib/operationalAudit';
 import type { OperationalAuditEntry } from '@/types/operationalAudit';
 
 interface AuditEntryDetailsDrawerProps { entry: OperationalAuditEntry | null; onClose: () => void }
@@ -50,6 +51,8 @@ export default function AuditEntryDetailsDrawer({ entry, onClose }: AuditEntryDe
   }, [entry, onClose]);
 
   if (!entry) return null;
+  const entityKey = operationalAuditEntityKey(entry);
+  const entityLabel = entityKey ? t(entityKey) : entry.entityLabel;
   return (
     <div className="fixed inset-0 z-50">
       <button type="button" aria-label={t('audit.details.close')} onClick={onClose} className="absolute inset-0 bg-black/40" />
@@ -59,7 +62,7 @@ export default function AuditEntryDetailsDrawer({ entry, onClose }: AuditEntryDe
           <button ref={closeRef} type="button" onClick={onClose} aria-label={t('audit.details.close')} className="flex min-h-11 min-w-11 items-center justify-center rounded-btn text-text-secondary hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"><X className="h-5 w-5" aria-hidden="true" /></button>
         </div>
         <div className="space-y-5 py-5">
-          <div><p className="text-xs font-medium text-text-secondary">{t('audit.details.entity')}</p><p className="mt-1 font-semibold text-text-primary">{entry.entityLabel}</p><p className="mt-1 font-mono text-xs text-text-secondary">{entry.entityId}</p></div>
+          <div><p className="text-xs font-medium text-text-secondary">{t('audit.details.entity')}</p><p className="mt-1 font-semibold text-text-primary">{entityLabel}</p><p className="mt-1 font-mono text-xs text-text-secondary">{entry.entityId}</p></div>
           <dl className="grid grid-cols-2 gap-4 rounded-card bg-surface-muted p-4 text-sm">
             <div><dt className="text-xs text-text-secondary">{t('audit.details.actor')}</dt><dd className="mt-1 font-medium text-text-primary">{entry.actorName}</dd></div>
             <div><dt className="text-xs text-text-secondary">{t('audit.details.action')}</dt><dd className="mt-1 font-medium text-text-primary">{t(`audit.actions.${entry.action}`)}</dd></div>
