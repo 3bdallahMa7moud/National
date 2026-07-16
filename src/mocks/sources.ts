@@ -547,7 +547,7 @@ export function persistMockEmployeesSource(): { ok: true } | { ok: false; messag
   try {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY, JSON.stringify({
-        version: 1,
+        version: 2,
         employees: mockEmployeesSource,
       } satisfies PersistedMockEmployeeAccounts));
     }

@@ -201,7 +201,7 @@ function makeState(
       return { ok: false, reason: 'storage_error', message };
     }
     try {
-      storage?.setItem(EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({ version: 1, profiles } satisfies EmployeeAccessPersistedState));
+      storage?.setItem(EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({ version: 2, profiles } satisfies EmployeeAccessPersistedState));
     } catch {
       auditResult?.rollback?.();
       set({ storageError: 'Unable to save employee permissions.' });
@@ -310,7 +310,7 @@ function makeState(
     reloadFromStorage: () => set({ profiles: readInitialProfiles(storage, options.seedSubjects), storageError: null }),
     clearForTests: () => {
       try {
-        storage?.setItem(EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({ version: 1, profiles: {} } satisfies EmployeeAccessPersistedState));
+        storage?.setItem(EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({ version: 2, profiles: {} } satisfies EmployeeAccessPersistedState));
       } catch {
         // Test reset still clears in-memory state when persistence is unavailable.
       }
