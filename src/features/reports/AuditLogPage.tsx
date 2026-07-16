@@ -3,6 +3,7 @@ import { Archive, Eye, FilePlus2, RefreshCw, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AuditEntryDetailsDrawer from './AuditEntryDetailsDrawer';
 import AuditLogFilters from './AuditLogFilters';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import Card from '@/components/ui/Card';
 import { buildUnifiedOperationalAudit, filterAuditEntries, operationalAuditEntityKey } from '@/lib/operationalAudit';
 import { cn } from '@/lib/utils';
@@ -69,27 +70,29 @@ export default function AuditLogPage() {
         ))}
       </div>
 
-      <Card padding={false} className="overflow-hidden">
-        {filteredEntries.length === 0 ? (
-          <div className="px-5 py-14 text-center"><p className="font-medium text-text-primary">{t('audit.noResults')}</p><p className="mt-1 text-sm text-text-secondary">{t('audit.noResultsHint')}</p></div>
-        ) : (
-          <ol className="divide-y divide-border/60">
-            {filteredEntries.map((entry) => (
-              <li key={entry.id} data-testid="audit-entry" className="px-4 py-4 transition-colors hover:bg-hover sm:px-5">
-                <div className="flex items-start gap-3">
-                  <span className={cn('mt-0.5 rounded-full px-2.5 py-1 text-[11px] font-semibold', actionTone[entry.action])}>{t(`audit.actions.${entry.action}`)}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary">{entityLabel(entry)}</p>
-                    <p className="mt-1 text-xs text-text-secondary">{entry.actorName} · {t(`audit.modules.${entry.module}`)}</p>
-                    <time className="mt-1 block text-xs text-text-secondary" dateTime={entry.timestamp}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.timestamp))}</time>
+      <ErrorBoundary level="section" invalidateQueries>
+        <Card padding={false} className="overflow-hidden">
+          {filteredEntries.length === 0 ? (
+            <div className="px-5 py-14 text-center"><p className="font-medium text-text-primary">{t('audit.noResults')}</p><p className="mt-1 text-sm text-text-secondary">{t('audit.noResultsHint')}</p></div>
+          ) : (
+            <ol className="divide-y divide-border/60">
+              {filteredEntries.map((entry) => (
+                <li key={entry.id} data-testid="audit-entry" className="px-4 py-4 transition-colors hover:bg-hover sm:px-5">
+                  <div className="flex items-start gap-3">
+                    <span className={cn('mt-0.5 rounded-full px-2.5 py-1 text-[11px] font-semibold', actionTone[entry.action])}>{t(`audit.actions.${entry.action}`)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-text-primary">{entityLabel(entry)}</p>
+                      <p className="mt-1 text-xs text-text-secondary">{entry.actorName} · {t(`audit.modules.${entry.module}`)}</p>
+                      <time className="mt-1 block text-xs text-text-secondary" dateTime={entry.timestamp}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.timestamp))}</time>
+                    </div>
+                    <button type="button" onClick={() => setSelectedEntry(entry)} aria-label={t('audit.details.view', { entity: entityLabel(entry) })} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-btn text-primary hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary/30"><Eye className="h-4 w-4" aria-hidden="true" /></button>
                   </div>
-                  <button type="button" onClick={() => setSelectedEntry(entry)} aria-label={t('audit.details.view', { entity: entityLabel(entry) })} className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-btn text-primary hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary/30"><Eye className="h-4 w-4" aria-hidden="true" /></button>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </Card>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+      </ErrorBoundary>
 
       <AuditEntryDetailsDrawer entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
     </div>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import PublishedScheduleSurface, { type PublishedScheduleTab } from './PublishedScheduleSurface';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import PublishedScheduleExportActions from './PublishedScheduleExportActions';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -99,17 +100,19 @@ export default function DepartmentSchedulePage() {
         </div>
       </Card>
 
-      <PublishedScheduleSurface
-        tab={activeTab}
-        year={year}
-        month={month}
-        matrix={matrix}
-        otTable={otTable}
-        roster={roster}
-        highlightedEmployeeId={access?.scheduleEmployeeId}
-        emptyScheduleText={t('publishedTables.noSchedule')}
-        emptyOTText={t('publishedTables.noOT')}
-      />
+      <ErrorBoundary level="section" invalidateQueries>
+        <PublishedScheduleSurface
+          tab={activeTab}
+          year={year}
+          month={month}
+          matrix={matrix}
+          otTable={otTable}
+          roster={roster}
+          highlightedEmployeeId={access?.scheduleEmployeeId}
+          emptyScheduleText={t('publishedTables.noSchedule')}
+          emptyOTText={t('publishedTables.noOT')}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

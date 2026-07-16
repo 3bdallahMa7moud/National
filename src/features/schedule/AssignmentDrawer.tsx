@@ -80,21 +80,21 @@ function AssignmentDrawer({
   // ── codeToId lookup ─────────────────────────────────────────
   const codeToId = useMemo(() => {
     const map = new Map<string, string>();
-    if (!data) return map;
+    if (!data || !data.facilities) return map;
     for (const facility of data.facilities)
-      for (const unit of facility.units)
-        for (const row of unit.rows)
-          for (const day of Object.keys(row.cellsByDay))
-            for (const a of row.cellsByDay[Number(day)])
-              map.set(a.employeeCode, a.employeeId);
-    legend.forEach((e) => { if (!map.has(e.code)) map.set(e.code, e.employeeId); });
+      for (const unit of facility?.units || [])
+        for (const row of unit?.rows || [])
+          for (const day of Object.keys(row?.cellsByDay || {}))
+            for (const a of (row.cellsByDay[Number(day)] || []))
+              if (a?.employeeCode) map.set(a.employeeCode, a.employeeId);
+    (legend || []).forEach((e) => { if (e?.code && !map.has(e.code)) map.set(e.code, e.employeeId); });
     return map;
   }, [data, legend]);
 
   // ── Validation ───────────────────────────────────────────────
   const validate = useCallback(
     (code: string): ValidateResult => {
-      if (!cell || !data) return { ok: true };
+      if (!cell || !data || !data.facilities) return { ok: true };
       return validateAssignment(data, {
         facilityId: cell.facilityId,
         unitId: cell.unitId,
@@ -175,18 +175,18 @@ function AssignmentDrawer({
       const others = new Set(
         slots.filter((s, i) => i !== index && s !== null) as string[],
       );
-      return legend.filter((e) => !others.has(e.code));
+      return (legend || []).filter((e) => e?.code && !others.has(e.code));
     },
     [legend, slots],
   );
 
   const activeRow = useMemo(() => {
-    if (!cell) return undefined;
+    if (!cell || !data || !data.facilities) return undefined;
     return data.facilities
-      .find((facility) => facility.id === cell.facilityId)
-      ?.units.find((unit) => unit.id === cell.unitId)
-      ?.rows.find((row) => row.id === cell.rowId);
-  }, [cell, data.facilities]);
+      .find((facility) => facility?.id === cell.facilityId)
+      ?.units?.find((unit) => unit?.id === cell.unitId)
+      ?.rows?.find((row) => row?.id === cell.rowId);
+  }, [cell, data]);
 
   if (!isOpen || !cell) return null;
 

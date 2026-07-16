@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import Card from '@/components/ui/Card';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
@@ -45,62 +46,64 @@ export default function DepartmentsPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {departments.map((dept) => {
-          const manager = employees.find((e) => e.id === dept.managerId);
-          const deptEmployees = employees.filter((e) => e.departmentId === dept.id);
+      <ErrorBoundary level="section" invalidateQueries>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {departments.map((dept) => {
+            const manager = employees.find((e) => e.id === dept.managerId);
+            const deptEmployees = employees.filter((e) => e.departmentId === dept.id);
 
-          return (
-            <Card key={dept.id} className="flex flex-col justify-between">
-              <div>
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-btn bg-primary-50 text-primary">
-                    <Building2 className="h-5 w-5" />
+            return (
+              <Card key={dept.id} className="flex flex-col justify-between">
+                <div>
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-btn bg-primary-50 text-primary">
+                      <Building2 className="h-5 w-5" />
+                    </div>
+                    <button
+                      onClick={() => handleEdit(dept)}
+                      className="p-1.5 rounded-lg hover:bg-hover text-text-secondary transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
                   </div>
+
+                  <h3 className="mb-1 text-base font-semibold text-text-primary">{dept.name}</h3>
+                  <p className="mb-5 line-clamp-2 text-xs leading-5 text-text-secondary">{dept.description}</p>
+
+                  <div className="space-y-3 border-t border-border pt-4 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-text-secondary flex items-center gap-2">
+                        <UserCheck className="w-4 h-4 text-primary" />
+                        {t('departments:departmentHead')}
+                      </span>
+                      <span className="font-medium text-text-primary">{manager?.name || t('common:labels.notSpecified')}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-text-secondary flex items-center gap-2">
+                        <Users className="w-4 h-4 text-success" />
+                        {t('departments:employeeCount')}
+                      </span>
+                      <Badge variant="success">{t('departments:employeeCountBadge', { count: deptEmployees.length })}</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center justify-between border-t border-border pt-4 text-xs text-text-secondary">
+                  <span>{t('common:labels.code')}: {dept.id.toUpperCase()}</span>
                   <button
-                    onClick={() => handleEdit(dept)}
-                    className="p-1.5 rounded-lg hover:bg-hover text-text-secondary transition-colors"
+                    type="button"
+                    onClick={() => navigate(`/admin/employees?departmentId=${dept.id}`)}
+                    className="text-primary font-medium cursor-pointer hover:underline focus:outline-none"
                   >
-                    <Edit2 className="w-4 h-4" />
+                    {t('departments:viewTeam')}
                   </button>
                 </div>
-
-                <h3 className="mb-1 text-base font-semibold text-text-primary">{dept.name}</h3>
-                <p className="mb-5 line-clamp-2 text-xs leading-5 text-text-secondary">{dept.description}</p>
-
-                <div className="space-y-3 border-t border-border pt-4 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-text-secondary flex items-center gap-2">
-                      <UserCheck className="w-4 h-4 text-primary" />
-                      {t('departments:departmentHead')}
-                    </span>
-                    <span className="font-medium text-text-primary">{manager?.name || t('common:labels.notSpecified')}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-text-secondary flex items-center gap-2">
-                      <Users className="w-4 h-4 text-success" />
-                      {t('departments:employeeCount')}
-                    </span>
-                    <Badge variant="success">{t('departments:employeeCountBadge', { count: deptEmployees.length })}</Badge>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center justify-between border-t border-border pt-4 text-xs text-text-secondary">
-                <span>{t('common:labels.code')}: {dept.id.toUpperCase()}</span>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/admin/employees?departmentId=${dept.id}`)}
-                  className="text-primary font-medium cursor-pointer hover:underline focus:outline-none"
-                >
-                  {t('departments:viewTeam')}
-                </button>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+              </Card>
+            );
+          })}
+        </div>
+      </ErrorBoundary>
 
       <Modal
         isOpen={editModal}

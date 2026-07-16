@@ -19,35 +19,39 @@ type FieldErrors = Partial<Record<keyof OTShiftInput, string>>;
 export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onSave, onArchive }: OTShiftFormModalProps) {
   const { t, i18n } = useTranslation(['common']);
   const isRtl = i18n.language === 'ar';
-  const [form, setForm] = useState<OTShiftInput>({ title: '', location: '', timeRange: '', hours: 0, backgroundColor: '#E0F2FE', textColor: '#075985' });
+  const [form, setForm] = useState<OTShiftInput>({ title: '', location: '', timeRange: '17:00-21:00', hours: 4, backgroundColor: '#E0F2FE', textColor: '#075985' });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [confirmArchive, setConfirmArchive] = useState(false);
 
+  const TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
+
   useEffect(() => {
     if (!isOpen) return;
+    const activeUnits = units.filter((unit) => !unit.archived);
+    const firstUnit = activeUnits[0];
     setForm(row
       ? {
-          unitId: row.unitId,
-          title: row.title,
-          location: row.location,
-          timeRange: row.timeRange,
-          hours: row.hours,
-          backgroundColor: row.backgroundColor || '#E0F2FE',
-          textColor: row.textColor || '#075985',
-          shortCode: row.shortCode || '',
-          icon: row.icon || '',
-        }
+        unitId: row.unitId,
+        title: row.title,
+        location: row.location || firstUnit?.name || 'General OT',
+        timeRange: row.timeRange || '17:00-21:00',
+        hours: row.hours || 4,
+        backgroundColor: row.backgroundColor || '#E0F2FE',
+        textColor: row.textColor || '#075985',
+        shortCode: row.shortCode || '',
+        icon: row.icon || '',
+      }
       : {
-          unitId: units.find((unit) => !unit.archived)?.id,
-          title: '',
-          location: units.find((unit) => !unit.archived)?.name || 'General OT',
-          timeRange: '',
-          hours: 0,
-          backgroundColor: '#E0F2FE',
-          textColor: '#075985',
-          shortCode: '',
-          icon: '',
-        });
+        unitId: firstUnit?.id,
+        title: '',
+        location: firstUnit?.name || 'General OT',
+        timeRange: '17:00-21:00',
+        hours: 4,
+        backgroundColor: '#E0F2FE',
+        textColor: '#075985',
+        shortCode: '',
+        icon: '',
+      });
     setErrors({});
     setConfirmArchive(false);
   }, [isOpen, row, units]);
@@ -55,9 +59,7 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
     if (!form.title.trim()) next.title = t('common:lateSchedule.validation.titleRequired', { defaultValue: isRtl ? 'اسم الشفت مطلوب' : 'Shift title is required' });
-    if (!form.location.trim()) next.location = t('common:lateSchedule.validation.locationRequired', { defaultValue: isRtl ? 'الموقع مطلوب' : 'Location is required' });
     if (!form.timeRange.trim()) next.timeRange = t('common:lateSchedule.validation.timeRequired', { defaultValue: isRtl ? 'الوقت مطلوب' : 'Time range is required' });
-    if (!Number.isFinite(form.hours) || form.hours <= 0) next.hours = t('common:lateSchedule.validation.hoursInvalid', { defaultValue: isRtl ? 'يجب أن تكون الساعات أكبر من صفر' : 'Hours must be greater than zero' });
     return next;
   };
 
@@ -65,18 +67,21 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
     const nextErrors = validate();
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
+    const selectedUnitName = units.find((u) => u.id === form.unitId)?.name || form.title.trim() || 'General OT';
     onSave({
       title: form.title.trim(),
-      location: form.location.trim(),
-      timeRange: form.timeRange.trim(),
+      location: selectedUnitName,
+      timeRange: form.timeRange.trim() || '17:00-21:00',
       hours: form.hours,
       unitId: form.unitId,
       backgroundColor: form.backgroundColor,
       textColor: form.textColor,
-      shortCode: form.shortCode,
-      icon: form.icon,
+      shortCode: '',
+      icon: '',
     });
   };
+
+  const [fromTime = '17:00', toTime = '21:00'] = form.timeRange.split('-');
 
   return (
     <Modal
@@ -92,7 +97,7 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
         <label className="block text-sm font-medium text-text-primary">
           <span className="mb-1.5 block">{isRtl ? 'الوحدة' : 'Unit'}</span>
           <select
-            className="input-field min-h-11"
+            className="input-field min-h-11 w-full"
             value={form.unitId || ''}
             onChange={(event) => {
               const unit = units.find((item) => item.id === event.target.value);
@@ -102,12 +107,66 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
             {units.filter((unit) => !unit.archived).map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
           </select>
         </label>
-        <Input label={t('common:lateSchedule.form.location', { defaultValue: isRtl ? 'الموقع' : 'Location' })} value={form.location} error={errors.location} onChange={(event) => setForm({ ...form, location: event.target.value })} />
-        <Input label={t('common:lateSchedule.form.timeRange', { defaultValue: isRtl ? 'الوقت' : 'Time range' })} value={form.timeRange} error={errors.timeRange} placeholder="17:00-21:00" dir="ltr" onChange={(event) => setForm({ ...form, timeRange: event.target.value })} />
-        <Input label={t('common:lateSchedule.form.hours', { defaultValue: isRtl ? 'الساعات' : 'Hours' })} value={form.hours || ''} error={errors.hours} type="number" min="0.5" step="0.5" onChange={(event) => setForm({ ...form, hours: Number(event.target.value) })} />
+
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-1.5">
+            {t('common:lateSchedule.form.timeRange', { defaultValue: isRtl ? 'الوقت' : 'Time range' })}
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <span className="block text-xs font-medium text-text-secondary mb-1">{isRtl ? 'من (From)' : 'From'}</span>
+              <select
+                className="input-field min-h-11 w-full"
+                value={fromTime || '17:00'}
+                onChange={(event) => {
+                  const newStart = event.target.value;
+                  const currentEnd = toTime || '21:00';
+                  const startHour = parseInt(newStart.split(':')[0], 10);
+                  const endHour = parseInt(currentEnd.split(':')[0], 10);
+                  let diff = endHour - startHour;
+                  if (diff <= 0) diff += 24;
+                  setForm({
+                    ...form,
+                    timeRange: `${newStart}-${currentEnd}`,
+                    hours: diff > 0 ? diff : form.hours,
+                  });
+                }}
+              >
+                {TIME_OPTIONS.map((time) => (
+                  <option key={time} value={time}>{time}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <span className="block text-xs font-medium text-text-secondary mb-1">{isRtl ? 'إلى (To)' : 'To'}</span>
+              <select
+                className="input-field min-h-11 w-full"
+                value={toTime || '21:00'}
+                onChange={(event) => {
+                  const newEnd = event.target.value;
+                  const currentStart = fromTime || '17:00';
+                  const startHour = parseInt(currentStart.split(':')[0], 10);
+                  const endHour = parseInt(newEnd.split(':')[0], 10);
+                  let diff = endHour - startHour;
+                  if (diff <= 0) diff += 24;
+                  setForm({
+                    ...form,
+                    timeRange: `${currentStart}-${newEnd}`,
+                    hours: diff > 0 ? diff : form.hours,
+                  });
+                }}
+              >
+                {TIME_OPTIONS.map((time) => (
+                  <option key={time} value={time}>{time}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {errors.timeRange && <p className="mt-1 text-xs text-danger">{errors.timeRange}</p>}
+        </div>
+
+
         <div className="grid grid-cols-2 gap-3">
-          <Input label={isRtl ? 'الكود المختصر' : 'Short code'} value={form.shortCode || ''} onChange={(event) => setForm({ ...form, shortCode: event.target.value })} />
-          <Input label={isRtl ? 'الأيقونة' : 'Icon'} value={form.icon || ''} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
           <Input label={isRtl ? 'لون الخلفية' : 'Background color'} type="color" value={form.backgroundColor || '#E0F2FE'} onChange={(event) => setForm({ ...form, backgroundColor: event.target.value })} />
           <Input label={isRtl ? 'لون النص' : 'Text color'} type="color" value={form.textColor || '#075985'} onChange={(event) => setForm({ ...form, textColor: event.target.value })} />
         </div>

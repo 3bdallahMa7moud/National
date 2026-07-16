@@ -54,9 +54,6 @@ export default function EmployeeScheduleWeek({ days, locale, onSelect }: Props) 
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-3 text-xs text-inherit opacity-80">
                       <span dir="ltr">{occurrence.timeRange}</span>
-                      {occurrence.category === 'ot' && (
-                        <span>{t('employeeView.hours', { count: occurrence.hours })}</span>
-                      )}
                     </div>
                   </button>
                 ))}

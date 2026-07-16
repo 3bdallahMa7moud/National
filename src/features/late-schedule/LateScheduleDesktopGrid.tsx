@@ -61,7 +61,7 @@ export default function LateScheduleDesktopGrid({
               <th className="sticky start-0 z-40 min-w-72 border-b border-e border-border bg-surface px-4 py-3 text-start shadow-[4px_0_8px_-8px_rgb(var(--color-shadow))] rtl:shadow-[-4px_0_8px_-8px_rgb(var(--color-shadow))]">
                 <span className="block text-sm font-bold">{isRtl ? 'تفاصيل الشفت' : 'Shift details'}</span>
                 <span className="mt-0.5 block text-[11px] font-medium text-text-secondary">
-                  {isRtl ? 'الموقع · الوقت · الساعات' : 'Location · time · hours'}
+                  {isRtl ? 'الموقع · الوقت' : 'Location · time'}
                 </span>
               </th>
               {days.map((day) => {
@@ -95,10 +95,8 @@ export default function LateScheduleDesktopGrid({
                     <div className="min-w-0">
                       <span className="block truncate text-sm font-bold text-text-primary" title={row.title}>{row.title}</span>
                       <span className="mt-1 block truncate text-[11px] font-medium text-text-secondary">{row.location}</span>
-                      <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
-                        <span dir="ltr">{row.timeRange}</span>
-                        <span aria-hidden="true">·</span>
-                        <span dir="ltr">{row.hours}h</span>
+                      <span className="mt-1 block text-[11px] text-text-secondary" dir="ltr">
+                        {row.timeRange}
                       </span>
                     </div>
                     {canEdit && (

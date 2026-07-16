@@ -40,7 +40,7 @@ export default function OTStructureControl(props: OTStructureControlProps) {
         .map((row) => ({
           id: row.id,
           label: row.title,
-          meta: `${row.timeRange} · ${row.hours}h`,
+          meta: row.timeRange,
           color: row.backgroundColor,
         })),
     })), [props.rows, props.units]);
@@ -104,7 +104,7 @@ export default function OTStructureControl(props: OTStructureControlProps) {
                         <span className="h-7 w-7 rounded-lg border border-border" style={{ backgroundColor: row.backgroundColor || '#E0F2FE' }} aria-hidden="true" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-bold text-text-primary">{row.icon ? `${row.icon} ` : ''}{row.title}</p>
-                          <p className="text-xs text-text-secondary" dir="ltr">{row.timeRange} · {row.hours}h</p>
+                          <p className="text-xs text-text-secondary" dir="ltr">{row.timeRange}</p>
                         </div>
                         <Button size="sm" variant="ghost" onClick={() => props.onEditRow(row.id)} aria-label={isRtl ? `تعديل ${row.title}` : `Edit ${row.title}`}><Edit3 className="h-4 w-4" /></Button>
                         {deleteTarget === row.id ? (

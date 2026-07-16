@@ -15,7 +15,7 @@ import {
 import { useOperationalAuditStore } from './operationalAuditStore';
 import { mockEmployeesSource } from '@/mocks/sources';
 
-export const EMPLOYEE_ACCESS_STORAGE_KEY = 'ngh_employee_access_v1';
+export const EMPLOYEE_ACCESS_STORAGE_KEY = 'ngh_employee_access_v2';
 
 export interface EmployeeAccessStorage {
   getItem(key: string): string | null;
@@ -23,7 +23,7 @@ export interface EmployeeAccessStorage {
 }
 
 interface EmployeeAccessPersistedState {
-  version: 1;
+  version: 2;
   profiles: Record<string, EmployeeAccessProfile>;
 }
 
@@ -104,7 +104,7 @@ function readProfiles(storage: EmployeeAccessStorage | null): Record<string, Emp
   if (!storage) return {};
   try {
     const parsed = JSON.parse(storage.getItem(EMPLOYEE_ACCESS_STORAGE_KEY) || 'null') as Partial<EmployeeAccessPersistedState> | null;
-    if (!parsed || parsed.version !== 1 || !parsed.profiles || typeof parsed.profiles !== 'object') return {};
+    if (!parsed || parsed.version !== 2 || !parsed.profiles || typeof parsed.profiles !== 'object') return {};
     const profiles: Record<string, EmployeeAccessProfile> = {};
     for (const value of Object.values(parsed.profiles)) {
       const profile = normalizeProfile(value);
@@ -123,7 +123,13 @@ function readInitialProfiles(
   const profiles = readProfiles(storage);
   let changed = false;
   for (const subject of seedSubjects) {
-    if (profiles[subject.accountId]) continue;
+    if (profiles[subject.accountId]) {
+      if (!profiles[subject.accountId].scheduleEmployeeId && subject.scheduleEmployeeId) {
+        profiles[subject.accountId].scheduleEmployeeId = subject.scheduleEmployeeId;
+        changed = true;
+      }
+      continue;
+    }
     profiles[subject.accountId] = {
       accountId: subject.accountId,
       departmentId: subject.departmentId,
@@ -138,7 +144,7 @@ function readInitialProfiles(
   }
   if (changed) {
     try {
-      storage?.setItem(EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({ version: 1, profiles } satisfies EmployeeAccessPersistedState));
+      storage?.setItem(EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({ version: 2, profiles } satisfies EmployeeAccessPersistedState));
     } catch {
       // Defaults remain available in memory; the first explicit admin mutation reports persistence failures.
     }

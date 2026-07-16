@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ArrowLeftRight, Check, Clock3, Plus, RefreshCw, X } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Modal from '@/components/ui/Modal';
@@ -12,6 +13,7 @@ import { mockEmployeesSource } from '@/mocks/sources';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
+import { ShiftRequestCreateWizard } from './components/ShiftRequestCreateWizard';
 import { effectivePermissions, resolveEffectiveEmployeeAccess, type EmployeeAccessProfile } from '@/types/employeeAccess';
 import type {
   ShiftAssignmentRef,
@@ -195,18 +197,20 @@ export default function ShiftRequestsPage() {
         </label>
       </div>
 
-      {visible.length === 0 ? (
-        <Card className="py-12 text-center text-sm text-text-secondary">
-          <RefreshCw className="mx-auto mb-3 h-8 w-8 text-text-muted" />
-          {t('shiftRequests:empty')}
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {visible.map((request) => (
-            <RequestCard key={request.id} request={request} user={user} report={report} />
-          ))}
-        </div>
-      )}
+      <ErrorBoundary level="section" invalidateQueries>
+        {visible.length === 0 ? (
+          <Card className="py-12 text-center text-sm text-text-secondary">
+            <RefreshCw className="mx-auto mb-3 h-8 w-8 text-text-muted" />
+            {t('shiftRequests:empty')}
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {visible.map((request) => (
+              <RequestCard key={request.id} request={request} user={user} report={report} />
+            ))}
+          </div>
+        )}
+      </ErrorBoundary>
 
       <ShiftRequestCreateModal
         isOpen={createOpen}
@@ -421,10 +425,6 @@ export function ShiftRequestCreateModal({
   const user = useAuthStore((state) => state.user);
   const profiles = useEmployeeAccessStore((state) => state.profiles);
   const createRequest = useShiftRequestStore((state) => state.createRequest);
-  const [type, setType] = useState<ShiftRequestType>('exchange');
-  const [requesterKey, setRequesterKey] = useState('');
-  const [recipientAccountId, setRecipientAccountId] = useState('');
-  const [offeredKey, setOfferedKey] = useState('');
 
   const currentAccess = user ? resolveEffectiveEmployeeAccess(user, profiles[user.id]) : null;
   const requesterAssignments = currentAccess?.scheduleEmployeeId
@@ -457,104 +457,31 @@ export function ShiftRequestCreateModal({
     && profile.accountId !== user?.id
     && effectivePermissions(profile.templateId, profile.overrides)['schedule.requests.respond'],
   ), [candidateProfiles, currentAccess?.departmentId, user?.id]);
-  const requesterAssignment = requesterAssignments.find((assignment) => assignmentRequestKey(assignment) === requesterKey)
-    ?? initialAssignment;
-  const recipientProfile = candidateProfiles[recipientAccountId];
-  const offeredAssignments = useMemo(() => {
-    if (!recipientProfile?.scheduleEmployeeId || !requesterAssignment) return [];
-    return listPublishedAssignmentsForEmployee(recipientProfile.scheduleEmployeeId, recipientProfile.departmentId, requesterAssignment.source)
-      .filter((assignment) => new Date(assignment.startsAt).getTime() > Date.now());
-  }, [recipientProfile, requesterAssignment]);
-
-  useEffect(() => {
-    if (initialAssignment) setRequesterKey(assignmentRequestKey(initialAssignment));
-  }, [initialAssignment]);
-
-  useEffect(() => {
-    if (!canExchange && canReplace) setType('replace');
-    if (!canReplace && canExchange) setType('exchange');
-  }, [canExchange, canReplace]);
 
   if (!user) return null;
-  const offeredAssignment = offeredAssignments.find((assignment) => assignmentRequestKey(assignment) === offeredKey);
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t('shiftRequests:newRequest')} size="lg">
-      {!currentAccess?.linked ? (
+  if (!currentAccess?.linked) {
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title={t('shiftRequests:newRequest')} size="lg">
         <p className="rounded-card border border-warning/30 bg-warning-50 p-4 text-sm text-text-primary">{t('shiftRequests:form.unlinked')}</p>
-      ) : requesterAssignments.length === 0 && !initialAssignment ? (
-        <p className="rounded-card bg-surface-muted p-4 text-sm text-text-secondary">{t('shiftRequests:form.noShifts')}</p>
-      ) : (
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!requesterAssignment || !recipientProfile) return;
-            onResult(createRequest({
-              type,
-              requesterAccountId: user.id,
-              requesterName: user.name,
-              recipientAccountId,
-              recipientName: accountName(recipientAccountId),
-              requesterAssignment,
-              offeredAssignment: type === 'exchange' ? offeredAssignment : undefined,
-            }));
-          }}
-        >
-          <SelectField label={t('shiftRequests:form.type')} value={type} onChange={(value) => { setType(value as ShiftRequestType); setOfferedKey(''); }}>
-            {canExchange && <option value="exchange">{t('shiftRequests:type.exchange')}</option>}
-            {canReplace && <option value="replace">{t('shiftRequests:type.replace')}</option>}
-          </SelectField>
-          <SelectField label={t('shiftRequests:form.yourShift')} value={requesterKey} onChange={(value) => { setRequesterKey(value); setOfferedKey(''); }} disabled={Boolean(initialAssignment)}>
-            <option value="">{t('shiftRequests:form.choose')}</option>
-            {requesterAssignments.map((assignment) => (
-              <option key={assignmentRequestKey(assignment)} value={assignmentRequestKey(assignment)}>{displayAssignment(assignment)}</option>
-            ))}
-          </SelectField>
-          <SelectField label={t('shiftRequests:form.recipient')} value={recipientAccountId} onChange={(value) => { setRecipientAccountId(value); setOfferedKey(''); }}>
-            <option value="">{t('shiftRequests:form.choose')}</option>
-            {recipients.map((profile) => <option key={profile.accountId} value={profile.accountId}>{accountName(profile.accountId)}</option>)}
-          </SelectField>
-          {type === 'exchange' && (
-            <SelectField label={t('shiftRequests:form.theirShift')} value={offeredKey} onChange={setOfferedKey}>
-              <option value="">{t('shiftRequests:form.choose')}</option>
-              {offeredAssignments.map((assignment) => (
-                <option key={assignmentRequestKey(assignment)} value={assignmentRequestKey(assignment)}>{displayAssignment(assignment)}</option>
-              ))}
-            </SelectField>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={onClose}>{t('shiftRequests:form.cancel')}</Button>
-            <Button type="submit" disabled={!requesterAssignment || !recipientProfile || (type === 'exchange' && !offeredAssignment)}>
-              {t('shiftRequests:form.submit')}
-            </Button>
-          </div>
-        </form>
-      )}
-    </Modal>
-  );
-}
+      </Modal>
+    );
+  }
 
-function SelectField({
-  label,
-  value,
-  onChange,
-  disabled,
-  children,
-}: {
-  label: string;
-  value: string;
-  onChange(value: string): void;
-  disabled?: boolean;
-  children: React.ReactNode;
-}) {
   return (
-    <label className="block text-sm font-medium text-text-primary">
-      <span className="mb-1.5 block">{label}</span>
-      <select className="input-field w-full" value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
-        {children}
-      </select>
-    </label>
+    <ShiftRequestCreateWizard
+      isOpen={isOpen}
+      onClose={onClose}
+      onResult={onResult}
+      canExchange={canExchange}
+      canReplace={canReplace}
+      requesterAssignments={requesterAssignments}
+      recipients={recipients}
+      candidateProfiles={candidateProfiles}
+      user={user}
+      initialAssignment={initialAssignment ?? null}
+      createRequest={createRequest}
+    />
   );
 }
 

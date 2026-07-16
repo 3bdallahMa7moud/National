@@ -168,7 +168,6 @@ interface ScheduleMatrixState {
   copyCurrentTable: (actorName?: string) => ScheduleAdminMutationResult;
   pasteCopiedTable: (actorName?: string) => ScheduleAdminMutationResult;
   resetCurrentMonth: (actorName?: string) => ScheduleAdminMutationResult;
-  deleteCurrentMonth: (actorName?: string) => ScheduleAdminMutationResult;
   currentMonthStatus: () => ScheduleMonthStatus;
 
   expandedCellsView: boolean;
@@ -410,10 +409,22 @@ function normalizeScheduleMonthStatuses(value: unknown): Record<string, Schedule
 
 function readStoredMatrices(): Record<string, ScheduleMatrixData> {
   const storage = browserStorage();
-  if (!storage) return {};
+  const defaultMatrices = () => {
+    const july = generateScheduleMatrixMock(2026, 6);
+    const august = generateScheduleMatrixMock(2026, 7);
+    linkShiftDefinitionIds(july);
+    synchronizeRowsWithShiftDefinitions(july);
+    linkShiftDefinitionIds(august);
+    synchronizeRowsWithShiftDefinitions(august);
+    return {
+      '2026-07': july,
+      '2026-08': august,
+    };
+  };
+  if (!storage) return defaultMatrices();
   try {
     const value = JSON.parse(storage.getItem(SCHEDULE_MATRIX_HISTORY_STORAGE_KEY) || '{}');
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return defaultMatrices();
     const matrices = Object.fromEntries(
       Object.entries(value).filter(([, matrix]) => {
         if (!matrix || typeof matrix !== 'object') return false;
@@ -424,23 +435,32 @@ function readStoredMatrices(): Record<string, ScheduleMatrixData> {
           && Array.isArray(candidate.vacations);
       }),
     ) as Record<string, ScheduleMatrixData>;
+    if (Object.keys(matrices).length === 0) return defaultMatrices();
     for (const matrix of Object.values(matrices)) {
       linkShiftDefinitionIds(matrix);
       synchronizeRowsWithShiftDefinitions(matrix);
     }
     return matrices;
   } catch {
-    return {};
+    return defaultMatrices();
   }
 }
 
 function readAdminControl(): Omit<PersistedScheduleAdminControl, 'version'> {
-  const fallback = { monthStatuses: {}, versionsByMonth: {}, deletedMonths: [] };
+  const fallback = {
+    monthStatuses: { '2026-07': 'published' as const, '2026-08': 'published' as const },
+    versionsByMonth: {},
+    deletedMonths: [],
+  };
   try {
     const parsed = JSON.parse(browserStorage()?.getItem(SCHEDULE_ADMIN_CONTROL_STORAGE_KEY) || 'null') as Partial<PersistedScheduleAdminControl> | null;
     if (!parsed || parsed.version !== 1) return fallback;
     return {
-      monthStatuses: normalizeScheduleMonthStatuses(parsed.monthStatuses),
+      monthStatuses: {
+        '2026-07': 'published' as const,
+        '2026-08': 'published' as const,
+        ...normalizeScheduleMonthStatuses(parsed.monthStatuses),
+      },
       versionsByMonth: parsed.versionsByMonth && typeof parsed.versionsByMonth === 'object' ? parsed.versionsByMonth : {},
       deletedMonths: Array.isArray(parsed.deletedMonths) ? parsed.deletedMonths : [],
     };
@@ -918,7 +938,8 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       brushEmployeeCodes: [],
       monthStatuses: get().monthStatuses[key]
         ? get().monthStatuses
-        : { ...get().monthStatuses, [key]: stored ? 'published' : 'draft' },
+        : { ...get().monthStatuses, [key]: stored ? 'published' : 'published' },
+      matricesByMonth: stored || isDeleted || draft ? get().matricesByMonth : { ...get().matricesByMonth, [key]: cloneData(data) },
     });
   },
 
@@ -2118,29 +2139,6 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     return { ok: true };
   },
 
-  deleteCurrentMonth: (actorName) => {
-    const state = get();
-    if (!state.data) return { ok: false, reason: 'not_found' };
-    const key = matrixMonthKey(state.data);
-    const versionsByMonth = addMonthVersion(state.versionsByMonth, key, state.data, actorName, 'delete');
-    const matricesByMonth = { ...state.matricesByMonth };
-    delete matricesByMonth[key];
-    const data = deletedMonthShell(state.year, state.month);
-    set({
-      data,
-      matricesByMonth,
-      snapshot: JSON.stringify(data),
-      draftCellKeys: [],
-      undoStack: [],
-      selectedCells: [],
-      versionsByMonth,
-      deletedMonths: [...new Set([...state.deletedMonths, key])],
-      monthStatuses: { ...state.monthStatuses, [key]: 'draft' },
-    });
-    if (get().storageError) return { ok: false, reason: 'storage_error', message: get().storageError! };
-    recordScheduleAdminAudit(actorName, 'delete', state, 'Delete schedule month', key, 'Deleted');
-    return { ok: true };
-  },
 
   isDirty: () => get().draftCellKeys.length > 0,
   pendingDraftCount: () => get().draftCellKeys.length,
@@ -2182,9 +2180,16 @@ useScheduleMatrixStore.subscribe((state, previousState) => {
   let nextDrafts = state.draftsByMonth;
   if (state.data) {
     const key = matrixMonthKey(state.data);
-    if (state.draftCellKeys.length > 0 && !state.deletedMonths.includes(key)) {
+    let nextDeletedMonths = state.deletedMonths;
+    if (state.draftCellKeys.length > 0 && state.deletedMonths.includes(key)) {
+      nextDeletedMonths = state.deletedMonths.filter((item) => item !== key);
+      isSchedulePersistenceRollback = true;
+      useScheduleMatrixStore.setState({ deletedMonths: nextDeletedMonths });
+      isSchedulePersistenceRollback = false;
+    }
+    if (state.draftCellKeys.length > 0 && !nextDeletedMonths.includes(key)) {
       nextDrafts = { ...state.draftsByMonth, [key]: cloneData(state.data) };
-    } else if (state.draftsByMonth[key] && (state.matricesByMonth[key] || state.deletedMonths.includes(key))) {
+    } else if (state.draftsByMonth[key] && (state.matricesByMonth[key] || nextDeletedMonths.includes(key))) {
       nextDrafts = { ...state.draftsByMonth };
       delete nextDrafts[key];
     }

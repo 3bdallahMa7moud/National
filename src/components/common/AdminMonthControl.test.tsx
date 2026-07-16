@@ -13,7 +13,6 @@ const baseProps = {
   onPaste: () => ({ ok: true }),
   onClear: () => ({ ok: true }),
   onReset: () => ({ ok: true }),
-  onDelete: () => ({ ok: true }),
 };
 
 describe('AdminMonthControl', () => {
@@ -24,7 +23,7 @@ describe('AdminMonthControl', () => {
     expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear assignments' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reset table' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete month' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete month' })).not.toBeInTheDocument();
     expect(screen.queryByText(/copy previous/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/lock|unlock/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/template|saved version/i)).not.toBeInTheDocument();

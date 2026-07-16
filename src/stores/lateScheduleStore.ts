@@ -41,6 +41,7 @@ interface CreateLateScheduleStoreOptions {
   storage?: LateScheduleStorage;
   migrationRoster?: OTRosterEmployee[];
   initialRowsByMonth?: Record<string, OTShiftRow[]>;
+  initialUnitsByMonth?: Record<string, OTUnit[]>;
   initialYear?: number;
   initialMonth?: number;
   initialNotice?: string;
@@ -96,7 +97,6 @@ export interface LateScheduleState {
   pasteCopiedTable(actorName?: string): OTTableOperationResult;
   clearAllAssignments(actorName?: string): OTAdminMutationResult;
   resetCurrentMonth(actorName?: string): OTAdminMutationResult;
-  deleteCurrentMonth(actorName?: string): OTAdminMutationResult;
   publishCurrentMonth(actorName?: string): OTAdminMutationResult;
   currentMonthStatus(): OTMonthStatus;
   reloadFromStorage(): void;
@@ -139,6 +139,69 @@ function slug(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g, '-').replace(/^-|-$/g, '') || 'general-ot';
 }
 
+const DEFAULT_OT_BRANCHES = ['KASCH', 'KAMC', 'WHH'] as const;
+
+function normalizeAndEnsureBranchUnits(units: OTUnit[], rows?: OTShiftRow[], ensureDefaultBranches = false): OTUnit[] {
+  const nextUnits: OTUnit[] = [];
+  const canonicalIdByName = new Map<string, string>();
+  const seenNames = new Set<string>();
+
+  for (const unit of units) {
+    const key = unit.name.trim().toLocaleLowerCase();
+    if (seenNames.has(key)) {
+      const canonicalId = canonicalIdByName.get(key);
+      if (canonicalId && rows) {
+        for (const row of rows) {
+          if (row.unitId === unit.id) {
+            row.unitId = canonicalId;
+          }
+        }
+      }
+    } else {
+      seenNames.add(key);
+      canonicalIdByName.set(key, unit.id);
+      nextUnits.push(unit);
+    }
+  }
+
+  if (ensureDefaultBranches || nextUnits.length === 0) {
+    for (const branchName of DEFAULT_OT_BRANCHES) {
+      const branchKey = branchName.toLocaleLowerCase();
+      if (!seenNames.has(branchKey)) {
+        nextUnits.push({
+          id: `ot-unit-${branchName.toLowerCase()}`,
+          name: branchName,
+        });
+        seenNames.add(branchKey);
+      }
+    }
+  }
+
+  return nextUnits;
+}
+
+function normalizeStateBranchUnits(state: InitialLateScheduleState, ensureDefaultBranches = true): InitialLateScheduleState {
+  const allMonthKeys = new Set([
+    ...Object.keys(state.rowsByMonth || {}),
+    ...Object.keys(state.unitsByMonth || {}),
+    ...Object.keys(state.publishedRowsByMonth || {}),
+    ...Object.keys(state.publishedUnitsByMonth || {}),
+    formatLateScheduleMonthKey(state.year, state.month),
+  ]);
+
+  for (const key of allMonthKeys) {
+    const rows = state.rowsByMonth[key] || [];
+    const units = state.unitsByMonth[key] || unitsForRows(rows);
+    state.unitsByMonth[key] = normalizeAndEnsureBranchUnits(units, rows, ensureDefaultBranches);
+
+    const publishedRows = state.publishedRowsByMonth[key] || [];
+    const publishedUnits = state.publishedUnitsByMonth[key] || unitsForRows(publishedRows);
+    state.publishedUnitsByMonth[key] = normalizeAndEnsureBranchUnits(publishedUnits, publishedRows, ensureDefaultBranches);
+  }
+
+  return state;
+}
+
 function unitsForRows(rows: OTShiftRow[]): OTUnit[] {
   const units: OTUnit[] = [];
   const byName = new Map<string, OTUnit>();
@@ -153,8 +216,7 @@ function unitsForRows(rows: OTShiftRow[]): OTUnit[] {
     }
     row.unitId = row.unitId || unit.id;
   }
-  if (units.length === 0) units.push({ id: 'ot-unit-general', name: 'General OT' });
-  return units;
+  return normalizeAndEnsureBranchUnits(units, rows, false);
 }
 
 function clearOTAssignments(rows: OTShiftRow[]): number {
@@ -470,7 +532,9 @@ function readInitialState(options: CreateLateScheduleStoreOptions): InitialLateS
     warnings: [],
   };
 
-  if (!storage) return fallback;
+  const ensureDefaultBranches = !options.initialRowsByMonth && !options.initialUnitsByMonth;
+
+  if (!storage) return normalizeStateBranchUnits(fallback, ensureDefaultBranches);
 
   let recoveredFromInvalidPayload = false;
   try {
@@ -495,7 +559,7 @@ function readInitialState(options: CreateLateScheduleStoreOptions): InitialLateS
           notice: parsed.notice,
           warnings: migrated.warnings.map((code) => ({ kind: 'unresolved_employee', code })),
         };
-        return state;
+        return normalizeStateBranchUnits(state, false);
       } catch {
         recoveredFromInvalidPayload = true;
       }
@@ -529,7 +593,7 @@ function readInitialState(options: CreateLateScheduleStoreOptions): InitialLateS
           addStorageRecoveryWarning(state);
         }
         if (recoveredFromInvalidPayload) addStorageRecoveryWarning(state);
-        return state;
+        return normalizeStateBranchUnits(state, false);
       } catch {
         recoveredFromInvalidPayload = true;
       }
@@ -556,7 +620,7 @@ function readInitialState(options: CreateLateScheduleStoreOptions): InitialLateS
           }
         }
         if (recoveredFromInvalidPayload) addStorageRecoveryWarning(state);
-        return state;
+        return normalizeStateBranchUnits(state, false);
       } catch {
         recoveredFromInvalidPayload = true;
       }
@@ -585,14 +649,14 @@ function readInitialState(options: CreateLateScheduleStoreOptions): InitialLateS
         addStorageRecoveryWarning(migratedState);
       }
       if (recoveredFromInvalidPayload) addStorageRecoveryWarning(migratedState);
-      return migratedState;
+      return normalizeStateBranchUnits(migratedState, false);
     }
   } catch {
     recoveredFromInvalidPayload = true;
   }
 
   if (recoveredFromInvalidPayload) addStorageRecoveryWarning(fallback);
-  return fallback;
+  return normalizeStateBranchUnits(fallback, ensureDefaultBranches);
 }
 
 function persistedSnapshot(state: LateScheduleState): LateSchedulePersistedState {
@@ -658,9 +722,11 @@ function createLateScheduleState(
     const state = get();
     const key = formatLateScheduleMonthKey(state.year, state.month);
     const rowsByMonth = { ...state.rowsByMonth, [key]: rows };
+    const deletedMonths = state.deletedMonths.filter((item) => item !== key);
     set({
       rows,
       rowsByMonth,
+      deletedMonths,
       departmentIdsByMonth: { ...state.departmentIdsByMonth, [key]: state.departmentIdsByMonth[key] || 'dept-1' },
       monthStatuses: { ...state.monthStatuses, [key]: 'draft' },
       warnings: deriveLateScheduleWarnings(rowsByMonth, state.warnings),
@@ -716,9 +782,11 @@ function createLateScheduleState(
   const commitUnits = (units: OTUnit[]) => {
     const state = get();
     const key = formatLateScheduleMonthKey(state.year, state.month);
+    const deletedMonths = state.deletedMonths.filter((item) => item !== key);
     set({
       units,
       unitsByMonth: { ...state.unitsByMonth, [key]: units },
+      deletedMonths,
       departmentIdsByMonth: { ...state.departmentIdsByMonth, [key]: state.departmentIdsByMonth[key] || 'dept-1' },
       monthStatuses: { ...state.monthStatuses, [key]: 'draft' },
     });
@@ -729,11 +797,13 @@ function createLateScheduleState(
     const state = get();
     const key = formatLateScheduleMonthKey(state.year, state.month);
     const rowsByMonth = { ...state.rowsByMonth, [key]: rows };
+    const deletedMonths = state.deletedMonths.filter((item) => item !== key);
     set({
       rows,
       units,
       rowsByMonth,
       unitsByMonth: { ...state.unitsByMonth, [key]: units },
+      deletedMonths,
       departmentIdsByMonth: { ...state.departmentIdsByMonth, [key]: state.departmentIdsByMonth[key] || 'dept-1' },
       monthStatuses: { ...state.monthStatuses, [key]: 'draft' },
       warnings: deriveLateScheduleWarnings(rowsByMonth, state.warnings),
@@ -747,7 +817,7 @@ function createLateScheduleState(
     rowsByMonth: initial.rowsByMonth,
     rows: initial.deletedMonths.includes(activeKey) ? [] : initial.rowsByMonth[activeKey] ?? [],
     unitsByMonth: initial.unitsByMonth,
-    units: initial.deletedMonths.includes(activeKey) ? [] : initial.unitsByMonth[activeKey] ?? [{ id: 'ot-unit-general', name: 'General OT' }],
+    units: initial.deletedMonths.includes(activeKey) ? [] : normalizeAndEnsureBranchUnits(initial.unitsByMonth[activeKey] ?? unitsForRows(initial.rowsByMonth[activeKey] ?? []), initial.rowsByMonth[activeKey] ?? []),
     publishedRowsByMonth: initial.publishedRowsByMonth,
     publishedUnitsByMonth: initial.publishedUnitsByMonth,
     departmentIdsByMonth: initial.departmentIdsByMonth,
@@ -783,7 +853,7 @@ function createLateScheduleState(
         notice: incoming.notice,
         warnings: incoming.warnings,
         rows: incoming.deletedMonths.includes(key) ? [] : incoming.rowsByMonth[key] ?? [],
-        units: incoming.deletedMonths.includes(key) ? [] : incoming.unitsByMonth[key] ?? [{ id: 'ot-unit-general', name: 'General OT' }],
+        units: incoming.deletedMonths.includes(key) ? [] : normalizeAndEnsureBranchUnits(incoming.unitsByMonth[key] ?? unitsForRows(incoming.rowsByMonth[key] ?? []), incoming.rowsByMonth[key] ?? []),
         storageError: null,
       });
     },
@@ -796,7 +866,7 @@ function createLateScheduleState(
         year: normalized.year,
         month: normalized.month,
         rows: state.deletedMonths.includes(key) ? [] : state.rowsByMonth[key] ?? [],
-        units: state.deletedMonths.includes(key) ? [] : state.unitsByMonth[key] ?? [{ id: 'ot-unit-general', name: 'General OT' }],
+        units: state.deletedMonths.includes(key) ? [] : normalizeAndEnsureBranchUnits(state.unitsByMonth[key] ?? unitsForRows(state.rowsByMonth[key] ?? []), state.rowsByMonth[key] ?? []),
       });
       persist(state);
     },
@@ -821,13 +891,18 @@ function createLateScheduleState(
     addRow: (input, actorName) => {
       const validation = validateRowInput(input);
       if (!validation.ok) return validation;
+      let currentUnits = get().units;
+      if (currentUnits.length === 0) {
+        currentUnits = normalizeAndEnsureBranchUnits([], []);
+        if (!commitUnits(currentUnits)) return { ok: false, reason: 'storage_error' };
+      }
       const created: OTShiftRow = {
         id: `ot-row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         title: input.title.trim(),
         titleAr: input.title.trim(),
         titleEn: input.title.trim(),
-        unitId: input.unitId || get().units[0]?.id,
-        location: input.location.trim(),
+        unitId: input.unitId || currentUnits[0]?.id || 'ot-unit-kasch',
+        location: input.location.trim() || currentUnits[0]?.name || 'KASCH',
         timeRange: input.timeRange.trim(),
         hours: input.hours,
         highlightedDays: normalizedHighlightedDays(input.highlightedDays),
@@ -1138,7 +1213,10 @@ function createLateScheduleState(
       const sourceRows = state.rowsByMonth[seedKey] ?? defaultRows;
       const sourceUnits = state.unitsByMonth[seedKey] ?? unitsForRows(cloneValue(sourceRows));
       const rows = templateRows(sourceRows);
-      const units = cloneValue(sourceUnits).map((unit) => ({ ...unit, archived: false }));
+      const units = normalizeAndEnsureBranchUnits(
+        cloneValue(sourceUnits).map((unit) => ({ ...unit, archived: false })),
+        rows,
+      );
       set({
         rows,
         units,
@@ -1151,35 +1229,6 @@ function createLateScheduleState(
       });
       if (!persist(state)) return { ok: false, reason: 'storage_error', message: 'Unable to save OT administration data.' };
       recordAudit(actorName, 'update', { id: key, title: 'OT month reset' }, key, 'Default layout');
-      return { ok: true };
-    },
-    deleteCurrentMonth: (actorName) => {
-      const state = get();
-      const key = formatLateScheduleMonthKey(state.year, state.month);
-      const rowsByMonth = { ...state.rowsByMonth };
-      const unitsByMonth = { ...state.unitsByMonth };
-      const publishedRowsByMonth = { ...state.publishedRowsByMonth };
-      const publishedUnitsByMonth = { ...state.publishedUnitsByMonth };
-      const departmentIdsByMonth = { ...state.departmentIdsByMonth };
-      delete rowsByMonth[key];
-      delete unitsByMonth[key];
-      delete publishedRowsByMonth[key];
-      delete publishedUnitsByMonth[key];
-      delete departmentIdsByMonth[key];
-      set({
-        rows: [],
-        units: [],
-        rowsByMonth,
-        unitsByMonth,
-        publishedRowsByMonth,
-        publishedUnitsByMonth,
-        departmentIdsByMonth,
-        versionsByMonth: withVersion(state, 'delete', actorName),
-        deletedMonths: [...new Set([...state.deletedMonths, key])],
-        monthStatuses: { ...state.monthStatuses, [key]: 'draft' },
-      });
-      if (!persist(state)) return { ok: false, reason: 'storage_error', message: 'Unable to save OT administration data.' };
-      recordAudit(actorName, 'delete', { id: key, title: 'OT month' }, key, 'Deleted');
       return { ok: true };
     },
     publishCurrentMonth: (actorName) => {

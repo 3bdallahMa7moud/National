@@ -6,6 +6,20 @@
   "status": {
     "active": "Active"
   },
+  "errorState": {
+    "title": "An error occurred while rendering",
+    "message": "We encountered an unexpected error. Please try refreshing or resetting this section.",
+    "routeTitle": "Page load error",
+    "routeMessage": "We encountered an error while loading this page. You can try refreshing or return to the dashboard.",
+    "sectionTitle": "Section loading error",
+    "sectionMessage": "This section failed to load properly without affecting the rest of the page.",
+    "errorDetails": "Technical error details",
+    "showDetails": "Show error details",
+    "hideDetails": "Hide error details",
+    "goHome": "Go to Dashboard",
+    "reloadPage": "Reload Page",
+    "resetSection": "Retry Loading"
+  },
   "actions": {
     "cancel": "Cancel",
     "save": "Save",
@@ -105,10 +119,6 @@
   "emptyState": {
     "title": "No data",
     "message": "No items found to display"
-  },
-  "errorState": {
-    "title": "An error occurred",
-    "message": "We couldn't load the data. Please try again"
   },
   "audit": {
     "actions": {

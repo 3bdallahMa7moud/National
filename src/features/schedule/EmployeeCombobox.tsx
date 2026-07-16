@@ -34,16 +34,16 @@ export function EmployeeCombobox({
   const listRef = useRef<HTMLDivElement>(null);
 
   const selectedEmployee = useMemo(() => {
-    return value ? legend.find((e) => e.code === value) || null : null;
+    return value ? (legend || []).find((e) => e?.code === value) || null : null;
   }, [value, legend]);
 
   const filtered = useMemo(() => {
     const query = search.toLowerCase().trim();
-    if (!query) return legend;
-    return legend.filter(
+    if (!query) return legend || [];
+    return (legend || []).filter(
       (employee) =>
-        employee.code.toLowerCase().includes(query) ||
-        employee.fullName.toLowerCase().includes(query),
+        (employee?.code || '').toLowerCase().includes(query) ||
+        (employee?.fullName || '').toLowerCase().includes(query),
     );
   }, [legend, search]);
 

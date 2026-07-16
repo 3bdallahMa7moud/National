@@ -3,6 +3,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock3 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PublishedScheduleSurface, { type PublishedScheduleTab } from './PublishedScheduleSurface';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import PublishedScheduleExportActions from './PublishedScheduleExportActions';
 import { ShiftRequestCreateModal } from '@/features/shift-requests/ShiftRequestsPage';
 import Button from '@/components/ui/Button';
@@ -169,19 +170,21 @@ export default function EmployeeSchedulePage() {
         </div>
       </Card>
 
-      <PublishedScheduleSurface
-        tab={activeTab}
-        year={year}
-        month={month}
-        matrix={matrix}
-        otTable={otTable}
-        roster={ownRoster}
-        highlightedEmployeeId={employeeId}
-        emptyScheduleText={t('publishedTables.noSchedule')}
-        emptyOTText={t('publishedTables.noOT')}
-        onScheduleAssignmentClick={canCreateRequest ? openScheduleRequest : undefined}
-        onOTAssignmentClick={canCreateRequest ? openOTRequest : undefined}
-      />
+      <ErrorBoundary level="section" invalidateQueries>
+        <PublishedScheduleSurface
+          tab={activeTab}
+          year={year}
+          month={month}
+          matrix={matrix}
+          otTable={otTable}
+          roster={ownRoster}
+          highlightedEmployeeId={employeeId}
+          emptyScheduleText={t('publishedTables.noSchedule')}
+          emptyOTText={t('publishedTables.noOT')}
+          onScheduleAssignmentClick={canCreateRequest ? openScheduleRequest : undefined}
+          onOTAssignmentClick={canCreateRequest ? openOTRequest : undefined}
+        />
+      </ErrorBoundary>
       <ShiftRequestCreateModal
         isOpen={Boolean(requestAssignment)}
         initialAssignment={requestAssignment || undefined}

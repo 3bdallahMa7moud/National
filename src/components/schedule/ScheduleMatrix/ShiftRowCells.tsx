@@ -3,6 +3,7 @@
 // ============================================================
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Maximize2, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -379,8 +380,8 @@ function ShiftRowCells({
         );
       })}
 
-      {previewCell && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-in fade-in duration-150" onClick={() => setPreviewCell(null)}>
+      {previewCell && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-xs animate-in fade-in duration-150" onClick={() => setPreviewCell(null)}>
           <div className="w-80 rounded-2xl border border-border bg-surface p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
               <div>
@@ -406,7 +407,8 @@ function ShiftRowCells({
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

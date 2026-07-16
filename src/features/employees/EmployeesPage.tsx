@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import DataTable from '@/components/common/DataTable';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -329,7 +330,9 @@ export default function EmployeesPage() {
             className="input-field ps-10"
           />
         </div>
-        <DataTable columns={columns} data={filtered} keyExtractor={(e) => e.id} />
+        <ErrorBoundary level="section" invalidateQueries>
+          <DataTable columns={columns} data={filtered} keyExtractor={(e) => e.id} />
+        </ErrorBoundary>
       </Card>
 
       {/* ═══ Add Employee Modal ═══ */}

@@ -80,6 +80,41 @@
     "cancel": "Cancel",
     "submit": "Send request"
   },
+  "wizard": {
+    "title": "Shift Request Wizard",
+    "steps": {
+      "typeAndRecipient": "Type & Employee",
+      "yourShift": "Your Shift",
+      "theirShift": "Their Shift",
+      "review": "Review & Confirm"
+    },
+    "typeLabel": "Select request type",
+    "exchangeDesc": "Exchange your published shift with a colleague's published shift",
+    "replaceDesc": "Request a colleague to cover or replace your published shift",
+    "recipientLabel": "Select recipient employee",
+    "searchRecipient": "Search employee by name...",
+    "branchLabel": "Branch (Facility)",
+    "shiftTypeLabel": "Shift Type",
+    "dateLabel": "Select Date from Calendar or List",
+    "shiftsCount": "({count} shifts)",
+    "noShiftsInBranch": "No available shifts in this branch for this employee.",
+    "noShiftsForType": "No available shifts for this shift type.",
+    "selectedSummary": "Your selected shift",
+    "selectedTheirSummary": "Their selected shift",
+    "preview": {
+      "type": "Type",
+      "recipient": "Colleague",
+      "yourShift": "Your Shift",
+      "theirShift": "Their Shift",
+      "notSelected": "Not selected"
+    },
+    "reviewTitle": "Review Request Details Before Submission",
+    "reviewDesc": "Verify dates, branches, and shift types before sending the request for approval.",
+    "next": "Next",
+    "back": "Back",
+    "submit": "Confirm & Send Request",
+    "weekdays": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  },
   "messages": {
     "saved": "Request updated successfully.",
     "created": "Request sent to the employee.",

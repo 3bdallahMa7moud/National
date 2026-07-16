@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Trans } from 'react-i18next';
 import RouteGuard from '@/features/auth/RouteGuard';
+import RouteErrorFallback from '@/components/common/RouteErrorFallback';
 
 const AppShell = lazy(() => import('@/layouts/AppShell'));
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
@@ -41,10 +42,12 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: lazyElement(<LoginPage />),
+    errorElement: <RouteErrorFallback />,
   },
   {
     path: '/forgot-password',
     element: lazyElement(<ForgotPasswordPage />),
+    errorElement: <RouteErrorFallback />,
   },
   {
     path: '/403',
@@ -53,13 +56,16 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <RouteGuard />,
+    errorElement: <RouteErrorFallback />,
     children: [
       {
         element: lazyElement(<AppShell />),
+        errorElement: <RouteErrorFallback />,
         children: [
           // مسارات المسؤول (Admin Routes)
           {
             element: <RouteGuard allowedRoles={['admin']} />,
+            errorElement: <RouteErrorFallback />,
             children: [
               {
                 path: 'admin/dashboard',
@@ -98,6 +104,7 @@ export const router = createBrowserRouter([
           // مسارات الموظف والعامة المشتركة (Employee Routes)
           {
             element: <RouteGuard allowedRoles={['employee']} />,
+            errorElement: <RouteErrorFallback />,
             children: [
               {
                 path: 'employee/dashboard',

@@ -97,7 +97,7 @@ function SideDrawer({ drawer, onClose }: SideDrawerProps) {
                         {theme.fullLabel}
                       </p>
                       <p className="text-xs text-text-secondary dark:text-text-muted">
-                        {entry.startTime} — {entry.endTime} ({entry.hours}h)
+                        {entry.startTime} — {entry.endTime}
                       </p>
                     </div>
                   </div>

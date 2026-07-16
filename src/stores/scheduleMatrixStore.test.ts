@@ -230,17 +230,6 @@ describe('scheduleMatrixStore administration', () => {
     expect(useScheduleMatrixStore.getState().matricesByMonth['2026-07']).toBeTruthy();
   });
 
-  it('creates a recovery version before deleting and does not regenerate the deleted month', () => {
-    const beforeFacilities = useScheduleMatrixStore.getState().data!.facilities.length;
-    expect(beforeFacilities).toBeGreaterThan(0);
-    expect(useScheduleMatrixStore.getState().deleteCurrentMonth('Admin').ok).toBe(true);
-    expect(useScheduleMatrixStore.getState().data!.facilities).toEqual([]);
-    expect(useScheduleMatrixStore.getState().versionsByMonth['2026-07']).toHaveLength(1);
-
-    useScheduleMatrixStore.getState().loadMonth(6, 2026);
-    expect(useScheduleMatrixStore.getState().data!.facilities).toEqual([]);
-    expect(useScheduleMatrixStore.getState().versionsByMonth['2026-07'][0].data.facilities).toHaveLength(beforeFacilities);
-  });
 
   it('copies a schedule snapshot into another month with assignments, colors and manual order intact', () => {
     const state = useScheduleMatrixStore.getState();

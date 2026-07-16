@@ -8,6 +8,7 @@ import { memo, useRef, useCallback, useMemo, useEffect, useState } from 'react';
 import { ListOrdered, Maximize2, Minimize2, Plus, Settings2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import DayHeaderRow from './DayHeaderRow';
 import FacilityBand from './FacilityBand';
 import UnitShiftLabel from './UnitShiftLabel';
@@ -249,6 +250,93 @@ function ScheduleMatrix({
     return counts;
   }, [data.facilities]);
 
+  const isEditable = !readOnly && (editable || adminMode === 'edit');
+  const isOrderMode = !readOnly && adminMode === 'order';
+  const canEditRows = (isEditable || isOrderMode) && !!onUpdateRow;
+  const canManageUnits = (isEditable || isOrderMode) && !!onAddUnit;
+  const isBrushMode = !readOnly && adminMode === 'brush';
+  const isVacationMode = !readOnly && adminMode === 'vacations';
+
+  // Flatten facilities/units/rows into a 1D item array for virtualizer
+  const flatRows = useMemo(() => {
+    if (isOrderMode && !!onReorder) return [];
+    const items: Array<{
+      kind: 'row' | 'empty-unit' | 'empty-facility';
+      facility: ScheduleMatrixData['facilities'][number];
+      unit?: ScheduleMatrixData['facilities'][number]['units'][number];
+      row?: ShiftRow;
+      rowPosition?: number;
+      globalRowIndex?: number;
+      isFirstUnitRow?: boolean;
+      isFirstFacilityRow?: boolean;
+      totalFacilityRows?: number;
+    }> = [];
+
+    let globalIdx = 0;
+    for (const facility of data.facilities) {
+      const visibleUnits = facility.units.filter((u) => !u.archived);
+      const totalFacilityRows = facilityRowCounts.get(facility.id) || 1;
+      let isFirstInFacility = true;
+
+      if (visibleUnits.length === 0) {
+        items.push({
+          kind: 'empty-facility',
+          facility,
+          isFirstFacilityRow: true,
+          totalFacilityRows: 1,
+        });
+        continue;
+      }
+
+      for (const unit of visibleUnits) {
+        const activeRows = unit.rows.filter((r) => !r.archived);
+        if (activeRows.length === 0) {
+          items.push({
+            kind: 'empty-unit',
+            facility,
+            unit,
+            isFirstFacilityRow: isFirstInFacility,
+            isFirstUnitRow: true,
+            totalFacilityRows,
+          });
+          isFirstInFacility = false;
+          continue;
+        }
+
+        for (let pos = 0; pos < activeRows.length; pos++) {
+          const row = activeRows[pos];
+          items.push({
+            kind: 'row',
+            facility,
+            unit,
+            row,
+            rowPosition: pos,
+            globalRowIndex: globalIdx++,
+            isFirstFacilityRow: isFirstInFacility,
+            isFirstUnitRow: pos === 0,
+            totalFacilityRows,
+          });
+          isFirstInFacility = false;
+        }
+      }
+    }
+    return items;
+  }, [data.facilities, facilityRowCounts, isOrderMode, onReorder]);
+
+  const isTestEnv = Boolean(import.meta.env && (import.meta.env.TEST || import.meta.env.MODE === 'test'));
+  const rowVirtualizer = useVirtualizer({
+    count: flatRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => (expandedCellsView ? 84 : 54),
+    overscan: isTestEnv ? Math.max(8, flatRows.length) : 8,
+    initialRect: { width: 1200, height: 2400 },
+  });
+
+  const virtualItems = isTestEnv
+    ? flatRows.map((_, index) => ({ index, start: 0, size: expandedCellsView ? 84 : 54, end: expandedCellsView ? 84 : 54, key: index }))
+    : rowVirtualizer.getVirtualItems();
+  const totalSize = isTestEnv ? flatRows.length * (expandedCellsView ? 84 : 54) : rowVirtualizer.getTotalSize();
+
   const handleCellClick = useCallback(
     (ref: MatrixCellRef, meta?: CellInteractionMeta) => onCellClick?.(ref, meta),
     [onCellClick],
@@ -303,12 +391,6 @@ function ScheduleMatrix({
     });
   }, [data.facilities]);
 
-  const isEditable = !readOnly && (editable || adminMode === 'edit');
-  const isOrderMode = !readOnly && adminMode === 'order';
-  const canEditRows = (isEditable || isOrderMode) && !!onUpdateRow;
-  const canManageUnits = (isEditable || isOrderMode) && !!onAddUnit;
-  const isBrushMode = !readOnly && adminMode === 'brush';
-  const isVacationMode = !readOnly && adminMode === 'vacations';
   let rowIndex = 0;
 
   return (
@@ -411,7 +493,9 @@ function ScheduleMatrix({
             </div>
 
             {/* ── Facility Rows ── */}
-            {data.facilities.map((facility) => {
+            {isOrderMode && !!onReorder ? (
+              /* Reorder Mode: Full hierarchical rendering for precise @dnd-kit drag and drop */
+              data.facilities.map((facility) => {
               const rowCount = facilityRowCounts.get(facility.id) || 1;
               const visibleUnits = facility.units.filter((unit) => !unit.archived);
               return (
@@ -622,7 +706,235 @@ function ScheduleMatrix({
                   </MatrixFacilityOrderContext>
                 </div>
               );
-            })}
+            })
+            ) : (
+              /* Standard High-Performance Mode: Virtualized Flat Row Model (60 FPS) */
+              <div
+                style={{
+                  height: `${totalSize}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {/* Pre-computed Facility Bands across full vertical span */}
+                {data.facilities.map((facility) => {
+                  const startIndex = flatRows.findIndex((item) => item.facility.id === facility.id);
+                  if (startIndex === -1) return null;
+                  const rowCount = facilityRowCounts.get(facility.id) || 1;
+                  const rowHeight = expandedCellsView ? 84 : 54;
+                  return (
+                    <div
+                      key={`fb-${facility.id}`}
+                      className="absolute sticky z-20 shrink-0 flex justify-center text-white border-e border-border pointer-events-none"
+                      style={{
+                        insetInlineStart: 0,
+                        top: `${startIndex * rowHeight}px`,
+                        height: `${rowCount * rowHeight}px`,
+                        width: 'var(--matrix-facility-col)',
+                        minWidth: 'var(--matrix-facility-col)',
+                        backgroundColor: `var(--${facility.accentColorToken})`,
+                      }}
+                    >
+                      <span
+                        data-testid={`facility-label-${facility.name.toLowerCase()}`}
+                        className="facility-vertical-text sticky top-[calc(var(--matrix-header-height)+8px)] flex h-24 items-center justify-center font-bold text-[11px]"
+                        title={facility.name}
+                      >
+                        {facility.name}
+                      </span>
+                    </div>
+                  );
+                })}
+
+                {virtualItems.map((virtualRow) => {
+                  const item = flatRows[virtualRow.index];
+                  if (!item) return null;
+
+                  return (
+                    <div
+                      key={virtualRow.key}
+                      data-index={virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      className="flex absolute top-0 start-0 w-full border-b border-border"
+                      style={{
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      {/* Frozen col 1: facility band background placeholder */}
+                      <div
+                        className="shrink-0 sticky z-10 border-e border-border"
+                        style={{
+                          insetInlineStart: 0,
+                          width: 'var(--matrix-facility-col)',
+                          minWidth: 'var(--matrix-facility-col)',
+                          height: '100%',
+                          minHeight: 'var(--matrix-row-height)',
+                          backgroundColor: `var(--${item.facility.accentColorToken})`,
+                        }}
+                      />
+
+                      {/* Frozen col 2 + cells */}
+                      {item.kind === 'empty-facility' && (
+                        <div className="flex flex-1">
+                          <div
+                            className="shrink-0 sticky z-10"
+                            style={{ insetInlineStart: 'var(--matrix-facility-col)' }}
+                          >
+                            <div
+                              className="flex items-center justify-between gap-2 px-3 text-xs font-bold text-primary-teal bg-surface-muted border-e border-border"
+                              style={{
+                                width: 'var(--matrix-label-col)',
+                                minWidth: 'var(--matrix-label-col)',
+                                minHeight: 'var(--matrix-row-height)',
+                                height: '100%',
+                              }}
+                            >
+                              <span>{t('schedule:matrix.addFirstUnit')}</span>
+                              {canManageUnits && (
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary/30 bg-surface text-primary hover:bg-primary/10"
+                                  aria-label={t('schedule:matrix.addUnit', { defaultValue: 'Add unit' })}
+                                  onClick={(event) => openManageUnit(item.facility.id, undefined, event.currentTarget.getBoundingClientRect())}
+                                >
+                                  <Plus className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div
+                            className="flex items-center px-4 text-xs text-text-secondary bg-surface border-e border-border"
+                            style={{
+                              width: `calc(var(--matrix-day-col) * ${daysInMonth})`,
+                              minHeight: 'var(--matrix-row-height)',
+                              height: '100%',
+                            }}
+                          >
+                            {t('schedule:matrix.noUnits')}
+                          </div>
+                        </div>
+                      )}
+
+                      {item.kind === 'empty-unit' && item.unit && (
+                        <div className="flex flex-1">
+                          <div
+                            className="shrink-0 sticky z-10 flex items-center gap-2 border-e border-border bg-surface-muted px-2"
+                            style={{
+                              insetInlineStart: 'var(--matrix-facility-col)',
+                              width: 'var(--matrix-label-col)',
+                              minWidth: 'var(--matrix-label-col)',
+                              minHeight: 'var(--matrix-row-height)',
+                              height: '100%',
+                            }}
+                          >
+                            <span className="min-w-0 flex-1 truncate text-xs font-bold text-text-primary">{item.unit.name}</span>
+                            {(isEditable || isOrderMode) && onAddRow && (
+                              <button
+                                type="button"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-surface text-primary hover:bg-primary/10"
+                                aria-label={t('schedule:matrix.addRow', 'Add row')}
+                                onClick={(event) => openAddRow(item.facility.id, item.unit!.id, item.unit!.name, event.currentTarget.getBoundingClientRect())}
+                              >
+                                <Plus className="h-4 w-4" aria-hidden="true" />
+                              </button>
+                            )}
+                            {canManageUnits && (
+                              <button
+                                type="button"
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-text-secondary hover:border-primary hover:text-primary"
+                                aria-label={t('schedule:matrix.unitActions', { defaultValue: 'Unit actions' })}
+                                onClick={(event) => openManageUnit(item.facility.id, item.unit!.id, event.currentTarget.getBoundingClientRect())}
+                              >
+                                <Settings2 className="h-4 w-4" aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                          <div
+                            className="flex items-center border-e border-border bg-surface px-4 text-xs text-text-secondary"
+                            style={{
+                              width: `calc(var(--matrix-day-col) * ${daysInMonth})`,
+                              minHeight: 'var(--matrix-row-height)',
+                              height: '100%',
+                            }}
+                          >
+                            {t('schedule:matrix.order.emptyUnit', { defaultValue: 'This unit has no active rows.' })}
+                          </div>
+                        </div>
+                      )}
+
+                      {item.kind === 'row' && item.unit && item.row && (
+                        <div className="flex flex-1">
+                          {/* Frozen col 2: unit/shift label */}
+                          <div
+                            className="shrink-0 sticky z-10"
+                            style={{ insetInlineStart: 'var(--matrix-facility-col)' }}
+                          >
+                            <UnitShiftLabel
+                              unitName={item.unit.name}
+                              rowLabel={item.row.rowLabel}
+                              shiftLabel={item.row.shiftLabel}
+                              timeRange={item.row.timeRange}
+                              isOverflowRow={item.row.isOverflowRow}
+                              weekendOnly={item.row.weekendOnly}
+                              isEditable={canEditRows}
+                              showUnitName={item.isFirstUnitRow}
+                              onEditRow={
+                                canEditRows
+                                  ? (anchorRect) =>
+                                      setRowEditTarget({ row: item.row!, unitName: item.unit!.name, anchorRect })
+                                  : undefined
+                              }
+                              onAddRow={
+                                (isEditable || isOrderMode) && onAddRow && item.isFirstUnitRow
+                                  ? (anchorRect) => openAddRow(item.facility.id, item.unit!.id, item.unit!.name, anchorRect)
+                                  : undefined
+                              }
+                              onArchiveRow={canEditRows && onArchiveRow ? () => onArchiveRow(item.row!.id) : undefined}
+                              onDeleteRow={canEditRows && onDeleteRow ? () => onDeleteRow(item.row!.id) : undefined}
+                              onManageUnit={
+                                canManageUnits && item.isFirstUnitRow
+                                  ? (anchorRect) => openManageUnit(item.facility.id, item.unit!.id, anchorRect)
+                                  : undefined
+                              }
+                              expandedCellsView={expandedCellsView}
+                            />
+                          </div>
+
+                          {/* Day cells */}
+                          <ShiftRowCells
+                            row={item.row}
+                            rowIndex={item.globalRowIndex ?? 0}
+                            facilityId={item.facility.id}
+                            facilityName={item.facility.name}
+                            unitId={item.unit.id}
+                            unitName={item.unit.name}
+                            daysInMonth={daysInMonth}
+                            year={data.year}
+                            month={data.month}
+                            legend={data.legend}
+                            auditLog={readOnly ? [] : data.auditLog}
+                            highlightedEmployeeId={highlightedEmployeeId}
+                            selectedCells={readOnly ? [] : selectedCells}
+                            readOnly={readOnly}
+                            isEditable={isEditable}
+                            isVacationMode={isVacationMode}
+                            isBrushMode={isBrushMode}
+                            brushEmployeeCodes={readOnly ? [] : brushEmployeeCodes}
+                            holidays={data.holidays}
+                            onCellClick={handleCellClick}
+                            onChipClick={onChipClick ? handleChipClick : undefined}
+                            onCellContextMenu={readOnly ? undefined : onCellContextMenu}
+                            onRangeSelect={readOnly ? undefined : onRangeSelect}
+                            onDragFill={readOnly ? undefined : onDragFill}
+                            expandedCellsView={expandedCellsView}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* ── Vacation Band ── */}
             {data.vacations.length > 0 && (

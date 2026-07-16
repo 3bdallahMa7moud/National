@@ -187,14 +187,56 @@ export function assignmentRequestKey(assignment: ShiftAssignmentRef): string {
   return `${assignment.source}|${assignment.monthKey}|${assignment.rowId}|${assignment.day}|${assignment.employeeId}`;
 }
 
+function resolveScheduleMatrixForMonth(monthKey: string): ScheduleMatrixData | undefined {
+  const store = useScheduleMatrixStore.getState();
+  if (store.matricesByMonth[monthKey]) return store.matricesByMonth[monthKey];
+  if (store.data && formatMonthKey(store.data.year, store.data.month) === monthKey && store.monthStatuses[monthKey] !== 'draft') {
+    return store.data;
+  }
+  return undefined;
+}
+
+function resolveAllPublishedMatrices(): ScheduleMatrixData[] {
+  const store = useScheduleMatrixStore.getState();
+  const matrices = Object.values(store.matricesByMonth);
+  if (store.data) {
+    const activeKey = formatMonthKey(store.data.year, store.data.month);
+    if (!store.matricesByMonth[activeKey] && store.monthStatuses[activeKey] !== 'draft') {
+      matrices.push(store.data);
+    }
+  }
+  return matrices;
+}
+
+function resolveOTRowsForMonth(monthKey: string): OTShiftRow[] | undefined {
+  const state = useLateScheduleStore.getState() as LateScheduleStateWithPublished;
+  if (state.publishedRowsByMonth[monthKey]) return state.publishedRowsByMonth[monthKey];
+  if (state.rows?.length && state.monthStatuses[monthKey] !== 'draft') {
+    const activeKey = formatMonthKey(state.year, state.month);
+    if (activeKey === monthKey) return state.rows;
+  }
+  return undefined;
+}
+
+function resolveAllPublishedOTMonths(): Record<string, OTShiftRow[]> {
+  const state = useLateScheduleStore.getState() as LateScheduleStateWithPublished;
+  const months = { ...state.publishedRowsByMonth };
+  if (state.rows?.length) {
+    const activeKey = formatMonthKey(state.year, state.month);
+    if (!months[activeKey] && state.monthStatuses[activeKey] !== 'draft') {
+      months[activeKey] = state.rows;
+    }
+  }
+  return months;
+}
+
 export function assignmentCellHasEmployee(assignment: ShiftAssignmentRef, employeeId: string): boolean {
   if (assignment.source === 'schedule') {
-    const matrix = useScheduleMatrixStore.getState().matricesByMonth[assignment.monthKey];
+    const matrix = resolveScheduleMatrixForMonth(assignment.monthKey);
     const row = matrix ? findScheduleRow(matrix, assignment.rowId)?.row : undefined;
     return row?.cellsByDay[assignment.day]?.some((item) => item.employeeId === employeeId) === true;
   }
-  const state = useLateScheduleStore.getState() as LateScheduleStateWithPublished;
-  const row = state.publishedRowsByMonth[assignment.monthKey]?.find((item) => item.id === assignment.rowId);
+  const row = resolveOTRowsForMonth(assignment.monthKey)?.find((item) => item.id === assignment.rowId);
   return row?.assignments[assignment.day]?.some((item) => item.kind === 'employee' && item.employeeId === employeeId) === true;
 }
 
@@ -209,7 +251,7 @@ export function listPublishedAssignmentsForEmployee(
 ): ShiftAssignmentRef[] {
   const refs: ShiftAssignmentRef[] = [];
   if (!source || source === 'schedule') {
-    for (const matrix of Object.values(useScheduleMatrixStore.getState().matricesByMonth)) {
+    for (const matrix of resolveAllPublishedMatrices()) {
       for (const facility of matrix.facilities) {
         for (const unit of facility.units) {
           for (const row of unit.rows) {
@@ -224,7 +266,7 @@ export function listPublishedAssignmentsForEmployee(
   }
   if (!source || source === 'ot') {
     const state = useLateScheduleStore.getState() as LateScheduleStateWithPublished;
-    const months = state.publishedRowsByMonth;
+    const months = resolveAllPublishedOTMonths();
     for (const [monthKey, rows] of Object.entries(months)) {
       if ((state.departmentIdsByMonth[monthKey] || 'dept-1') !== departmentId) continue;
       const [yearText, monthText] = monthKey.split('-');
@@ -253,7 +295,7 @@ function validateCurrentAssignment(assignment: ShiftAssignmentRef, now: Date) {
     return { ok: false as const, reason: 'stale' as const };
   }
   if (assignment.source === 'schedule') {
-    const matrix = useScheduleMatrixStore.getState().matricesByMonth[assignment.monthKey];
+    const matrix = resolveScheduleMatrixForMonth(assignment.monthKey);
     if (!matrix) return { ok: false as const, reason: 'not_published' as const };
     if (matrix.departmentId !== assignment.departmentId) return { ok: false as const, reason: 'not_found' as const };
     const current = createScheduleAssignmentRef(matrix, assignment.rowId, assignment.day, assignment.employeeId, assignment.departmentId);
@@ -266,7 +308,7 @@ function validateCurrentAssignment(assignment: ShiftAssignmentRef, now: Date) {
   if ((state.departmentIdsByMonth[assignment.monthKey] || 'dept-1') !== assignment.departmentId) {
     return { ok: false as const, reason: 'not_found' as const };
   }
-  const rows = publishedOTRows(state, assignment.monthKey);
+  const rows = resolveOTRowsForMonth(assignment.monthKey);
   if (!rows) return { ok: false as const, reason: 'not_published' as const };
   const current = createOTAssignmentRef(
     rows,

@@ -16,6 +16,7 @@ import Button from '@/components/ui/Button';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
 import ScheduleMatrix from '@/components/schedule/ScheduleMatrix/ScheduleMatrix';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import MatrixToolbar from './MatrixToolbar';
 import MatrixStatsCards from './MatrixStatsCards';
 import ScheduleViewControls from './ScheduleViewControls';
@@ -98,7 +99,6 @@ export default function AdminSchedulePage() {
     copyCurrentTable,
     pasteCopiedTable,
     resetCurrentMonth,
-    deleteCurrentMonth,
     currentMonthStatus,
     storageError,
   } = store;
@@ -764,7 +764,6 @@ export default function AdminSchedulePage() {
               return { ok: !error, message: error || undefined };
             }}
             onReset={() => resetCurrentMonth(user?.name)}
-            onDelete={() => deleteCurrentMonth(user?.name)}
           />
         </div>
       )}
@@ -783,9 +782,10 @@ export default function AdminSchedulePage() {
       </div>
 
       {/* ── Conditional Mode Views (Vacations / Settings / Matrix) ── */}
-      {adminMode === 'vacations' ? (
-        <div className="space-y-4">
-          <VacationManagementPanel
+      <ErrorBoundary level="section" invalidateQueries>
+        {adminMode === 'vacations' ? (
+          <div className="space-y-4">
+            <VacationManagementPanel
             data={data}
             onSaveRange={(empId, sDay, eDay, vType) => {
               addVacationRange(empId, sDay, eDay, vType);
@@ -952,6 +952,7 @@ export default function AdminSchedulePage() {
           onReorder={handleReorder}
         />
       )}
+      </ErrorBoundary>
 
       {/* ── Right-Click Cell Context Menu ── */}
       {contextMenu && (

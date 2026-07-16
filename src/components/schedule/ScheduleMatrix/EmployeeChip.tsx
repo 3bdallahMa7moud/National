@@ -3,6 +3,7 @@
 // ============================================================
 
 import { memo, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { getShiftChipStyle } from './getShiftChipClasses';
@@ -63,6 +64,10 @@ function EmployeeChip({
   const ariaLabel = `${fullName || assignment.employeeCode} - ${shiftLabel} - ${day} ${monthLabel} - ${facilityName} ${unitName}`;
   const lastHistory = historyEntries.slice(0, 3);
 
+  const rect = chipRef.current?.getBoundingClientRect();
+  const popoverTop = (rect?.bottom || 0) + 4;
+  const popoverLeft = Math.min(rect?.left || 0, (typeof window !== 'undefined' ? window.innerWidth : 1000) - 272);
+
   return (
     <div className="relative inline-flex max-w-full">
       <button
@@ -72,12 +77,14 @@ function EmployeeChip({
         data-employee-id={assignment.employeeId}
         onClick={(event) => {
           event.stopPropagation();
-          if (readOnly && onClick) {
+          if (onClick) {
             onClick();
             return;
           }
+          if (readOnly) {
+            return;
+          }
           if (!suppressPopover) setShowPopover(!showPopover);
-          onClick?.();
         }}
         onBlur={() => setTimeout(() => setShowPopover(false), 200)}
         className={cn(
@@ -98,13 +105,14 @@ function EmployeeChip({
         <span className="truncate">{assignment.employeeCode}</span>
       </button>
 
-      {showPopover && !suppressPopover && (
+      {showPopover && !suppressPopover && typeof document !== 'undefined' && createPortal(
         <div
           className={cn(
-            'absolute z-50 top-full mt-1 w-64 rounded-lg border shadow-dropdown p-3',
+            'fixed z-[9999] w-64 rounded-lg border shadow-dropdown p-3 animate-in fade-in duration-150',
             'bg-surface border-border text-right',
           )}
-          style={{ insetInlineStart: 0 }}
+          style={{ top: `${popoverTop}px`, left: `${popoverLeft}px` }}
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -152,7 +160,8 @@ function EmployeeChip({
               {t('schedule:employeeChip.editAssignment')}
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

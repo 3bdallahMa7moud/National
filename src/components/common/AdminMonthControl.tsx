@@ -29,10 +29,9 @@ interface AdminMonthControlProps {
   onPaste(): MonthControlResult;
   onClear(): MonthControlResult;
   onReset(): MonthControlResult;
-  onDelete(): MonthControlResult;
 }
 
-type ConfirmedAction = 'CLEAR' | 'RESET' | 'DELETE' | 'PASTE';
+type ConfirmedAction = 'CLEAR' | 'RESET' | 'PASTE';
 
 export default function AdminMonthControl(props: AdminMonthControlProps) {
   const { i18n } = useTranslation();
@@ -74,9 +73,7 @@ export default function AdminMonthControl(props: AdminMonthControlProps) {
       ? run(props.onClear, isRtl ? 'تم مسح التعيينات' : 'Assignments cleared')
       : confirmedAction === 'RESET'
         ? run(props.onReset, isRtl ? 'تمت إعادة الجدول للوضع الافتراضي' : 'Schedule reset to the default layout')
-        : confirmedAction === 'DELETE'
-          ? run(props.onDelete, isRtl ? 'تم حذف الشهر' : 'Month deleted')
-          : run(props.onPaste, isRtl ? 'تم لصق الجدول' : 'Table pasted');
+        : run(props.onPaste, isRtl ? 'تم لصق الجدول' : 'Table pasted');
     if (ok) closeConfirmation();
   };
 
@@ -88,13 +85,9 @@ export default function AdminMonthControl(props: AdminMonthControlProps) {
       ? (isRtl
           ? 'سيتم استبدال هيكل الشهر بالترتيب الافتراضي ومسح التعيينات والإجازات.'
           : 'The month will return to the default layout; assignments and vacations will be cleared.')
-      : confirmedAction === 'DELETE'
-        ? (isRtl
-            ? 'سيتم حذف بيانات الشهر كاملة، مع إنشاء نسخة أمان داخلية أولًا.'
-            : 'The entire month will be deleted after creating an internal recovery version.')
-        : (isRtl
-            ? `سيتم استبدال جدول ${props.monthLabel} بالكامل بالجدول المنسوخ من ${props.tableClipboard?.sourceMonthLabel || ''}. سيتم استبدال الوحدات والشفتات والترتيب والألوان والتعيينات، مع إنشاء نسخة استعادة للجدول الحالي أولًا.`
-            : `This will overwrite the entire ${props.monthLabel} table with the copied table from ${props.tableClipboard?.sourceMonthLabel || ''}. Units, shifts, order, colors and assignments will be replaced after creating a recovery version of the current table.`);
+      : (isRtl
+          ? `سيتم استبدال جدول ${props.monthLabel} بالكامل بالجدول المنسوخ من ${props.tableClipboard?.sourceMonthLabel || ''}. سيتم استبدال الوحدات والشفتات والترتيب والألوان والتعيينات، مع إنشاء نسخة استعادة للجدول الحالي أولًا.`
+          : `This will overwrite the entire ${props.monthLabel} table with the copied table from ${props.tableClipboard?.sourceMonthLabel || ''}. Units, shifts, order, colors and assignments will be replaced after creating a recovery version of the current table.`);
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-4 shadow-card" aria-label={isRtl ? 'إجراءات الشهر' : 'Month actions'}>
@@ -139,9 +132,6 @@ export default function AdminMonthControl(props: AdminMonthControlProps) {
           </Button>
           <Button size="sm" variant="secondary" icon={<ArchiveRestore className="h-4 w-4" />} onClick={() => openConfirmation('RESET')}>
             {isRtl ? 'إعادة الجدول' : 'Reset table'}
-          </Button>
-          <Button size="sm" variant="danger" icon={<Trash2 className="h-4 w-4" />} onClick={() => openConfirmation('DELETE')}>
-            {isRtl ? 'حذف الشهر' : 'Delete month'}
           </Button>
         </div>
       </div>

@@ -155,13 +155,8 @@ describe('lateScheduleStore v5 administration', () => {
     expect(store.getState().resetCurrentMonth().ok).toBe(true);
     expect(store.getState().rows.every((item) => Object.keys(item.assignments).length === 0)).toBe(true);
 
-    expect(store.getState().deleteCurrentMonth().ok).toBe(true);
-    expect(store.getState().rows).toEqual([]);
-    expect(store.getState().deletedMonths).toContain('2026-07');
-
     const reloaded = createLateScheduleStore({ storage });
-    expect(reloaded.getState().rows).toEqual([]);
-    expect(reloaded.getState().deletedMonths).toContain('2026-07');
+    expect(reloaded.getState().rows.every((item) => Object.keys(item.assignments).length === 0)).toBe(true);
   });
 
   it('treats a legacy locked OT month as published and keeps it editable', () => {

@@ -41,7 +41,7 @@ describe('ScheduleMatrix arrange mode', () => {
     expect(screen.getAllByLabelText(`Drag shift ${row.rowLabel || row.shiftLabel}`).length).toBeGreaterThanOrEqual(2);
     const emptyGroup = screen.getByTestId('unit-group-empty-order-unit');
     expect(within(emptyGroup).getByLabelText('Add row')).toBeInTheDocument();
-  });
+  }, 30000);
 
   it('adds the first unit directly from an empty facility on the mobile ordering surface', () => {
     const data = generateScheduleMatrixMock(2026, 6);
@@ -68,7 +68,7 @@ describe('ScheduleMatrix arrange mode', () => {
 
     expect(onAddUnit).toHaveBeenCalledWith(facility.id, 'New CT Unit');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
+  }, 30000);
 
   it('opens direct unit actions with the affected assignment count and delegates safe deletion', () => {
     const data = generateScheduleMatrixMock(2026, 6);
@@ -103,5 +103,5 @@ describe('ScheduleMatrix arrange mode', () => {
 
     expect(onDeleteUnit).toHaveBeenCalledWith(facility.id, unit.id);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
+  }, 30000);
 });

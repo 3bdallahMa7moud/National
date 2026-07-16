@@ -12,6 +12,7 @@ import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
 import { exportLateScheduleExcel, exportLateSchedulePdf } from '@/lib/lateScheduleExport';
 import { isActiveLateScheduleRow, orderLateScheduleRows } from '@/lib/lateScheduleOrder';
 import type { OTShiftInput } from '@/types/lateSchedule';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import LateScheduleToolbar from './LateScheduleToolbar';
 import LateScheduleStats from './LateScheduleStats';
 import LateScheduleDesktopGrid from './LateScheduleDesktopGrid';
@@ -63,7 +64,6 @@ export default function LateSchedulePage() {
   const pasteCopiedTable = useLateScheduleStore((state) => state.pasteCopiedTable);
   const clearAllAssignments = useLateScheduleStore((state) => state.clearAllAssignments);
   const resetCurrentMonth = useLateScheduleStore((state) => state.resetCurrentMonth);
-  const deleteCurrentMonth = useLateScheduleStore((state) => state.deleteCurrentMonth);
   const currentMonthStatus = useLateScheduleStore((state) => state.currentMonthStatus);
   const storageError = useLateScheduleStore((state) => state.storageError);
   const setNotice = useLateScheduleStore((state) => state.setNotice);
@@ -200,7 +200,6 @@ export default function LateSchedulePage() {
           onPaste={() => pasteCopiedTable(user?.name)}
           onClear={() => clearAllAssignments(user?.name)}
           onReset={() => resetCurrentMonth(user?.name)}
-          onDelete={() => deleteCurrentMonth(user?.name)}
         />
       )}
 
@@ -284,10 +283,10 @@ export default function LateSchedulePage() {
       )}
 
       {archiveView === 'active' || !isAdmin ? (
-        <>
+        <ErrorBoundary level="section" invalidateQueries>
           <LateScheduleDesktopGrid year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} notice={notice} canEdit={isAdmin} onAssign={(rowId, day) => setActiveCell({ rowId, day })} onEditRow={setEditingRowId} />
           <LateScheduleMobileWeek year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} canEdit={isAdmin} onAssign={(rowId, day) => setActiveCell({ rowId, day })} />
-        </>
+        </ErrorBoundary>
       ) : (
         <section className="space-y-3 rounded-2xl border border-border bg-surface p-4" aria-label={isRtl ? 'صفوف OT المؤرشفة' : 'Archived OT rows'}>
           {archivedFilteredRows.length === 0 ? (
@@ -299,7 +298,7 @@ export default function LateSchedulePage() {
               <div className="min-w-0">
                 <h2 className="truncate text-sm font-bold text-text-primary">{row.title}</h2>
                 <p className="mt-1 text-xs text-text-secondary">
-                  {row.location} · <span dir="ltr">{row.timeRange}</span> · {row.hours}h
+                  {row.location} · <span dir="ltr">{row.timeRange}</span>
                 </p>
               </div>
               <Button

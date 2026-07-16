@@ -169,10 +169,6 @@ export default function LateScheduleMobileWeek({
                     <Clock3 className="h-3.5 w-3.5 text-primary" />
                     {row.timeRange}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-surface-muted px-2 py-1" dir="ltr">
-                    <CalendarDays className="h-3.5 w-3.5 text-primary" />
-                    {row.hours}h
-                  </span>
                 </div>
               </div>
 

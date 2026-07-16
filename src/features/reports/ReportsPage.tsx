@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import {
   BarChart,
   Bar,
@@ -431,7 +432,7 @@ export default function ReportsPage() {
       </div>
 
       {/* ─── 4. Tab Contents ─── */}
-
+      <ErrorBoundary level="section" invalidateQueries>
       {/* TAB 1: Overview & Charts — all 29 employees */}
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -715,6 +716,7 @@ export default function ReportsPage() {
           </div>
         </Card>
       )}
+      </ErrorBoundary>
     </div>
   );
 }
