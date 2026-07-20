@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMockData } from '@/hooks/useMockData';
 import { useAuthStore } from '@/stores/authStore';
 import { isNotificationForUser, useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
@@ -12,6 +12,10 @@ export function useNotifications() {
   const removeTargeted = useTargetedNotificationStore((state) => state.remove);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [deletedMockIds, setDeletedMockIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    useTargetedNotificationStore.getState().reloadFromStorage();
+  }, [user]);
 
   const notifications = useMemo(
     () => [

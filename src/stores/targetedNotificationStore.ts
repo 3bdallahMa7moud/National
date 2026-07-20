@@ -158,6 +158,9 @@ if (typeof window !== 'undefined') {
     window.addEventListener('storage', (event) => {
       if (event.key === TARGETED_NOTIFICATION_STORAGE_KEY) useTargetedNotificationStore.getState().reloadFromStorage();
     });
+    window.addEventListener('focus', () => {
+      useTargetedNotificationStore.getState().reloadFromStorage();
+    });
   } catch {
     // The current tab continues to work without a cross-tab channel.
   }

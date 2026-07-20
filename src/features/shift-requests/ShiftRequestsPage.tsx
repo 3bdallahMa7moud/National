@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, ArrowLeftRight, Check, Clock3, Plus, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, Check, Clock3, Plus, X } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import Button from '@/components/ui/Button';
@@ -13,6 +13,7 @@ import { mockEmployeesSource } from '@/mocks/sources';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
+import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
 import { ShiftRequestCreateWizard } from './components/ShiftRequestCreateWizard';
 import { effectivePermissions, resolveEffectiveEmployeeAccess, type EmployeeAccessProfile } from '@/types/employeeAccess';
 import type {
@@ -28,9 +29,11 @@ import type {
 type RequestFilter = 'all' | 'incoming' | 'outgoing';
 type StatusFilter = 'all' | ShiftRequestStatus | 'closed';
 
-const closedStatuses: ShiftRequestStatus[] = [
+const ACTIVE_STATUSES: ShiftRequestStatus[] = ['pending_recipient', 'pending_admin', 'approved'];
+const CLOSED_STATUSES: ShiftRequestStatus[] = [
   'recipient_rejected', 'admin_rejected', 'cancelled', 'expired', 'stale',
 ];
+const closedStatuses = CLOSED_STATUSES;
 
 const rejectionReasons: ShiftRequestAdminRejectionReason[] = [
   'staff_shortage', 'skill_mismatch', 'approved_leave', 'operational_need', 'other',
@@ -66,6 +69,12 @@ function formatDateTime(value: string, language: string): string {
 }
 
 function mutationMessageKey(reason: ShiftRequestMutationReason): string {
+  if (reason === 'day_shift_ot_conflict') return 'shiftRequests:messages.dayShiftOTConflict';
+  if (reason === 'duplicate_request') return 'shiftRequests:messages.duplicate';
+  if (reason === 'not_published') return 'shiftRequests:messages.notPublished';
+  if (reason === 'not_found') return 'shiftRequests:messages.notFound';
+  if (reason === 'offered_shift_required') return 'shiftRequests:messages.offeredRequired';
+  if (reason === 'invalid_status') return 'shiftRequests:messages.invalidStatus';
   if (reason === 'storage_error') return 'shiftRequests:messages.storage';
   if (reason === 'stale' || reason === 'past_shift') return 'shiftRequests:messages.stale';
   if (reason === 'conflict_requires_override') return 'shiftRequests:messages.conflict';
@@ -91,8 +100,10 @@ export default function ShiftRequestsPage() {
   const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
+    useShiftRequestStore.getState().reloadFromStorage();
+    useTargetedNotificationStore.getState().reloadFromStorage();
     expirePending();
-  }, [expirePending]);
+  }, [expirePending, user]);
 
   let visibleForAccount: ShiftRequest[] = [];
   if (user) {
@@ -115,17 +126,30 @@ export default function ShiftRequestsPage() {
     pending_recipient: visibleForAccount.filter((request) => request.status === 'pending_recipient').length,
     pending_admin: visibleForAccount.filter((request) => request.status === 'pending_admin').length,
     approved: visibleForAccount.filter((request) => request.status === 'approved').length,
-    closed: visibleForAccount.filter((request) => closedStatuses.includes(request.status)).length,
+    closed: visibleForAccount.filter((request) => CLOSED_STATUSES.includes(request.status)).length,
   };
+  
+  const counterCards = [
+    { label: 'total', count: statusCounts.total, color: 'text-text-primary' },
+    { label: 'pendingRecipient', count: statusCounts.pending_recipient, color: 'text-warning' },
+    { label: 'pendingAdmin', count: statusCounts.pending_admin, color: 'text-info' },
+    { label: 'approved', count: statusCounts.approved, color: 'text-success' },
+    { label: 'closed', count: statusCounts.closed, color: 'text-text-secondary' },
+  ];
+
   const visible = statusFilter === 'all'
     ? visibleForAccount
     : statusFilter === 'closed'
-      ? visibleForAccount.filter((request) => closedStatuses.includes(request.status))
+      ? visibleForAccount.filter((request) => CLOSED_STATUSES.includes(request.status))
       : visibleForAccount.filter((request) => request.status === statusFilter);
 
-  const report = (result: ShiftRequestMutationResult, created = false) => {
+  const report = (
+    result: ShiftRequestMutationResult,
+    actionType: 'created' | 'cancelled' | 'accepted' | 'rejected' | 'approved' | 'overrideApproved' | 'rejectAdmin' | 'default' = 'default',
+  ) => {
     if (result.ok) {
-      addToast({ type: 'success', title: t('shiftRequests:messages.saved'), message: t(created ? 'shiftRequests:messages.created' : 'shiftRequests:messages.saved') });
+      const messageKey = actionType !== 'default' ? `shiftRequests:actions.${actionType}` : 'shiftRequests:messages.saved';
+      addToast({ type: 'success', title: t('shiftRequests:messages.saved'), message: t(messageKey) });
       return true;
     }
     const key = mutationMessageKey(result.reason);
@@ -150,57 +174,46 @@ export default function ShiftRequestsPage() {
       </header>
 
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5" aria-label={t('shiftRequests:counters.title')}>
-        {([
-          ['all', 'total'],
-          ['pending_recipient', 'pendingRecipient'],
-          ['pending_admin', 'pendingAdmin'],
-          ['approved', 'approved'],
-          ['closed', 'closed'],
-        ] as const).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className={`rounded-card border p-3 text-start transition-colors ${
-              statusFilter === value ? 'border-primary bg-primary-50' : 'border-border bg-surface hover:bg-hover'
-            }`}
-            onClick={() => setStatusFilter(value)}
-          >
-            <span className="block text-xl font-extrabold text-text-primary">
-              {value === 'all' ? statusCounts.total : statusCounts[value]}
-            </span>
-            <span className="mt-1 block text-xs font-semibold text-text-secondary">
-              {t(`shiftRequests:counters.${label}`)}
-            </span>
-          </button>
+        {counterCards.map(({ label, count, color }) => (
+          <div key={label} className="rounded-card border border-border bg-surface-card p-3 shadow-xs">
+            <p className="text-xs font-semibold text-text-secondary">{t(`shiftRequests:counters.${label}`)}</p>
+            <p className={`mt-1 text-xl font-bold sm:text-2xl ${color}`}>{count}</p>
+          </div>
         ))}
       </section>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {user.role !== 'admin' && (['all', 'incoming', 'outgoing'] as RequestFilter[]).map((item) => (
-          <Button key={item} size="sm" variant={filter === item ? 'primary' : 'secondary'} onClick={() => setFilter(item)}>
-            {t(`shiftRequests:${item}`)}
-          </Button>
-        ))}
-        <label className="ms-auto flex min-w-[13rem] items-center gap-2 text-xs font-semibold text-text-secondary">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface-card p-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(['all', 'incoming', 'outgoing'] as const).map((item) => (
+            <Button
+              key={item}
+              size="sm"
+              variant={filter === item ? 'primary' : 'ghost'}
+              onClick={() => setFilter(item)}
+            >
+              {t(`shiftRequests:${item}`)}
+            </Button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-xs">
           <span>{t('shiftRequests:statusFilter')}</span>
           <select
-            className="input-field min-w-0 flex-1"
+            className="input-field py-1"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
           >
             <option value="all">{t('shiftRequests:all')}</option>
-            {(Object.keys(statusVariant) as ShiftRequestStatus[]).map((status) => (
+            {ACTIVE_STATUSES.map((status) => (
               <option key={status} value={status}>{t(`shiftRequests:status.${status}`)}</option>
             ))}
             <option value="closed">{t('shiftRequests:counters.closed')}</option>
           </select>
-        </label>
+        </div>
       </div>
 
-      <ErrorBoundary level="section" invalidateQueries>
+      <ErrorBoundary fallback={<div className="p-4 text-xs text-danger">{t('shiftRequests:errors.load')}</div>}>
         {visible.length === 0 ? (
-          <Card className="py-12 text-center text-sm text-text-secondary">
-            <RefreshCw className="mx-auto mb-3 h-8 w-8 text-text-muted" />
+          <Card className="text-center text-xs text-text-secondary">
             {t('shiftRequests:empty')}
           </Card>
         ) : (
@@ -216,7 +229,7 @@ export default function ShiftRequestsPage() {
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
         onResult={(result) => {
-          if (report(result, true)) setCreateOpen(false);
+          if (report(result, 'created')) setCreateOpen(false);
         }}
       />
     </div>
@@ -230,7 +243,10 @@ function RequestCard({
 }: {
   request: ShiftRequest;
   user: NonNullable<ReturnType<typeof useAuthStore.getState>['user']>;
-  report(result: ShiftRequestMutationResult): boolean;
+  report(
+    result: ShiftRequestMutationResult,
+    actionType?: 'created' | 'cancelled' | 'accepted' | 'rejected' | 'approved' | 'overrideApproved' | 'rejectAdmin' | 'default',
+  ): boolean;
 }) {
   const { t, i18n } = useTranslation(['shiftRequests']);
   const accept = useShiftRequestStore((state) => state.acceptByRecipient);
@@ -278,25 +294,38 @@ function RequestCard({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-wide text-text-secondary">
-          {t('shiftRequests:afterApproval')}
-        </p>
-        <div className="grid gap-3 lg:grid-cols-2">
-          <AssignmentEffectCard
-            title={request.requester.name}
-            value={request.type === 'exchange' && request.offeredAssignment
-              ? displayAssignment(request.offeredAssignment)
-              : t('shiftRequests:removedFromShift')}
-          />
-          <AssignmentEffectCard
-            title={request.recipient.name}
-            value={displayAssignment(request.requesterAssignment)}
-          />
+      {['pending_recipient', 'pending_admin', 'approved'].includes(request.status) ? (
+        <div className="space-y-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-text-secondary">
+            {t('shiftRequests:afterApproval')}
+          </p>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <AssignmentEffectCard
+              title={request.requester.name}
+              value={request.type === 'exchange' && request.offeredAssignment
+                ? displayAssignment(request.offeredAssignment)
+                : t('shiftRequests:removedFromShift')}
+            />
+            <AssignmentEffectCard
+              title={request.recipient.name}
+              value={displayAssignment(request.requesterAssignment)}
+            />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-card border border-border bg-surface-muted/60 p-3.5 text-xs font-medium text-text-secondary flex items-center gap-2.5">
+          <span className="inline-block w-2 h-2 rounded-full bg-text-secondary/60 shrink-0" />
+          <span>
+            {request.status === 'cancelled' && t('shiftRequests:statusNotices.cancelled')}
+            {request.status === 'recipient_rejected' && t('shiftRequests:statusNotices.recipient_rejected')}
+            {request.status === 'admin_rejected' && t('shiftRequests:statusNotices.admin_rejected')}
+            {request.status === 'expired' && t('shiftRequests:statusNotices.expired')}
+            {request.status === 'stale' && t('shiftRequests:statusNotices.stale')}
+          </span>
+        </div>
+      )}
 
-      {request.warnings.length > 0 && (
+      {['pending_recipient', 'pending_admin'].includes(request.status) && request.warnings.length > 0 && (
         <div className="rounded-card border border-warning/30 bg-warning-50 p-3">
           <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
             <AlertTriangle className="h-4 w-4 text-warning" /> {t('shiftRequests:warnings')}
@@ -307,26 +336,19 @@ function RequestCard({
         </div>
       )}
 
-      {request.status === 'admin_rejected' && request.adminRejectionReason && (
-        <p className="rounded-card border border-danger/20 bg-danger-50 p-3 text-xs text-text-primary">
-          <strong>{t('shiftRequests:adminReason')}:</strong> {t(`shiftRequests:reasons.${request.adminRejectionReason}`)}
-          {request.adminRejectionNote ? ` · ${request.adminRejectionNote}` : ''}
-        </p>
-      )}
-
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
         {isRecipient && canRespond && request.status === 'pending_recipient' && (
           <>
-            <Button size="sm" icon={<Check className="h-4 w-4" />} onClick={() => report(accept(request.id, user.id, user.name))}>
+            <Button size="sm" icon={<Check className="h-4 w-4" />} onClick={() => report(accept(request.id, user.id, user.name), 'accepted')}>
               {t('shiftRequests:accept')}
             </Button>
-            <Button size="sm" variant="danger" icon={<X className="h-4 w-4" />} onClick={() => report(rejectRecipient(request.id, user.id, user.name))}>
+            <Button size="sm" variant="danger" icon={<X className="h-4 w-4" />} onClick={() => report(rejectRecipient(request.id, user.id, user.name), 'rejected')}>
               {t('shiftRequests:reject')}
             </Button>
           </>
         )}
         {isRequester && canCancel && (request.status === 'pending_recipient' || request.status === 'pending_admin') && (
-          <Button size="sm" variant="secondary" onClick={() => report(cancel(request.id, user.id, user.name))}>
+          <Button size="sm" variant="secondary" onClick={() => report(cancel(request.id, user.id, user.name), 'cancelled')}>
             {t('shiftRequests:cancel')}
           </Button>
         )}
@@ -337,14 +359,14 @@ function RequestCard({
               onClick={() => {
                 const result = approve(request.id, user.id, user.name, false);
                 if (!result.ok && result.reason === 'conflict_requires_override') setOverridePending(true);
-                report(result);
+                report(result, 'approved');
               }}
             >
               {t('shiftRequests:approve')}
             </Button>
             {overridePending && (
               <Button size="sm" variant="danger" onClick={() => {
-                if (report(approve(request.id, user.id, user.name, true))) setOverridePending(false);
+                if (report(approve(request.id, user.id, user.name, true), 'overrideApproved')) setOverridePending(false);
               }}>
                 {t('shiftRequests:approveOverride')}
               </Button>
@@ -359,7 +381,7 @@ function RequestCard({
               onChange={(event) => setNote(event.target.value)}
               placeholder={t('shiftRequests:adminNote')}
             />
-            <Button size="sm" variant="danger" onClick={() => report(rejectAdmin(request.id, user.id, user.name, reason, note))}>
+            <Button size="sm" variant="danger" onClick={() => report(rejectAdmin(request.id, user.id, user.name, reason, note), 'rejectAdmin')}>
               {t('shiftRequests:rejectAdmin')}
             </Button>
           </>

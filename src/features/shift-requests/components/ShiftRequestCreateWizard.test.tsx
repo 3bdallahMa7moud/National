@@ -122,8 +122,8 @@ describe('ShiftRequestCreateWizard', () => {
     fireEvent.click(screen.getByText('KAMC'));
 
     // Check Day Shift is present
-    expect(screen.getByText('Day Shift')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Day Shift'));
+    expect(screen.getByText(/Day Shift/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Day Shift/));
 
     // Calendar day 15 button should be rendered and clickable
     const dayBtn = screen.getAllByText('15')[0];

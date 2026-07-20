@@ -13,6 +13,7 @@ interface LateScheduleDesktopGridProps {
   roster: UnifiedEmployee[];
   notice?: string;
   canEdit?: boolean;
+  viewMode?: 'auto' | 'grid' | 'week';
   onAssign?(rowId: string, day: number): void;
   onAssignmentClick?(rowId: string, day: number, employeeId: string): void;
   onEditRow?(rowId: string): void;
@@ -25,6 +26,7 @@ export default function LateScheduleDesktopGrid({
   units = [],
   roster,
   canEdit = false,
+  viewMode = 'auto',
   onAssign,
   onAssignmentClick,
   onEditRow,
@@ -43,24 +45,26 @@ export default function LateScheduleDesktopGrid({
     [roster],
   );
 
+  const visibilityClass = viewMode === 'grid' ? 'block' : viewMode === 'week' ? 'hidden' : 'hidden lg:block';
+
   return (
     <section
       data-testid="ot-schedule-surface"
-      className="relative hidden min-w-0 max-w-full overflow-hidden rounded-2xl border border-border bg-surface shadow-card md:block"
+      className={cn('relative min-w-0 max-w-full overflow-hidden rounded-2xl border border-border bg-surface shadow-card', visibilityClass)}
       aria-label={isRtl ? 'جدول OT الشهري' : 'Monthly OT schedule'}
     >
       <div
         data-testid="ot-schedule-scroll"
-        className="relative max-h-[68vh] max-w-full overflow-auto overscroll-contain"
+        className="relative max-h-[72vh] max-w-full overflow-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
         tabIndex={0}
         aria-label={isRtl ? 'مرر داخل الجدول لعرض بقية الأيام' : 'Monthly OT schedule, scroll to view more days'}
       >
         <table className="min-w-max border-separate border-spacing-0 text-xs text-text-primary">
           <thead data-testid="ot-day-header" className="sticky top-0 z-30">
             <tr>
-              <th className="sticky start-0 z-40 min-w-72 border-b border-e border-border bg-surface px-4 py-3 text-start shadow-[4px_0_8px_-8px_rgb(var(--color-shadow))] rtl:shadow-[-4px_0_8px_-8px_rgb(var(--color-shadow))]">
-                <span className="block text-sm font-bold">{isRtl ? 'تفاصيل الشفت' : 'Shift details'}</span>
-                <span className="mt-0.5 block text-[11px] font-medium text-text-secondary">
+              <th className="sticky start-0 z-40 min-w-[180px] sm:min-w-[220px] lg:min-w-72 max-w-[260px] lg:max-w-none border-b border-e border-border bg-surface px-2.5 py-2.5 sm:px-4 sm:py-3 text-start shadow-[4px_0_8px_-8px_rgb(var(--color-shadow))] rtl:shadow-[-4px_0_8px_-8px_rgb(var(--color-shadow))]">
+                <span className="block text-xs sm:text-sm font-bold">{isRtl ? 'تفاصيل الشفت' : 'Shift details'}</span>
+                <span className="mt-0.5 block text-[10px] sm:text-[11px] font-medium text-text-secondary">
                   {isRtl ? 'الموقع · الوقت' : 'Location · time'}
                 </span>
               </th>
@@ -89,13 +93,13 @@ export default function LateScheduleDesktopGrid({
               <tr key={row.id} className="group">
                 <th
                   data-testid={`ot-shift-column-${row.id}`}
-                  className="sticky start-0 z-20 min-w-72 border-b border-e border-border bg-surface px-4 py-3 text-start align-top shadow-[4px_0_8px_-8px_rgb(var(--color-shadow))] rtl:shadow-[-4px_0_8px_-8px_rgb(var(--color-shadow))]"
+                  className="sticky start-0 z-20 min-w-[180px] sm:min-w-[220px] lg:min-w-72 max-w-[260px] lg:max-w-none border-b border-e border-border bg-surface px-2.5 py-2.5 sm:px-4 sm:py-3 text-start align-top shadow-[4px_0_8px_-8px_rgb(var(--color-shadow))] rtl:shadow-[-4px_0_8px_-8px_rgb(var(--color-shadow))]"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className="block truncate text-sm font-bold text-text-primary" title={row.title}>{row.title}</span>
-                      <span className="mt-1 block truncate text-[11px] font-medium text-text-secondary">{row.location}</span>
-                      <span className="mt-1 block text-[11px] text-text-secondary" dir="ltr">
+                  <div className="flex items-start justify-between gap-2 sm:gap-3">
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate text-xs sm:text-sm font-bold text-text-primary" title={row.title}>{row.title}</span>
+                      <span className="mt-1 block truncate text-[10px] sm:text-[11px] font-medium text-text-secondary">{row.location}</span>
+                      <span className="mt-1 block text-[10px] sm:text-[11px] text-text-secondary" dir="ltr">
                         {row.timeRange}
                       </span>
                     </div>
@@ -103,7 +107,7 @@ export default function LateScheduleDesktopGrid({
                       <button
                         type="button"
                         onClick={() => onEditRow?.(row.id)}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary transition-colors hover:bg-hover hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary transition-colors hover:bg-hover hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
                         aria-label={`${isRtl ? 'تعديل' : 'Edit'} ${row.title}`}
                       >
                         <Edit3 className="h-4 w-4" />

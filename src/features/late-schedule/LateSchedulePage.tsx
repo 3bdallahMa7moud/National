@@ -13,7 +13,7 @@ import { exportLateScheduleExcel, exportLateSchedulePdf } from '@/lib/lateSchedu
 import { isActiveLateScheduleRow, orderLateScheduleRows } from '@/lib/lateScheduleOrder';
 import type { OTShiftInput } from '@/types/lateSchedule';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
-import LateScheduleToolbar from './LateScheduleToolbar';
+import LateScheduleToolbar, { type OTViewMode } from './LateScheduleToolbar';
 import LateScheduleStats from './LateScheduleStats';
 import LateScheduleDesktopGrid from './LateScheduleDesktopGrid';
 import LateScheduleMobileWeek from './LateScheduleMobileWeek';
@@ -69,6 +69,7 @@ export default function LateSchedulePage() {
   const setNotice = useLateScheduleStore((state) => state.setNotice);
   const [search, setSearch] = useState('');
   const [showStats, setShowStats] = useState(true);
+  const [viewMode, setViewMode] = useState<OTViewMode>('auto');
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [isAddingRow, setIsAddingRow] = useState(false);
@@ -170,6 +171,8 @@ export default function LateSchedulePage() {
         search={search}
         canEdit={isAdmin}
         showStats={showStats}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
         onSearch={setSearch}
         onPreviousMonth={goToPreviousMonth}
         onNextMonth={goToNextMonth}
@@ -284,8 +287,8 @@ export default function LateSchedulePage() {
 
       {archiveView === 'active' || !isAdmin ? (
         <ErrorBoundary level="section" invalidateQueries>
-          <LateScheduleDesktopGrid year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} notice={notice} canEdit={isAdmin} onAssign={(rowId, day) => setActiveCell({ rowId, day })} onEditRow={setEditingRowId} />
-          <LateScheduleMobileWeek year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} canEdit={isAdmin} onAssign={(rowId, day) => setActiveCell({ rowId, day })} />
+          <LateScheduleDesktopGrid year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} notice={notice} canEdit={isAdmin} viewMode={viewMode} onAssign={(rowId, day) => setActiveCell({ rowId, day })} onEditRow={setEditingRowId} />
+          <LateScheduleMobileWeek year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} canEdit={isAdmin} viewMode={viewMode} onAssign={(rowId, day) => setActiveCell({ rowId, day })} />
         </ErrorBoundary>
       ) : (
         <section className="space-y-3 rounded-2xl border border-border bg-surface p-4" aria-label={isRtl ? 'صفوف OT المؤرشفة' : 'Archived OT rows'}>

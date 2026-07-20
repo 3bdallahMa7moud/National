@@ -43,6 +43,9 @@
     "searchPlaceholder": "Search by name, email, or number...",
     "nameAr": "Name (Arabic)",
     "nameEn": "Name (English)",
+    "name": "Employee Name",
+    "bn": "Badge Number (BN)",
+    "bnHint": "Employee ID or BN badge number",
     "positionAr": "Position (Arabic)",
     "positionEn": "Position (English)",
     "codeHint": "Short abbreviation shown on schedule",
@@ -52,7 +55,7 @@
     "addedSubtitle": "Share these credentials with the employee",
     "addedHint": "The employee can update their email and change their password after first login.",
     "columns": {
-      "number": "Number",
+      "number": "Badge Number (BN)",
       "employee": "Employee",
       "email": "Email",
       "phone": "Phone",

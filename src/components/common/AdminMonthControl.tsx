@@ -91,47 +91,49 @@ export default function AdminMonthControl(props: AdminMonthControlProps) {
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-4 shadow-card" aria-label={isRtl ? 'إجراءات الشهر' : 'Month actions'}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-extrabold text-text-primary">{isRtl ? 'إجراءات الشهر' : 'Month actions'}</h2>
+            <h2 className="text-sm sm:text-base font-extrabold text-text-primary">{isRtl ? 'إجراءات الشهر' : 'Month actions'}</h2>
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${props.status === 'published' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
               {statusLabel}
             </span>
           </div>
-          <p className="mt-1 text-xs text-text-secondary">
+          <p className="mt-1 text-xs sm:text-sm text-text-secondary">
             {props.monthLabel} · {props.assignmentCount.toLocaleString()} {isRtl ? 'تعيين' : 'assignments'}
           </p>
           {props.tableClipboard && (
-            <p className="mt-1 text-xs font-semibold text-primary">
+            <p className="mt-1 text-xs sm:text-sm font-semibold text-primary">
               {isRtl ? 'الجدول المنسوخ' : 'Copied table'}: {props.tableClipboard.sourceMonthLabel} · {props.tableClipboard.assignmentCount.toLocaleString()} {isRtl ? 'تعيين' : 'assignments'}
             </p>
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
           <Button
             size="sm"
             variant="secondary"
+            className="flex-1 sm:flex-initial min-h-10"
             icon={<Copy className="h-4 w-4" />}
             onClick={() => run(props.onCopy, isRtl ? 'تم نسخ الجدول' : 'Table copied')}
           >
-            {isRtl ? 'نسخ الجدول' : 'Copy Table'}
+            <span className="text-xs sm:text-sm">{isRtl ? 'نسخ الجدول' : 'Copy Table'}</span>
           </Button>
           <Button
             size="sm"
             variant="secondary"
+            className="flex-1 sm:flex-initial min-h-10"
             icon={<ClipboardPaste className="h-4 w-4" />}
             disabled={!props.tableClipboard}
             onClick={() => openConfirmation('PASTE')}
           >
-            {isRtl ? 'لصق الجدول' : 'Paste Table'}
+            <span className="text-xs sm:text-sm">{isRtl ? 'لصق الجدول' : 'Paste Table'}</span>
           </Button>
-          <Button size="sm" variant="secondary" icon={<UsersRound className="h-4 w-4" />} onClick={() => openConfirmation('CLEAR')}>
-            {isRtl ? 'مسح التعيينات' : 'Clear assignments'}
+          <Button size="sm" variant="secondary" className="flex-1 sm:flex-initial min-h-10" icon={<UsersRound className="h-4 w-4" />} onClick={() => openConfirmation('CLEAR')}>
+            <span className="text-xs sm:text-sm">{isRtl ? 'مسح التعيينات' : 'Clear assignments'}</span>
           </Button>
-          <Button size="sm" variant="secondary" icon={<ArchiveRestore className="h-4 w-4" />} onClick={() => openConfirmation('RESET')}>
-            {isRtl ? 'إعادة الجدول' : 'Reset table'}
+          <Button size="sm" variant="secondary" className="flex-1 sm:flex-initial min-h-10" icon={<ArchiveRestore className="h-4 w-4" />} onClick={() => openConfirmation('RESET')}>
+            <span className="text-xs sm:text-sm">{isRtl ? 'إعادة الجدول' : 'Reset table'}</span>
           </Button>
         </div>
       </div>

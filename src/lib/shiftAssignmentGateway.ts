@@ -752,3 +752,77 @@ export function reloadPublishedAssignmentSnapshots(): void {
     // Restricted embedded contexts may disallow reload; a manual refresh still hydrates persisted data.
   }
 }
+
+export type CanonicalShiftType = 'Day' | 'Late' | 'Night' | 'On-call Day' | 'On-call Night' | 'Overtime';
+
+export function normalizeShiftTypeCategory(shiftLabel: string, unitLabel: string = ''): CanonicalShiftType {
+  const text = `${shiftLabel} ${unitLabel}`.toLowerCase();
+  if (text.includes('overtime') || text.includes('إضافي') || text.includes('ot')) {
+    return 'Overtime';
+  }
+  if (text.includes('night oncall') || text.includes('on-call night') || text.includes('oncall night') || text.includes('استدعاء ليلي')) {
+    return 'On-call Night';
+  }
+  if (text.includes('oncall') || text.includes('on-call') || text.includes('on call') || text.includes('استدعاء') || text.includes('طلب')) {
+    return 'On-call Day';
+  }
+  if (text.includes('night') || text.includes('ليلي') || text.includes('ليل')) {
+    return 'Night';
+  }
+  if (text.includes('late') || text.includes('evening') || text.includes('مسائي') || text.includes('مساء')) {
+    return 'Late';
+  }
+  return 'Day';
+}
+
+export interface DayShiftOTConflictResult {
+  conflict: boolean;
+  otShift?: ShiftAssignmentRef;
+  message?: string;
+}
+
+/**
+ * Business Rule:
+ * If the selected shift is a Day Shift and the employee is assigned an OT Schedule shift immediately after it,
+ * that Day Shift cannot be exchanged or replaced.
+ */
+export function hasDayShiftOTConflict(
+  assignment: ShiftAssignmentRef,
+  employeeId: string,
+): DayShiftOTConflictResult {
+  if (assignment.source !== 'schedule' || normalizeShiftTypeCategory(assignment.shiftLabel, assignment.unitLabel) !== 'Day') {
+    return { conflict: false };
+  }
+
+  const allAssignments = listPublishedAssignmentsForEmployee(employeeId, assignment.departmentId);
+  const dayStartMs = new Date(assignment.startsAt).getTime();
+  if (!Number.isFinite(dayStartMs)) return { conflict: false };
+
+  for (const item of allAssignments) {
+    if (item.source !== 'ot' && normalizeShiftTypeCategory(item.shiftLabel, item.unitLabel) !== 'Overtime') {
+      continue;
+    }
+    const otStartMs = new Date(item.startsAt).getTime();
+    if (!Number.isFinite(otStartMs)) continue;
+
+    const isSameDayLater = item.year === assignment.year
+      && item.month === assignment.month
+      && item.day === assignment.day
+      && otStartMs > dayStartMs;
+
+    const isNextDay = otStartMs > dayStartMs
+      && otStartMs - dayStartMs <= 36 * 3600 * 1000
+      && (new Date(item.year, item.month, item.day).getTime() - new Date(assignment.year, assignment.month, assignment.day).getTime() === 24 * 3600 * 1000);
+
+    if (isSameDayLater || isNextDay) {
+      return {
+        conflict: true,
+        otShift: item,
+        message: 'This Day Shift cannot be exchanged or replaced because the employee is assigned an Overtime (OT) schedule shift immediately after it.',
+      };
+    }
+  }
+
+  return { conflict: false };
+}
+

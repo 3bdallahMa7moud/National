@@ -7,7 +7,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { resolveEffectiveEmployeeAccess, type EmployeePermission } from '@/types/employeeAccess';
 import {
   LayoutDashboard, Calendar, Users, Building2, BarChart3, FileText,
-  RefreshCw, Bell, User, Menu, X, Clock, ArrowLeftRight,
+  RefreshCw, Bell, User, Menu, X, Clock, ArrowLeftRight, FileBarChart2,
 } from 'lucide-react';
 import HospitalLogo from '@/components/common/HospitalLogo';
 
@@ -27,6 +27,7 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/departments', icon: Building2, labelKey: 'common:nav.departments' },
   { to: '/admin/audit-log', icon: FileText, labelKey: 'common:nav.auditLog' },
   { to: '/admin/shift-requests', icon: ArrowLeftRight, labelKey: 'common:nav.shiftRequests' },
+  { to: '/admin/employee-justification', icon: FileBarChart2, labelKey: 'common:nav.employeeJustification' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
 ] as const;
 
@@ -147,7 +148,7 @@ export default function Sidebar() {
 
       <aside
         className={cn(
-          'fixed start-0 top-0 z-50 h-full max-w-[85vw] border-e border-border bg-surface transition-all duration-300',
+          'fixed start-0 top-0 z-50 h-full max-w-[85vw] border-e border-border bg-surface transition-all duration-300 print:hidden',
           isCollapsed ? 'w-[72px]' : 'w-64',
           'lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full lg:translate-x-0 lg:rtl:translate-x-0'

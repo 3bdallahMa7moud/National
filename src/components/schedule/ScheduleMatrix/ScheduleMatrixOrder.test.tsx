@@ -37,6 +37,9 @@ describe('ScheduleMatrix arrange mode', () => {
     );
 
     expect(screen.getByTestId('mobile-matrix-order')).toBeInTheDocument();
+    expect(screen.getByText(/right-side handle/i)).toBeInTheDocument();
+    expect(screen.getByTestId(`matrix-order-handle-unit-${unit.id}`)).toHaveClass('cursor-grab');
+    expect(screen.getByTestId(`matrix-order-handle-row-${row.id}`)).toHaveClass('cursor-grab');
     expect(screen.getAllByLabelText(`Drag unit ${unit.name}`).length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByLabelText(`Drag shift ${row.rowLabel || row.shiftLabel}`).length).toBeGreaterThanOrEqual(2);
     const emptyGroup = screen.getByTestId('unit-group-empty-order-unit');

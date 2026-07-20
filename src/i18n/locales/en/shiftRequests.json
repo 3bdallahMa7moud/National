@@ -113,11 +113,29 @@
     "next": "Next",
     "back": "Back",
     "submit": "Confirm & Send Request",
-    "weekdays": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    "weekdays": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "shiftsCountAvailable": "({count} available)",
+    "noShiftsAvailableExchange": "No future shifts available for exchange",
+    "selectedInAnotherTab": "Selected shift: {shift} ({branch} · {type}). You are currently viewing a different tab.",
+    "showSelected": "Show selected shift",
+    "clearSelection": "Clear selection",
+    "noShiftsInMonth": "No available shifts in {month}"
+  },
+  "validation": {
+    "dayShiftOTConflictTitle": "Day Shift & Overtime Conflict",
+    "dayShiftOTConflictDesc": "This Day Shift cannot be exchanged or replaced because the employee is assigned an Overtime (OT) schedule shift immediately after it."
   },
   "messages": {
+    "dayShiftOTConflict": "This Day Shift cannot be exchanged or replaced because the employee is assigned an Overtime (OT) schedule shift immediately after it.",
     "saved": "Request updated successfully.",
     "created": "Request sent to the employee.",
+    "duplicate": "An active request for these shifts already exists.",
+    "notPublished": "The schedule for this month is not published or no longer available.",
+    "notFound": "The requested shift assignment could not be found.",
+    "offeredRequired": "An offered shift must be selected for exchange requests.",
+    "invalidStatus": "The current status of the request does not allow this operation.",
     "conflict": "Review the warnings before confirming the override.",
     "storage": "The operation could not be saved; no schedule change was kept.",
     "stale": "The shift changed and this request is no longer valid.",
@@ -126,5 +144,21 @@
     "rejectionReasonRequired": "Choose a rejection reason.",
     "permission": "You do not have permission to complete this request.",
     "generic": "The request could not be completed."
+  },
+  "actions": {
+    "created": "Request sent to the employee.",
+    "cancelled": "Request cancelled successfully. No schedule changes were made.",
+    "accepted": "Request accepted and forwarded for admin approval.",
+    "rejected": "Request rejected by employee.",
+    "approved": "Request approved and schedule updated immediately.",
+    "overrideApproved": "Request approved with conflict override and schedule updated.",
+    "rejectAdmin": "Request rejected by admin."
+  },
+  "statusNotices": {
+    "cancelled": "This request was cancelled by the requester. No changes were made to the published schedule.",
+    "recipient_rejected": "This request was rejected by the recipient employee. No changes were made to the schedule.",
+    "admin_rejected": "This request was rejected by the administrator. No changes were made to the schedule.",
+    "expired": "This request expired before being completed.",
+    "stale": "This request became invalid due to changes in the underlying shifts."
   }
 }

@@ -12,6 +12,16 @@ export const ROW_LABEL_I18N: Record<string, { ar: string; en: string }> = {
   'Night OnCall': { ar: 'استدعاء ليلي', en: 'Night On-call' },
   'Weekend Day': { ar: 'عطلة نهارية', en: 'Weekend Day' },
   'Weekend Night': { ar: 'عطلة ليلية', en: 'Weekend Night' },
+  'Overtime': { ar: 'إضافي', en: 'Overtime' },
+  'Morning': { ar: 'صباحي', en: 'Morning' },
+  'Evening': { ar: 'مسائي', en: 'Evening' },
+  'Night': { ar: 'ليلي', en: 'Night' },
+  'On Call': { ar: 'مناوبة', en: 'On Call' },
+  'Vacation': { ar: 'إجازة', en: 'Vacation' },
+  'Day': { ar: 'الوردية النهارية', en: 'Day' },
+  'Late': { ar: 'الوردية المسائية', en: 'Late' },
+  'On-call Day': { ar: 'استدعاء نهاري', en: 'On-call Day' },
+  'On-call Night': { ar: 'استدعاء ليلي', en: 'On-call Night' },
 };
 
 export function localizeRowLabel(label: string, lang: Language): string {

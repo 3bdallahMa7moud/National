@@ -62,14 +62,14 @@ export default function OTStructureControl(props: OTStructureControlProps) {
 
       <div className="rounded-2xl border border-border bg-surface p-4 shadow-card">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-sm font-extrabold text-text-primary">{isRtl ? 'إدارة وحدات وشفتات OT' : 'Manage OT units and shifts'}</h2>
-            <p className="mt-1 text-xs text-text-secondary">{isRtl ? 'الإضافة والتعديل والأرشفة منفصلة عن الترتيب.' : 'Add, edit and archive here; ordering stays in the panel above.'}</p>
+          <div className="min-w-0">
+            <h2 className="text-sm sm:text-base font-extrabold text-text-primary">{isRtl ? 'إدارة وحدات وشفتات OT' : 'Manage OT units and shifts'}</h2>
+            <p className="mt-1 text-xs sm:text-sm text-text-secondary">{isRtl ? 'الإضافة والتعديل والأرشفة منفصلة عن الترتيب.' : 'Add, edit and archive here; ordering stays in the panel above.'}</p>
           </div>
-          <div className="flex gap-2">
-            <input className="input-field min-h-10" value={newUnit} onChange={(event) => setNewUnit(event.target.value)} placeholder={isRtl ? 'اسم الوحدة' : 'Unit name'} />
-            <Button size="sm" variant="secondary" disabled={!newUnit.trim()} icon={<Plus className="h-4 w-4" />} onClick={() => { props.onAddUnit(newUnit); setNewUnit(''); }}>
-              {isRtl ? 'إضافة وحدة' : 'Add unit'}
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <input className="input-field min-h-10 flex-1 sm:flex-initial sm:w-48" value={newUnit} onChange={(event) => setNewUnit(event.target.value)} placeholder={isRtl ? 'اسم الوحدة' : 'Unit name'} />
+            <Button size="sm" variant="secondary" className="min-h-10 shrink-0" disabled={!newUnit.trim()} icon={<Plus className="h-4 w-4" />} onClick={() => { props.onAddUnit(newUnit); setNewUnit(''); }}>
+              <span>{isRtl ? 'إضافة وحدة' : 'Add unit'}</span>
             </Button>
           </div>
         </div>
@@ -81,37 +81,43 @@ export default function OTStructureControl(props: OTStructureControlProps) {
               <article key={unit.id} className={`overflow-hidden rounded-xl border border-border ${unit.archived ? 'opacity-60' : ''}`}>
                 <div className="flex flex-wrap items-center gap-2 bg-surface-muted p-3">
                   <input
-                    className="input-field min-h-9 min-w-48 flex-1 font-bold"
+                    className="input-field min-h-9 min-w-[140px] sm:min-w-48 flex-1 font-bold text-xs sm:text-sm"
                     value={unit.name}
                     disabled={unit.archived}
                     onChange={(event) => props.onRenameUnit(unit.id, event.target.value)}
                     aria-label={isRtl ? 'اسم الوحدة' : 'Unit name'}
                   />
-                  <Button size="sm" variant="ghost" onClick={() => unit.archived ? props.onRestoreUnit(unit.id) : props.onArchiveUnit(unit.id)}>
-                    {unit.archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-                  </Button>
-                  {deleteTarget === unit.id ? (
-                    <Button size="sm" variant="danger" onClick={() => { props.onDeleteUnit(unit.id); setDeleteTarget(null); }}>{isRtl ? 'تأكيد الحذف' : 'Confirm delete'}</Button>
-                  ) : (
-                    <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(unit.id)} aria-label={isRtl ? `حذف ${unit.name}` : `Delete ${unit.name}`}><Trash2 className="h-4 w-4 text-danger" /></Button>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => unit.archived ? props.onRestoreUnit(unit.id) : props.onArchiveUnit(unit.id)}>
+                      {unit.archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                    </Button>
+                    {deleteTarget === unit.id ? (
+                      <Button size="sm" variant="danger" onClick={() => { props.onDeleteUnit(unit.id); setDeleteTarget(null); }}>{isRtl ? 'تأكيد الحذف' : 'Confirm delete'}</Button>
+                    ) : (
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(unit.id)} aria-label={isRtl ? `حذف ${unit.name}` : `Delete ${unit.name}`}><Trash2 className="h-4 w-4 text-danger" /></Button>
+                    )}
+                  </div>
                 </div>
 
                 {!unit.archived && (
                   <div className="divide-y divide-border">
                     {unitRows.map((row) => (
-                      <div key={row.id} className={`flex flex-wrap items-center gap-2 p-3 ${row.archived ? 'opacity-60' : ''}`}>
-                        <span className="h-7 w-7 rounded-lg border border-border" style={{ backgroundColor: row.backgroundColor || '#E0F2FE' }} aria-hidden="true" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-bold text-text-primary">{row.icon ? `${row.icon} ` : ''}{row.title}</p>
-                          <p className="text-xs text-text-secondary" dir="ltr">{row.timeRange}</p>
+                      <div key={row.id} className={`flex flex-wrap items-center justify-between sm:justify-start gap-2 p-3 ${row.archived ? 'opacity-60' : ''}`}>
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span className="h-7 w-7 shrink-0 rounded-lg border border-border" style={{ backgroundColor: row.backgroundColor || '#E0F2FE' }} aria-hidden="true" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs sm:text-sm font-bold text-text-primary">{row.icon ? `${row.icon} ` : ''}{row.title}</p>
+                            <p className="text-[11px] sm:text-xs text-text-secondary" dir="ltr">{row.timeRange}</p>
+                          </div>
                         </div>
-                        <Button size="sm" variant="ghost" onClick={() => props.onEditRow(row.id)} aria-label={isRtl ? `تعديل ${row.title}` : `Edit ${row.title}`}><Edit3 className="h-4 w-4" /></Button>
-                        {deleteTarget === row.id ? (
-                          <Button size="sm" variant="danger" onClick={() => { props.onDeleteRow(row.id); setDeleteTarget(null); }}>{isRtl ? 'تأكيد' : 'Confirm'}</Button>
-                        ) : (
-                          <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(row.id)} aria-label={isRtl ? `حذف ${row.title}` : `Delete ${row.title}`}><Trash2 className="h-4 w-4 text-danger" /></Button>
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button size="sm" variant="ghost" onClick={() => props.onEditRow(row.id)} aria-label={isRtl ? `تعديل ${row.title}` : `Edit ${row.title}`}><Edit3 className="h-4 w-4" /></Button>
+                          {deleteTarget === row.id ? (
+                            <Button size="sm" variant="danger" onClick={() => { props.onDeleteRow(row.id); setDeleteTarget(null); }}>{isRtl ? 'تأكيد' : 'Confirm'}</Button>
+                          ) : (
+                            <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(row.id)} aria-label={isRtl ? `حذف ${row.title}` : `Delete ${row.title}`}><Trash2 className="h-4 w-4 text-danger" /></Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                     {unitRows.length === 0 && <p className="p-4 text-center text-xs text-text-secondary">{isRtl ? 'لا توجد شفتات داخل هذه الوحدة.' : 'No shifts in this unit.'}</p>}

@@ -308,6 +308,7 @@
     ,"order": {
       "title": "Arrange table",
       "touchHint": "Press and hold a handle, then move the unit or shift.",
+      "mouseHint": "In Arrange mode, drag the right-side handle for any unit or shift with the mouse. The new order saves automatically.",
       "dragUnit": "Drag unit {{label}}",
       "dragRow": "Drag shift {{label}}",
       "moveUnitUp": "Move {{label}} up",

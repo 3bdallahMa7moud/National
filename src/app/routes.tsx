@@ -22,6 +22,9 @@ const DepartmentSchedulePage = lazy(() => import('@/features/schedule/Department
 const CalendarSyncPage = lazy(() => import('@/features/calendar-sync/CalendarSyncPage'));
 const NotificationsPage = lazy(() => import('@/features/notifications/NotificationsPage'));
 const ShiftRequestsPage = lazy(() => import('@/features/shift-requests/ShiftRequestsPage'));
+const AdminShiftRequestsPage = lazy(() => import('@/features/shift-requests/AdminShiftRequestsPage'));
+const EmployeeShiftRequestsPage = lazy(() => import('@/features/shift-requests/EmployeeShiftRequestsPage'));
+const EmployeeJustificationPage = lazy(() => import('@/features/employee-justification/EmployeeJustificationPage'));
 const ProfilePage = lazy(() => import('@/features/employees/ProfilePage'));
 
 const routeFallback = (
@@ -97,7 +100,11 @@ export const router = createBrowserRouter([
               },
               {
                 path: 'admin/shift-requests',
-                element: lazyElement(<ShiftRequestsPage />),
+                element: lazyElement(<AdminShiftRequestsPage />),
+              },
+              {
+                path: 'admin/employee-justification',
+                element: lazyElement(<EmployeeJustificationPage />),
               },
             ],
           },
@@ -148,7 +155,7 @@ export const router = createBrowserRouter([
                 ]} />,
                 children: [{
                   path: 'shift-requests',
-                  element: lazyElement(<ShiftRequestsPage />),
+                  element: lazyElement(<EmployeeShiftRequestsPage />),
                 }],
               },
               {

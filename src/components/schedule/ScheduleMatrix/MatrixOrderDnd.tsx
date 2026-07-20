@@ -110,12 +110,14 @@ export function MatrixFacilityOrderContext({
 function OrderHandle({
   kind,
   label,
+  testId,
   setActivatorNodeRef,
   attributes,
   listeners,
 }: {
   kind: 'unit' | 'row';
   label: string;
+  testId: string;
   setActivatorNodeRef: (element: HTMLElement | null) => void;
   attributes: ReturnType<typeof useSortable>['attributes'];
   listeners: ReturnType<typeof useSortable>['listeners'];
@@ -126,10 +128,15 @@ function OrderHandle({
     <button
       ref={setActivatorNodeRef}
       type="button"
+      data-testid={testId}
       className={cn(
-        'inline-flex h-8 w-8 shrink-0 touch-none items-center justify-center rounded-md border border-primary/30',
+        'inline-flex h-9 w-9 shrink-0 touch-none cursor-grab items-center justify-center rounded-md border border-primary/30',
         'bg-surface text-primary shadow-sm hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/30 active:cursor-grabbing',
       )}
+      title={t(translationKey, {
+        label,
+        defaultValue: kind === 'unit' ? `Drag unit ${label}` : `Drag shift ${label}`,
+      })}
       aria-label={t(translationKey, {
         label,
         defaultValue: kind === 'unit' ? `Drag unit ${label}` : `Drag shift ${label}`,
@@ -168,6 +175,7 @@ export function SortableMatrixUnit({
     <OrderHandle
       kind="unit"
       label={unitLabel}
+      testId={`matrix-order-handle-unit-${unitId}`}
       setActivatorNodeRef={sortable.setActivatorNodeRef}
       attributes={sortable.attributes}
       listeners={sortable.listeners}
@@ -177,7 +185,11 @@ export function SortableMatrixUnit({
   return (
     <div
       ref={sortable.setNodeRef}
-      className={cn('flex flex-col', sortable.isDragging && 'relative z-30 opacity-80 shadow-xl')}
+      className={cn(
+        'flex flex-col rounded-md transition-shadow',
+        sortable.isDragging && 'relative z-30 opacity-80 shadow-xl',
+        sortable.isOver && !sortable.isDragging && 'ring-2 ring-primary/25',
+      )}
       style={{ transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }}
       data-order-unit-id={unitId}
     >
@@ -215,6 +227,7 @@ export function SortableMatrixRow({
     <OrderHandle
       kind="row"
       label={rowLabel}
+      testId={`matrix-order-handle-row-${rowId}`}
       setActivatorNodeRef={sortable.setActivatorNodeRef}
       attributes={sortable.attributes}
       listeners={sortable.listeners}
@@ -224,7 +237,11 @@ export function SortableMatrixRow({
   return (
     <div
       ref={sortable.setNodeRef}
-      className={cn('flex', sortable.isDragging && 'relative z-40 opacity-80 shadow-xl')}
+      className={cn(
+        'flex rounded-sm transition-shadow',
+        sortable.isDragging && 'relative z-40 opacity-80 shadow-xl',
+        sortable.isOver && !sortable.isDragging && 'ring-2 ring-primary/25',
+      )}
       style={{ transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }}
       data-order-row-id={rowId}
     >

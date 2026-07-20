@@ -18,6 +18,7 @@ export const NAMESPACES = [
   'calendar',
   'access',
   'shiftRequests',
+  'employeeJustification',
 ] as const;
 
 export type Namespace = (typeof NAMESPACES)[number];

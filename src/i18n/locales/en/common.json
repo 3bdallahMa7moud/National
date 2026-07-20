@@ -41,6 +41,7 @@
     "reports": "Employee Analysis",
     "auditLog": "Audit Log",
     "shiftRequests": "Shift Requests",
+    "employeeJustification": "OT Justification",
     "mySchedule": "My Schedule",
     "departmentSchedule": "Department Schedule",
     "calendarSync": "Calendar Sync",

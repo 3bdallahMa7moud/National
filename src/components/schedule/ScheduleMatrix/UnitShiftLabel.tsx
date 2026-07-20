@@ -50,7 +50,7 @@ function UnitShiftLabel({
       className={cn(
         'group/label relative flex flex-col justify-center',
         'px-2.5 py-1 transition-all duration-150',
-        orderControls && 'ps-[76px]',
+        orderControls && 'ps-[86px]',
         'border-b border-e border-border',
         isOverflowRow ? 'bg-surface-muted/80' : 'bg-surface-muted',
       )}
@@ -62,7 +62,10 @@ function UnitShiftLabel({
       }}
     >
       {orderControls && (
-        <div className="absolute start-1 top-1 z-30 flex items-center gap-1">
+        <div
+          className="absolute start-1 top-1 z-30 flex items-center gap-1 rounded-lg bg-surface-muted/90 p-0.5 shadow-sm ring-1 ring-primary/15"
+          data-testid="matrix-order-controls"
+        >
           {orderControls}
         </div>
       )}

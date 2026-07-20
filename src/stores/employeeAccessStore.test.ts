@@ -22,7 +22,7 @@ describe('employeeAccessStore', () => {
     expect(store.getState().setTemplate('account-a', 'view_only', 'Admin').ok).toBe(true);
     expect(store.getState().setOverride('account-a', 'schedule.exchange.create', true, 'Admin').ok).toBe(true);
     expect(store.getState().hasPermission({ id: 'account-a', departmentId: 'dept-1' }, 'schedule.exchange.create')).toBe(true);
-    expect(JSON.parse(storage.values.get(EMPLOYEE_ACCESS_STORAGE_KEY) || '{}').version).toBe(1);
+    expect(JSON.parse(storage.values.get(EMPLOYEE_ACCESS_STORAGE_KEY) || '{}').version).toBe(2);
   });
 
   it('prevents duplicate official roster links inside a department', () => {

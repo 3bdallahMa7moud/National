@@ -424,6 +424,12 @@ function ScheduleMatrix({
       >
       {/* ── Main Grid ── */}
       <div className="flex-1 min-w-0 overflow-hidden rounded-lg border border-border bg-surface shadow-soft">
+        {isOrderMode && !!onReorder && (
+          <div className="flex items-center gap-2 border-b border-primary/20 bg-primary/5 px-3 py-2 text-[11px] font-semibold text-primary">
+            <ListOrdered className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>{t('schedule:matrix.order.mouseHint', { defaultValue: 'Drag the right-side handle for any unit or shift with the mouse. The new order is saved automatically.' })}</span>
+          </div>
+        )}
         {/* Scroll container */}
         <div
           ref={scrollRef}

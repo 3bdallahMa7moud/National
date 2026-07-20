@@ -24,18 +24,22 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
   const { t } = useTranslation(['common']);
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const handleEscape = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    },
-    [onClose]
-  );
+  const onCloseRef = useRef(onClose);
+  
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (isOpen) {
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onCloseRef.current();
+      };
+
       const previouslyFocused = document.activeElement as HTMLElement | null;
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
+      
       window.requestAnimationFrame(() => {
         const preferredFocus = dialogRef.current?.querySelector<HTMLElement>(
           '[data-modal-autofocus], [autofocus]',
@@ -45,17 +49,14 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
         );
         (preferredFocus ?? firstFocusable)?.focus();
       });
+      
       return () => {
         document.removeEventListener('keydown', handleEscape);
         document.body.style.overflow = '';
         previouslyFocused?.focus();
       };
     }
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, handleEscape]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

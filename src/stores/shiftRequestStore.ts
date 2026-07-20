@@ -6,6 +6,7 @@ import {
   assignmentCellHasEmployee,
   assignmentRequestKey,
   browserShiftAssignmentGateway,
+  hasDayShiftOTConflict,
   reloadPublishedAssignmentSnapshots,
 } from '@/lib/shiftAssignmentGateway';
 import { mockEmployeesSource } from '@/mocks/sources';
@@ -467,11 +468,19 @@ function makeState(
 
       const validation = gateway.validate(input.requesterAssignment, now());
       if (!validation.ok) return fail(validation.reason === 'past_shift' ? 'past_shift' : validation.reason);
+      const requesterConflict = hasDayShiftOTConflict(validation.assignment, requesterProfile.scheduleEmployeeId);
+      if (requesterConflict.conflict) {
+        return fail('day_shift_ot_conflict', undefined, requesterConflict.message);
+      }
       let offered = input.offeredAssignment;
       if (offered) {
         const offeredValidation = gateway.validate(offered, now());
         if (!offeredValidation.ok) return fail(offeredValidation.reason === 'past_shift' ? 'past_shift' : offeredValidation.reason);
         offered = offeredValidation.assignment;
+        const recipientConflict = hasDayShiftOTConflict(offered, recipientProfile.scheduleEmployeeId);
+        if (recipientConflict.conflict) {
+          return fail('day_shift_ot_conflict', undefined, recipientConflict.message);
+        }
       }
 
       const keys = [assignmentRequestKey(validation.assignment), ...(offered ? [assignmentRequestKey(offered)] : [])];
@@ -802,6 +811,9 @@ if (typeof window !== 'undefined') {
         );
         if (hasNewApproval) reloadPublishedAssignmentSnapshots();
       }
+    });
+    window.addEventListener('focus', () => {
+      useShiftRequestStore.getState().reloadFromStorage();
     });
   } catch {
     // The active tab remains functional without cross-tab events.

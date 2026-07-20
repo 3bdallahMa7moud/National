@@ -132,7 +132,8 @@ export type ShiftRequestMutationReason =
   | 'rejection_reason_required'
   | 'rejection_note_required'
   | 'storage_error'
-  | 'apply_failed';
+  | 'apply_failed'
+  | 'day_shift_ot_conflict';
 
 export type ShiftRequestMutationResult =
   | { ok: true; request: ShiftRequest }

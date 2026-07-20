@@ -13,6 +13,7 @@ interface LateScheduleMobileWeekProps {
   units?: OTUnit[];
   roster: UnifiedEmployee[];
   canEdit?: boolean;
+  viewMode?: 'auto' | 'grid' | 'week';
   onAssign?(rowId: string, day: number): void;
   onAssignmentClick?(rowId: string, day: number, employeeId: string): void;
 }
@@ -30,6 +31,7 @@ export default function LateScheduleMobileWeek({
   units = [],
   roster,
   canEdit = false,
+  viewMode = 'auto',
   onAssign,
   onAssignmentClick,
 }: LateScheduleMobileWeekProps) {
@@ -67,26 +69,28 @@ export default function LateScheduleMobileWeek({
     setSelectedDay(weekStarts[nextIndex]);
   };
 
+  const visibilityClass = viewMode === 'week' ? 'block' : viewMode === 'grid' ? 'hidden' : 'lg:hidden';
+
   return (
     <section
       data-testid="ot-mobile-week"
-      className="min-w-0 max-w-full space-y-4 overflow-x-hidden md:hidden"
+      className={cn('min-w-0 max-w-full space-y-4 overflow-x-hidden', visibilityClass)}
       aria-label={isRtl ? 'عرض المناوبات الإضافية الأسبوعي' : 'Weekly OT schedule'}
     >
-      <div className="rounded-2xl border border-border bg-surface p-2 shadow-card">
-        <div className="flex min-w-0 items-center justify-between gap-2">
+      <div className="rounded-2xl border border-border bg-surface p-2.5 sm:p-3 shadow-card">
+        <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
         <button
           type="button"
           onClick={() => moveWeek(-1)}
           disabled={safeWeekIndex === 0}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-muted text-text-primary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-35"
+          className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-muted text-text-primary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-35"
           aria-label={isRtl ? 'الأسبوع السابق' : 'Previous week'}
         >
           {isRtl ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
         </button>
-        <div className="min-w-0 text-center">
-          <p className="truncate text-sm font-extrabold text-text-primary">{monthName} {year}</p>
-          <p className="mt-0.5 text-[11px] font-medium text-text-secondary">
+        <div className="min-w-0 flex-1 text-center">
+          <p className="truncate text-sm sm:text-base font-extrabold text-text-primary">{monthName} {year}</p>
+          <p className="mt-0.5 text-[10px] sm:text-xs font-medium text-text-secondary">
             {isRtl ? `الأسبوع ${safeWeekIndex + 1} من ${weekStarts.length}` : `Week ${safeWeekIndex + 1} of ${weekStarts.length}`}
           </p>
         </div>
@@ -94,7 +98,7 @@ export default function LateScheduleMobileWeek({
           type="button"
           onClick={() => moveWeek(1)}
           disabled={safeWeekIndex === weekStarts.length - 1}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-muted text-text-primary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-35"
+          className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-muted text-text-primary transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:opacity-35"
           aria-label={isRtl ? 'الأسبوع التالي' : 'Next week'}
         >
           {isRtl ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
@@ -102,7 +106,7 @@ export default function LateScheduleMobileWeek({
         </div>
       </div>
 
-      <div className="grid min-w-0 max-w-full grid-cols-7 gap-1 rounded-2xl border border-border bg-surface p-2 shadow-card">
+      <div className="grid min-w-0 max-w-full grid-cols-7 gap-1 sm:gap-1.5 rounded-2xl border border-border bg-surface p-1.5 sm:p-2.5 shadow-card">
         {days.map((day) => {
           const date = new Date(year, month, day);
           const weekend = date.getDay() === 5 || date.getDay() === 6;
@@ -117,7 +121,7 @@ export default function LateScheduleMobileWeek({
               onClick={() => setSelectedDay(day)}
               aria-label={`${isRtl ? 'اختر' : 'Select'} ${monthName} ${day}`}
               className={cn(
-                'flex min-h-16 min-w-0 max-w-full flex-col items-center justify-center overflow-hidden rounded-xl border px-0.5 text-xs outline-none transition-colors focus:ring-2 focus:ring-primary/40',
+                'flex min-h-[3.75rem] sm:min-h-16 min-w-0 max-w-full flex-col items-center justify-center overflow-hidden rounded-xl border px-0.5 py-1 text-xs outline-none transition-colors focus:ring-2 focus:ring-primary/40',
                 selected
                   ? 'border-primary bg-primary text-white shadow-sm'
                   : highlighted
@@ -127,10 +131,10 @@ export default function LateScheduleMobileWeek({
                       : 'border-border bg-surface text-text-primary hover:bg-hover',
               )}
             >
-              <span data-testid="ot-mobile-day" className={cn('block max-w-full truncate text-[9px] font-semibold', selected ? 'text-white/80' : 'text-text-secondary')}>
+              <span data-testid="ot-mobile-day" className={cn('block max-w-full truncate text-[8px] sm:text-[9px] font-semibold', selected ? 'text-white/80' : 'text-text-secondary')}>
                 {new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date)}
               </span>
-              <span className="mt-1 block text-sm font-extrabold">{day}</span>
+              <span className="mt-0.5 sm:mt-1 block text-xs sm:text-sm font-extrabold">{day}</span>
             </button>
           );
         })}

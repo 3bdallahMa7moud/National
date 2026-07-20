@@ -65,7 +65,14 @@ body {
 
 /* Print styles */
 @media print {
-  .no-print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  .no-print,
+  aside,
+  header {
     display: none !important;
   }
   
@@ -73,8 +80,139 @@ body {
     display: block !important;
   }
   
-  body {
-    background: white;
+  html, body, #root {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .a4-print-sheet {
+    transform: none !important;
+    width: 210mm !important;
+    height: 294mm !important;
+    max-height: 294mm !important;
+    min-height: 294mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: hidden !important;
+  }
+
+  .a4-inner-sheet {
+    width: 210mm !important;
+    height: 294mm !important;
+    max-height: 294mm !important;
+    min-height: 294mm !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* ==========================================================================
+     FORCE LIGHT THEME & WHITE PAPER IN PRINT/PDF EXPORT
+     Even when the application is in Dark Mode (html.dark), printing and PDF
+     generation must ALWAYS output crystal clear Light Mode on physical white paper.
+     ========================================================================== */
+  :root,
+  html.dark,
+  body.dark,
+  [data-theme="dark"],
+  .dark {
+    color-scheme: light !important;
+    --color-background: 255 255 255 !important;
+    --color-surface: 255 255 255 !important;
+    --color-surface-muted: 255 255 255 !important;
+    --color-surface-elevated: 255 255 255 !important;
+    --color-text-primary: 0 0 0 !important;
+    --color-text-secondary: 50 50 50 !important;
+    --color-text-muted: 100 100 100 !important;
+    --color-border: 0 0 0 !important;
+    --color-hover: 255 255 255 !important;
+    --color-ring: 0 0 0 !important;
+    --color-shadow: 0 0 0 !important;
+    --color-ink: 0 0 0 !important;
+  }
+
+  html.dark body,
+  html.dark #root,
+  html.dark .bg-background,
+  html.dark .bg-surface,
+  html.dark .bg-surface-muted,
+  html.dark .bg-surface-elevated,
+  html.dark .bg-white,
+  html.dark .bg-gray-50,
+  html.dark .bg-gray-100,
+  html.dark .bg-slate-50,
+  html.dark .bg-slate-100,
+  html.dark .bg-slate-800,
+  html.dark .bg-slate-900,
+  [class*="dark:bg-"] {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  html.dark .text-text-primary,
+  html.dark .text-text-secondary,
+  html.dark .text-white,
+  html.dark .text-slate-100,
+  html.dark .text-slate-200,
+  [class*="dark:text-"] {
+    color: #000000 !important;
+  }
+
+  html.dark .border-border,
+  html.dark .border-slate-700,
+  html.dark .border-slate-600,
+  [class*="dark:border-"] {
+    border-color: #000000 !important;
+  }
+
+  /* Specific exact overrides for colored headers when printing in light mode */
+  tr.bg-\[\#D9D9D9\],
+  th.bg-\[\#D9D9D9\],
+  tr[class*="bg-[#D9D9D9]"] {
+    background-color: #D9D9D9 !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  tr.bg-\[\#2B3A55\],
+  th.bg-\[\#2B3A55\],
+  tr[class*="bg-[#2B3A55]"],
+  th[class*="bg-[#2B3A55]"] {
+    background-color: #2B3A55 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  tr.bg-\[\#EEF1F6\],
+  tr[class*="bg-[#EEF1F6]"] {
+    background-color: #EEF1F6 !important;
+    color: #2B3A55 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  tr.bg-\[\#F9FAFB\],
+  tr[class*="bg-[#F9FAFB]"] {
+    background-color: #F9FAFB !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ensure all backgrounds and text adjustments print faithfully */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 

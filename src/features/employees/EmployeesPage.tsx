@@ -39,15 +39,15 @@ const DEFAULT_DEPT_ID = 'dept-1';
 const DEFAULT_DEPT_NAME = { ar: 'قسم الأشعة المقطعية', en: 'CT Scan Department' };
 
 interface AddForm {
-  nameAr: string;
-  nameEn: string;
+  name: string;
+  bn: string;
   code: string;
   jobTitleId: string;
   phone: string;
   role: 'employee' | 'admin';
 }
 const emptyForm = (): AddForm => ({
-  nameAr: '', nameEn: '', code: '', jobTitleId: JOB_TITLE_OPTIONS[0].id, phone: '', role: 'employee',
+  name: '', bn: '', code: '', jobTitleId: JOB_TITLE_OPTIONS[0].id, phone: '', role: 'employee',
 });
 
 interface AddedInfo { empNumber: string; name: string }
@@ -72,6 +72,9 @@ export default function EmployeesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editName, setEditName] = useState<string>('');
+  const [editBn, setEditBn] = useState<string>('');
+  const [editCode, setEditCode] = useState<string>('');
   const [editJobTitleId, setEditJobTitleId] = useState<string>(JOB_TITLE_OPTIONS[0].id);
   const [addedInfo, setAddedInfo] = useState<AddedInfo | null>(null);  // confirmation screen
   const [form, setForm] = useState<AddForm>(emptyForm());
@@ -101,8 +104,8 @@ export default function EmployeesPage() {
 
   const validateForm = (): boolean => {
     const errs: Partial<AddForm> = {};
-    if (!form.nameAr.trim()) errs.nameAr = t('forms:validation.nameMin');
-    if (!form.nameEn.trim()) errs.nameEn = t('forms:validation.nameMin');
+    if (!form.name.trim()) errs.name = t('forms:validation.nameMin');
+    if (!form.bn.trim()) errs.bn = t('forms:validation.nameMin', { defaultValue: 'BN required' });
     if (!form.code.trim()) errs.code = t('forms:validation.nameMin');
     if (!form.jobTitleId) errs.jobTitleId = t('forms:validation.positionMin');
     setFormErrors(errs);
@@ -112,11 +115,12 @@ export default function EmployeesPage() {
   /* ─── handlers ─── */
   const handleAdd = () => {
     if (!validateForm()) return;
-    const empNumber = generateEmpNumber();
+    const empNumber = form.bn.trim() || generateEmpNumber();
+    const employeeName = form.name.trim();
     const selectedTitle = JOB_TITLE_OPTIONS.find((t) => t.id === form.jobTitleId) ?? JOB_TITLE_OPTIONS[0];
     const newSource: MockEmployeeSource = {
       id: generateId(),
-      name: { ar: form.nameAr.trim(), en: form.nameEn.trim() },
+      name: { ar: employeeName, en: employeeName },
       email: '',
       phone: form.phone.trim(),
       role: 'employee',
@@ -149,7 +153,7 @@ export default function EmployeesPage() {
       return;
     }
     triggerMockDataChange();
-    setAddedInfo({ empNumber, name: language === 'ar' ? form.nameAr.trim() : form.nameEn.trim() });
+    setAddedInfo({ empNumber, name: employeeName });
     setForm(emptyForm());
     setFormErrors({});
   };
@@ -163,6 +167,9 @@ export default function EmployeesPage() {
 
   const handleEdit = (emp: Employee) => {
     setEditingEmployee(emp);
+    setEditName(emp.name || '');
+    setEditBn(emp.employeeNumber || '');
+    setEditCode(emp.code || '');
     setEditJobTitleId(findJobTitleOption(emp.position).id);
     setEditOpen(true);
   };
@@ -408,22 +415,22 @@ export default function EmployeesPage() {
             className="space-y-4"
             onSubmit={(e) => { e.preventDefault(); handleAdd(); }}
           >
-            {/* Names */}
+            {/* Name & BN */}
             <div className="grid grid-cols-2 gap-3">
               <Input
-                label={t('employees:management.nameAr')}
-                placeholder="محمد السعيد"
-                value={form.nameAr}
-                onChange={(e) => setField('nameAr', e.target.value)}
-                error={formErrors.nameAr}
-                dir="rtl"
+                label={t('employees:management.name')}
+                placeholder="محمد السعيد / Mohammed Al-Saeed"
+                value={form.name}
+                onChange={(e) => setField('name', e.target.value)}
+                error={formErrors.name}
               />
               <Input
-                label={t('employees:management.nameEn')}
-                placeholder="Mohammed Al-Saeed"
-                value={form.nameEn}
-                onChange={(e) => setField('nameEn', e.target.value)}
-                error={formErrors.nameEn}
+                label={t('employees:management.bn')}
+                placeholder="EMP-001 or 45892"
+                value={form.bn}
+                onChange={(e) => setField('bn', e.target.value)}
+                error={formErrors.bn}
+                hint={t('employees:management.bnHint')}
                 dir="ltr"
               />
             </div>
@@ -495,15 +502,33 @@ export default function EmployeesPage() {
               const selectedTitle = JOB_TITLE_OPTIONS.find((t) => t.id === editJobTitleId) ?? JOB_TITLE_OPTIONS[0];
               const titleText = language === 'ar' ? selectedTitle.ar : selectedTitle.en;
               const previousEditingPosition = editingEmployee.position;
+              const previousEditingName = editingEmployee.name;
+              const previousEditingBn = editingEmployee.employeeNumber;
+              const previousEditingCode = editingEmployee.code;
+              editingEmployee.name = editName.trim();
+              editingEmployee.employeeNumber = editBn.trim();
+              editingEmployee.code = editCode.trim().toUpperCase();
               editingEmployee.position = titleText;
               const sourceEmp = mockEmployeesSource.find((s) => s.id === editingEmployee.id);
               if (sourceEmp) {
                 const previousPosition = sourceEmp.position;
+                const previousName = sourceEmp.name;
+                const previousBn = sourceEmp.employeeNumber;
+                const previousCode = sourceEmp.code;
+                sourceEmp.name = { ar: editName.trim(), en: editName.trim() };
+                sourceEmp.employeeNumber = editBn.trim();
+                sourceEmp.code = editCode.trim().toUpperCase();
                 sourceEmp.position = { ar: selectedTitle.ar, en: selectedTitle.en };
                 const persisted = persistMockEmployeesSource();
                 if (!persisted.ok) {
                   sourceEmp.position = previousPosition;
+                  sourceEmp.name = previousName;
+                  sourceEmp.employeeNumber = previousBn;
+                  sourceEmp.code = previousCode;
                   editingEmployee.position = previousEditingPosition;
+                  editingEmployee.name = previousEditingName;
+                  editingEmployee.employeeNumber = previousEditingBn;
+                  editingEmployee.code = previousEditingCode;
                   addToast({ type: 'error', title: t('common:toast.error', 'Error'), message: persisted.message });
                   return;
                 }
@@ -514,12 +539,28 @@ export default function EmployeesPage() {
             addToast({ type: 'success', title: t('common:toast.saved') });
           }}
         >
-          <Input label={t('forms:labels.username')} defaultValue={editingEmployee?.name} required />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label={t('employees:management.name')}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              required
+            />
+            <Input
+              label={t('employees:management.bn')}
+              value={editBn}
+              onChange={(e) => setEditBn(e.target.value)}
+              dir="ltr"
+              required
+            />
+          </div>
           <Input
             label={t('forms:labels.code')}
-            defaultValue={(editingEmployee as Employee & { code?: string })?.code}
+            value={editCode}
+            onChange={(e) => setEditCode(e.target.value.toUpperCase())}
             placeholder="e.g. AH, MK"
             maxLength={5}
+            dir="ltr"
             required
           />
           <div>
