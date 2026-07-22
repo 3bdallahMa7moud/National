@@ -7,6 +7,7 @@ import type {
   ShiftAssignmentGateway,
   ShiftAssignmentRef,
 } from '@/types/shiftRequest';
+import { createTargetedNotificationStore } from './targetedNotificationStore';
 
 function memoryStorage(): ShiftRequestStorage & { values: Map<string, string>; failKey?: string } {
   const values = new Map<string, string>();
@@ -67,15 +68,58 @@ function createInput() {
   return {
     type: 'exchange' as const,
     requesterAccountId: 'requester',
-    requesterName: 'Requester',
     recipientAccountId: 'recipient',
-    recipientName: 'Recipient',
     requesterAssignment: assignment('employee-a', 'row-a', 20),
     offeredAssignment: assignment('employee-b', 'row-b', 21),
   };
 }
 
 describe('shiftRequestStore', () => {
+  it('completes the in-browser requester, recipient, and admin notification journey once', () => {
+    const fakeGateway = gateway();
+    const notificationStore = createTargetedNotificationStore({
+      storage: memoryStorage(),
+      now: () => '2026-07-15T10:00:00.000Z',
+    });
+    let currentAccount = 'requester';
+    const store = createShiftRequestStore({
+      storage: memoryStorage(), gateway: fakeGateway.value, profiles: () => profiles,
+      isAdmin: (id) => id === 'admin', isCurrentActor: (id) => id === currentAccount,
+      notify: (drafts) => notificationStore.getState().pushMany(drafts).ok,
+      recordAudit: () => undefined,
+      now: () => new Date('2026-07-15T10:00:00'),
+      createId: (() => { let id = 0; return () => `journey-${++id}`; })(),
+    });
+    const requester = { id: 'requester', role: 'employee' as const, departmentId: 'dept-1' };
+    const recipient = { id: 'recipient', role: 'employee' as const, departmentId: 'dept-1' };
+    const admin = { id: 'admin', role: 'admin' as const, departmentId: 'dept-1' };
+
+    const created = store.getState().createRequest(createInput());
+    if (!created.ok) throw new Error(created.reason);
+    expect(notificationStore.getState().forUser(requester).map((item) => item.type))
+      .toEqual(['shift_request_submitted']);
+    expect(notificationStore.getState().forUser(recipient).map((item) => item.type))
+      .toEqual(['shift_request_received']);
+    expect(notificationStore.getState().forUser(admin)).toHaveLength(0);
+
+    currentAccount = 'recipient';
+    expect(store.getState().acceptByRecipient(created.request.id, 'recipient', 'Recipient')).toMatchObject({ ok: true });
+    expect(notificationStore.getState().forUser(admin)).toHaveLength(1);
+    expect(notificationStore.getState().forUser(admin)[0]).toMatchObject({
+      type: 'shift_request_recipient_accepted', isUrgent: true,
+    });
+    expect(store.getState().acceptByRecipient(created.request.id, 'recipient', 'Recipient'))
+      .toMatchObject({ ok: false, reason: 'invalid_status' });
+    expect(notificationStore.getState().forUser(admin)).toHaveLength(1);
+
+    currentAccount = 'admin';
+    expect(store.getState().approveByAdmin(created.request.id, 'admin', 'Administrator'))
+      .toMatchObject({ ok: true, request: { status: 'approved' } });
+    expect(fakeGateway.apply).toHaveBeenCalledTimes(1);
+    expect(notificationStore.getState().forUser(requester).some((item) => item.type === 'shift_request_approved')).toBe(true);
+    expect(notificationStore.getState().forUser(recipient).some((item) => item.type === 'shift_request_approved')).toBe(true);
+  });
+
   it('runs recipient approval then admin approval and records the published application', () => {
     const fakeGateway = gateway();
     const store = createShiftRequestStore({
@@ -89,6 +133,33 @@ describe('shiftRequestStore', () => {
     expect(store.getState().acceptByRecipient(created.request.id, 'recipient', 'Recipient')).toMatchObject({ ok: true, request: { status: 'pending_admin' } });
     expect(store.getState().approveByAdmin(created.request.id, 'admin', 'Administrator')).toMatchObject({ ok: true, request: { status: 'approved' } });
     expect(fakeGateway.apply).toHaveBeenCalledTimes(1);
+  });
+
+  it('notifies requester and recipient on creation, then requester and admin after recipient acceptance', () => {
+    const batches: Array<Array<{ audience?: unknown; dedupeKey?: string }>> = [];
+    const store = createShiftRequestStore({
+      storage: memoryStorage(), gateway: gateway().value, profiles: () => profiles,
+      isAdmin: (id) => id === 'admin', isCurrentActor: () => true,
+      notify: (drafts) => { batches.push(drafts); return true; },
+      recordAudit: () => undefined,
+      now: () => new Date('2026-07-15T10:00:00'),
+    });
+
+    const created = store.getState().createRequest(createInput());
+    if (!created.ok) throw new Error(created.reason);
+    expect(batches[0]).toHaveLength(2);
+    expect(batches[0].map((draft) => draft.audience)).toEqual(expect.arrayContaining([
+      { kind: 'account', accountId: 'requester' },
+      { kind: 'account', accountId: 'recipient' },
+    ]));
+    expect(new Set(batches[0].map((draft) => draft.dedupeKey)).size).toBe(2);
+
+    expect(store.getState().acceptByRecipient(created.request.id, 'recipient', 'Recipient')).toMatchObject({ ok: true });
+    expect(batches[1]).toHaveLength(2);
+    expect(batches[1].map((draft) => draft.audience)).toEqual(expect.arrayContaining([
+      { kind: 'account', accountId: 'requester' },
+      { kind: 'departmentRole', role: 'admin', departmentId: 'dept-1' },
+    ]));
   });
 
   it('allows competing requests for one shift and marks the remaining request stale after approval', () => {
@@ -108,7 +179,6 @@ describe('shiftRequestStore', () => {
     const second = store.getState().createRequest({
       ...createInput(),
       recipientAccountId: 'recipient2',
-      recipientName: 'Recipient 2',
       offeredAssignment: assignment('employee-c', 'row-c', 22),
     });
     expect(second.ok).toBe(true);
@@ -124,9 +194,12 @@ describe('shiftRequestStore', () => {
   });
 
   it('allows recipient rejection without a reason and requires a note for admin Other', () => {
+    const batches: Array<Array<{ audience?: unknown; params?: Record<string, string | number>; type?: string }>> = [];
     const store = createShiftRequestStore({
       storage: memoryStorage(), gateway: gateway().value, profiles: () => profiles,
-      isAdmin: () => true, isCurrentActor: () => true, notify: () => true, recordAudit: () => undefined,
+      isAdmin: () => true, isCurrentActor: () => true,
+      notify: (drafts) => { batches.push(drafts); return true; },
+      recordAudit: () => undefined,
       now: () => new Date('2026-07-15T10:00:00'),
     });
     const first = store.getState().createRequest(createInput());
@@ -137,6 +210,25 @@ describe('shiftRequestStore', () => {
     store.getState().acceptByRecipient(second.request.id, 'recipient', 'Recipient');
     expect(store.getState().rejectByAdmin(second.request.id, 'admin', 'Admin', 'other')).toMatchObject({ ok: false, reason: 'rejection_note_required' });
     expect(store.getState().rejectByAdmin(second.request.id, 'admin', 'Admin', 'other', 'Coverage rule')).toMatchObject({ ok: true, request: { status: 'admin_rejected' } });
+    const rejectionBatch = batches[batches.length - 1] || [];
+    expect(rejectionBatch).toHaveLength(2);
+    expect(rejectionBatch.map((draft) => draft.audience)).toEqual(expect.arrayContaining([
+      { kind: 'account', accountId: 'requester' },
+      { kind: 'account', accountId: 'recipient' },
+    ]));
+    expect(rejectionBatch.every((draft) => draft.type === 'shift_request_rejected')).toBe(true);
+    expect(rejectionBatch.every((draft) => draft.params?.adminRejectionReasonKey === 'other')).toBe(true);
+    expect(rejectionBatch.every((draft) => draft.params?.adminRejectionReason === 'Coverage rule')).toBe(true);
+
+    store.getState().clearForTests();
+    const third = store.getState().createRequest(createInput());
+    if (!third.ok) throw new Error(third.reason);
+    expect(store.getState().approveByAdmin(third.request.id, 'admin', 'Admin')).toMatchObject({
+      ok: false,
+      reason: 'invalid_status',
+    });
+    expect(store.getState().rejectByAdmin(third.request.id, 'admin', 'Admin', 'staff_shortage'))
+      .toMatchObject({ ok: true, request: { status: 'admin_rejected' } });
   });
 
   it('requires a separate explicit override before approving operational warnings', () => {
@@ -247,6 +339,27 @@ describe('shiftRequestStore', () => {
     createShiftRequestStore({ storage, gateway: fakeGateway.value, profiles: () => profiles, notify: () => true, recordAudit: () => undefined });
     expect(fakeGateway.rollback).toHaveBeenCalledTimes(1);
     expect(storage.values.get(SHIFT_REQUEST_TRANSACTION_STORAGE_KEY)).toBe('null');
+  });
+
+  it('migrates an active legacy request with unresolvable parties to stale and records the reason', () => {
+    const storage = memoryStorage();
+    const original = createShiftRequestStore({
+      storage, gateway: gateway().value, profiles: () => profiles,
+      isCurrentActor: () => true, notify: () => true, recordAudit: () => undefined,
+      now: () => new Date('2026-07-15T10:00:00'), createId: () => 'legacy-request',
+    });
+    expect(original.getState().createRequest(createInput())).toMatchObject({ ok: true });
+
+    const migrated = createShiftRequestStore({
+      storage, gateway: gateway().value, profiles: () => profiles,
+      notify: () => true, recordAudit: () => undefined, migrateLegacy: true,
+    });
+    expect(migrated.getState().requests[0]).toMatchObject({
+      status: 'stale',
+      timeline: expect.arrayContaining([
+        expect.objectContaining({ action: 'stale', note: expect.stringContaining('directory migration') }),
+      ]),
+    });
   });
 
   it('binds employee mutations to the current account and expires late responses', () => {

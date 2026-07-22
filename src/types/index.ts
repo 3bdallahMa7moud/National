@@ -3,6 +3,13 @@ export { JOB_TITLE_OPTIONS, findJobTitleOption } from './employee';
 export type { Department, ShiftType, ShiftTypeKey } from './department';
 export type { Shift, ShiftStatus, ScheduleDay, BulkEditPayload } from './shift';
 export type { AppNotification, NotificationType } from './notification';
+export type {
+  EmployeeDirectoryAccess,
+  EmployeeDirectoryIssue,
+  EmployeeDirectoryMigrationReport,
+  EmployeeDirectoryMutationResult,
+  EmployeeDirectoryRecord,
+} from './employeeDirectory';
 export type { AuditLogEntry, AuditAction, AuditEntityType } from './audit';
 export type { LocalizedText } from './localized';
 export type {

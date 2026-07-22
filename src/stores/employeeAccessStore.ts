@@ -13,7 +13,7 @@ import {
   resolveEffectiveEmployeeAccess,
 } from '@/types/employeeAccess';
 import { useOperationalAuditStore } from './operationalAuditStore';
-import { mockEmployeesSource } from '@/mocks/sources';
+import { useEmployeeDirectoryStore } from './employeeDirectoryStore';
 
 export const EMPLOYEE_ACCESS_STORAGE_KEY = 'ngh_employee_access_v2';
 
@@ -40,6 +40,12 @@ interface EmployeeAccessStoreOptions {
     before?: unknown;
     after?: unknown;
   }) => void | { ok: true; rollback?: () => boolean } | { ok: false; message?: string };
+  initialProfiles?: () => Record<string, EmployeeAccessProfile>;
+  persistProfiles?: (
+    profiles: Record<string, EmployeeAccessProfile>,
+    accountId: string,
+    actorName: string,
+  ) => EmployeeAccessMutationResult;
 }
 
 export interface EmployeeAccessState {
@@ -67,8 +73,10 @@ function browserStorage(): EmployeeAccessStorage | null {
 
 function hasBrowserAdminSession(): boolean {
   try {
-    if (typeof window === 'undefined' || !window.localStorage.getItem('token')) return false;
-    const user = JSON.parse(window.localStorage.getItem('user') || 'null') as { role?: string } | null;
+    if (typeof window === 'undefined') return false;
+    const storage = window.sessionStorage.getItem('token') ? window.sessionStorage : window.localStorage;
+    if (!storage.getItem('token')) return false;
+    const user = JSON.parse(storage.getItem('user') || 'null') as { role?: string } | null;
     return user?.role === 'admin';
   } catch {
     return false;
@@ -201,7 +209,11 @@ function makeState(
       return { ok: false, reason: 'storage_error', message };
     }
     try {
-      storage?.setItem(EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({ version: 2, profiles } satisfies EmployeeAccessPersistedState));
+      const externalResult = options.persistProfiles?.(profiles, accountId, actorName);
+      if (externalResult && !externalResult.ok) throw new Error(externalResult.message || externalResult.reason);
+      if (!options.persistProfiles) {
+        storage?.setItem(EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({ version: 2, profiles } satisfies EmployeeAccessPersistedState));
+      }
     } catch {
       auditResult?.rollback?.();
       set({ storageError: 'Unable to save employee permissions.' });
@@ -226,7 +238,7 @@ function makeState(
   };
 
   return {
-    profiles: readInitialProfiles(storage, options.seedSubjects),
+    profiles: options.initialProfiles?.() ?? readInitialProfiles(storage, options.seedSubjects),
     storageError: null,
     ensureProfile: (subject, actorName) => {
       if (!canManageAccess()) return { ok: false, reason: 'permission_denied' };
@@ -235,7 +247,6 @@ function makeState(
       if (subject.scheduleEmployeeId) {
         const duplicate = Object.values(get().profiles).find((profile) =>
           profile.accountId !== subject.accountId
-          && profile.departmentId === subject.departmentId
           && profile.scheduleEmployeeId === subject.scheduleEmployeeId,
         );
         if (duplicate) return { ok: false, reason: 'duplicate_roster_link' };
@@ -279,7 +290,6 @@ function makeState(
       if (scheduleEmployeeId) {
         const duplicate = Object.values(get().profiles).find((candidate) =>
           candidate.accountId !== accountId
-          && candidate.departmentId === profile.departmentId
           && candidate.scheduleEmployeeId === scheduleEmployeeId,
         );
         if (duplicate) return { ok: false, reason: 'duplicate_roster_link' };
@@ -307,7 +317,10 @@ function makeState(
       && profile.departmentId === departmentId
       && profile.scheduleEmployeeId === scheduleEmployeeId,
     ),
-    reloadFromStorage: () => set({ profiles: readInitialProfiles(storage, options.seedSubjects), storageError: null }),
+    reloadFromStorage: () => set({
+      profiles: options.initialProfiles?.() ?? readInitialProfiles(storage, options.seedSubjects),
+      storageError: null,
+    }),
     clearForTests: () => {
       try {
         storage?.setItem(EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({ version: 2, profiles: {} } satisfies EmployeeAccessPersistedState));
@@ -323,6 +336,23 @@ export function createEmployeeAccessStore(options: EmployeeAccessStoreOptions = 
   return createStore<EmployeeAccessState>()((set, get) => makeState(options, set, get));
 }
 
+function profilesFromDirectory(): Record<string, EmployeeAccessProfile> {
+  return Object.fromEntries(
+    useEmployeeDirectoryStore.getState().records
+      .filter((record) => record.role === 'employee')
+      .map((record) => [record.accountId, {
+        accountId: record.accountId,
+        departmentId: record.departmentId,
+        scheduleEmployeeId: record.scheduleEmployeeId,
+        templateId: record.access.templateId,
+        overrides: { ...record.access.overrides },
+        active: record.active,
+        updatedAt: record.access.updatedAt,
+        updatedBy: record.access.updatedBy,
+      } satisfies EmployeeAccessProfile]),
+  );
+}
+
 let employeeAccessChannel: BroadcastChannel | null = null;
 const broadcastEmployeeAccess = () => {
   try {
@@ -336,17 +366,24 @@ export const useEmployeeAccessStore = create<EmployeeAccessState>()(
   (set, get) => makeState({
     onChanged: broadcastEmployeeAccess,
     canManageAccess: hasBrowserAdminSession,
-    seedSubjects: mockEmployeesSource
-      .filter((employee) => employee.role === 'employee')
-      .map((employee) => ({
-        accountId: employee.id,
-        name: employee.name.en,
-        departmentId: employee.departmentId,
-        scheduleEmployeeId: employee.scheduleEmployeeId,
-        active: employee.isActive,
-      })),
+    // The canonical directory owns the single audit record and rollback boundary.
+    recordAudit: () => undefined,
+    storage: null,
+    initialProfiles: profilesFromDirectory,
+    persistProfiles: (profiles, accountId, actorName) => {
+      const profile = profiles[accountId];
+      if (!profile) return { ok: false, reason: 'not_found' };
+      const result = useEmployeeDirectoryStore.getState().applyAccessProfile(profile, actorName);
+      return result.ok
+        ? { ok: true, profile }
+        : { ok: false, reason: result.reason === 'not_found' ? 'not_found' : 'storage_error', message: result.message };
+    },
   }, set, get),
 );
+
+useEmployeeDirectoryStore.subscribe(() => {
+  useEmployeeAccessStore.setState({ profiles: profilesFromDirectory(), storageError: null });
+});
 
 if (typeof window !== 'undefined') {
   try {

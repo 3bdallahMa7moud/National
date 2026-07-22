@@ -663,6 +663,7 @@ function applyShiftDefinitionToRow(row: ShiftRow, definition: ShiftDefinition): 
   row.colorKey = definition.colorKey;
   row.backgroundColor = definition.backgroundColor;
   row.textColor = definition.textColor;
+  row.icon = definition.icon;
 }
 
 function synchronizeShiftTypeColors(data: ScheduleMatrixData): void {
@@ -726,6 +727,7 @@ function makeShiftRowFromDefinition(
     colorKey: definition.colorKey,
     backgroundColor: definition.backgroundColor,
     textColor: definition.textColor,
+    icon: definition.icon,
     weekendOnly: definition.colorKey === 'onCall' || definition.colorKey === 'onCallNight',
     cellsByDay: emptyCells(daysInMonth),
   };
@@ -2223,6 +2225,14 @@ useScheduleMatrixStore.subscribe((state, previousState) => {
     storageError: 'Unable to save schedule administration data.',
   });
   isSchedulePersistenceRollback = false;
+});
+
+useEmployeeRosterStore.subscribe(() => {
+  const current = useScheduleMatrixStore.getState().data;
+  if (!current) return;
+  const data = cloneData(current);
+  synchronizeMatrixRoster(data);
+  useScheduleMatrixStore.setState({ data });
 });
 
 export type { FacilitySettings, ShiftDefinition, UnitDefinition, ShiftColorKey };

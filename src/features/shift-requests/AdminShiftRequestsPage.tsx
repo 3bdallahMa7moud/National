@@ -19,6 +19,7 @@ import Modal from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { getStoredLanguage } from '@/i18n/constants';
 import { useAuthStore } from '@/stores/authStore';
+import { getEmployeeDirectoryRecord } from '@/stores/employeeDirectoryStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
 import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
 import type {
@@ -102,6 +103,24 @@ function getAdminDecisionDate(request: ShiftRequest): string | null {
   return event?.createdAt ?? null;
 }
 
+function requestPartyName(
+  party: ShiftRequest['requester'] | ShiftRequest['recipient'],
+  language: string,
+): string {
+  const record = getEmployeeDirectoryRecord(party.accountId);
+  if (!record) return party.name;
+  const locale = language.startsWith('ar') ? 'ar' : 'en';
+  return record.name[locale] || party.name;
+}
+
+function timelineActorName(event: ShiftRequest['timeline'][number], language: string): string {
+  if (!event.actorAccountId) return event.actorName;
+  const record = getEmployeeDirectoryRecord(event.actorAccountId);
+  if (!record) return event.actorName;
+  const locale = language.startsWith('ar') ? 'ar' : 'en';
+  return record.name[locale] || event.actorName;
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -154,11 +173,14 @@ export default function AdminShiftRequestsPage() {
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
-        (r) =>
-          r.id.toLowerCase().includes(q) ||
-          r.requester.name.toLowerCase().includes(q) ||
-          r.recipient.name.toLowerCase().includes(q) ||
-          r.requesterAssignment.facilityLabel.toLowerCase().includes(q),
+        (r) => {
+          const requesterName = requestPartyName(r.requester, i18n.language).toLowerCase();
+          const recipientName = requestPartyName(r.recipient, i18n.language).toLowerCase();
+          return r.id.toLowerCase().includes(q) ||
+            requesterName.includes(q) ||
+            recipientName.includes(q) ||
+            r.requesterAssignment.facilityLabel.toLowerCase().includes(q);
+        },
       );
     }
     result.sort((a, b) => {
@@ -171,7 +193,7 @@ export default function AdminShiftRequestsPage() {
       return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
     });
     return result;
-  }, [requests, typeFilter, statusFilter, search, sortField, sortDir]);
+  }, [requests, typeFilter, statusFilter, search, sortField, sortDir, i18n.language]);
 
   /* ---- Counters ---- */
   const counts = useMemo(() => ({
@@ -224,7 +246,13 @@ export default function AdminShiftRequestsPage() {
 
   function handleRejectSubmit() {
     if (!user || !rejectModalId) return;
-    if (report(rejectByAdmin(rejectModalId, user.id, user.name, rejectReason, rejectNote), 'rejectAdmin')) {
+    if (report(rejectByAdmin(
+      rejectModalId,
+      user.id,
+      user.name,
+      rejectReason,
+      rejectReason === 'other' ? rejectNote : undefined,
+    ), 'rejectAdmin')) {
       setRejectModalId(null);
     }
   }
@@ -359,9 +387,13 @@ export default function AdminShiftRequestsPage() {
                   const empResponseDate = getEmployeeResponseDate(request);
                   const adminDecisionDate = getAdminDecisionDate(request);
                   const shiftDate = `${request.requesterAssignment.monthKey}-${String(request.requesterAssignment.day).padStart(2, '0')}`;
-                  const isEmployeeAccepted = ['pending_admin', 'approved', 'admin_rejected'].includes(request.status);
+                  const isEmployeeAccepted = request.timeline.some((event) =>
+                    event.action === 'recipient_accepted',
+                  ) || request.status === 'approved';
                   const isEmployeeRejected = request.status === 'recipient_rejected';
                   const isPendingEmployee = request.status === 'pending_recipient';
+                  const requesterName = requestPartyName(request.requester, lang);
+                  const recipientName = requestPartyName(request.recipient, lang);
 
                   return (
                     <>
@@ -387,7 +419,7 @@ export default function AdminShiftRequestsPage() {
 
                         {/* Requester */}
                         <td className="px-4 py-3 font-medium text-text-primary">
-                          {request.requester.name}
+                          {requesterName}
                           <div className="text-[11px] font-normal text-text-muted">
                             {request.requester.employeeCode}
                           </div>
@@ -395,7 +427,7 @@ export default function AdminShiftRequestsPage() {
 
                         {/* Target */}
                         <td className="px-4 py-3 font-medium text-text-primary">
-                          {request.recipient.name}
+                          {recipientName}
                           <div className="text-[11px] font-normal text-text-muted">
                             {request.recipient.employeeCode}
                           </div>
@@ -459,24 +491,26 @@ export default function AdminShiftRequestsPage() {
 
                         {/* Actions */}
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          {request.status === 'pending_admin' && (
+                          {(['pending_recipient', 'pending_admin'] as ShiftRequestStatus[]).includes(request.status) && (
                             <div className="flex flex-wrap items-center gap-1.5">
-                              {isOverridePending ? (
-                                <Button
-                                  size="sm"
-                                  variant="danger"
-                                  onClick={() => handleOverrideApprove(request.id)}
-                                >
-                                  {t('shiftRequests:approveOverride')}
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  icon={<Check className="h-3.5 w-3.5" />}
-                                  onClick={() => handleApprove(request.id)}
-                                >
-                                  {t('shiftRequests:approve')}
-                                </Button>
+                              {request.status === 'pending_admin' && (
+                                isOverridePending ? (
+                                  <Button
+                                    size="sm"
+                                    variant="danger"
+                                    onClick={() => handleOverrideApprove(request.id)}
+                                  >
+                                    {t('shiftRequests:approveOverride')}
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    icon={<Check className="h-3.5 w-3.5" />}
+                                    onClick={() => handleApprove(request.id)}
+                                  >
+                                    {t('shiftRequests:approve')}
+                                  </Button>
+                                )
                               )}
                               <Button
                                 size="sm"
@@ -529,7 +563,12 @@ export default function AdminShiftRequestsPage() {
                                 <div className="rounded-card border border-danger/20 bg-danger-50 p-3 text-xs text-text-primary">
                                   <strong>{t('shiftRequests:adminReason')}:</strong>{' '}
                                   {t(`shiftRequests:reasons.${request.adminRejectionReason}`)}
-                                  {request.adminRejectionNote ? ` · ${request.adminRejectionNote}` : ''}
+                                  {request.adminRejectionNote ? (
+                                    <span className="mt-1 block">
+                                      <strong>{t('shiftRequests:adminNote')}:</strong>{' '}
+                                      {request.adminRejectionNote}
+                                    </span>
+                                  ) : null}
                                 </div>
                               )}
 
@@ -557,7 +596,7 @@ export default function AdminShiftRequestsPage() {
                                     <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
                                     <span>
                                       <strong className="text-text-primary">
-                                        {event.actorRole === 'system' ? t('shiftRequests:systemActor') : event.actorName}
+                                        {event.actorRole === 'system' ? t('shiftRequests:systemActor') : timelineActorName(event, lang)}
                                       </strong>{' '}
                                       · {t(`shiftRequests:timelineActions.${event.action}`)} ·{' '}
                                       {formatDateTime(event.createdAt, lang)}
@@ -596,7 +635,11 @@ export default function AdminShiftRequestsPage() {
             <select
               className="input-field w-full"
               value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value as ShiftRequestAdminRejectionReason)}
+              onChange={(e) => {
+                const nextReason = e.target.value as ShiftRequestAdminRejectionReason;
+                setRejectReason(nextReason);
+                if (nextReason !== 'other') setRejectNote('');
+              }}
             >
               {rejectionReasons.map((r) => (
                 <option key={r} value={r}>
@@ -605,19 +648,22 @@ export default function AdminShiftRequestsPage() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-text-primary">
-              {t('shiftRequests:adminNote')}
-              {rejectReason === 'other' && <span className="text-danger ms-1">*</span>}
-            </label>
-            <textarea
-              className="input-field w-full resize-none"
-              rows={3}
-              value={rejectNote}
-              onChange={(e) => setRejectNote(e.target.value)}
-              placeholder={t('shiftRequests:adminNote')}
-            />
-          </div>
+          {rejectReason === 'other' && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-text-primary">
+                {t('shiftRequests:adminNote')}
+                <span className="text-danger ms-1">*</span>
+              </label>
+              <textarea
+                className="input-field w-full resize-none"
+                rows={3}
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                placeholder={t('shiftRequests:adminNote')}
+                required
+              />
+            </div>
+          )}
           <div className="flex justify-end gap-2 border-t border-border pt-4">
             <Button variant="secondary" onClick={() => setRejectModalId(null)}>
               {getStoredLanguage() === 'ar' ? 'إلغاء' : 'Cancel'}

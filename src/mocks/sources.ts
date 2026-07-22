@@ -491,6 +491,17 @@ export const mockEmployeesSource: MockEmployeeSource[] = [
   },
 ];
 
+/**
+ * Immutable built-in account seed. Runtime employee data is hydrated later, so
+ * consumers that perform migrations must not use the mutable array as a seed.
+ */
+export const BUILTIN_EMPLOYEE_ACCOUNTS: MockEmployeeSource[] = mockEmployeesSource.map((employee) => ({
+  ...employee,
+  name: { ...employee.name },
+  departmentName: { ...employee.departmentName },
+  position: { ...employee.position },
+}));
+
 export const MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY = 'ngh_employee_accounts_v2';
 
 interface PersistedMockEmployeeAccounts {

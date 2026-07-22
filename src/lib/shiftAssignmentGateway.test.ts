@@ -117,7 +117,7 @@ describe('shiftAssignmentGateway published application', () => {
     if (!first || !second) throw new Error('missing Schedule refs');
 
     const result = browserShiftAssignmentGateway.apply(requestFrom('exchange', first, second), {
-      actorName: 'Administrator', overrideConflicts: true,
+      actorName: 'Administrator', overrideConflicts: true, now: new Date('2026-07-15T10:00:00'),
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -203,9 +203,7 @@ describe('shiftAssignmentGateway published application', () => {
     const created = requestStore.getState().createRequest({
       type: 'exchange',
       requesterAccountId: 'requester',
-      requesterName: 'Requester',
       recipientAccountId: 'recipient',
-      recipientName: 'Recipient',
       requesterAssignment,
       offeredAssignment,
     });
@@ -256,7 +254,7 @@ describe('shiftAssignmentGateway published application', () => {
     if (!first || !second) throw new Error('missing draft-conflict refs');
 
     expect(browserShiftAssignmentGateway.apply(requestFrom('exchange', first, second), {
-      actorName: 'Administrator', overrideConflicts: true,
+      actorName: 'Administrator', overrideConflicts: true, now: new Date('2026-07-15T10:00:00'),
     })).toMatchObject({ ok: false, reason: 'draft_conflict' });
     expect(useScheduleMatrixStore.getState().matricesByMonth[key].facilities[0].units[0]
       .rows[0].cellsByDay[20].map((assignment) => assignment.employeeId)).toEqual(['employee-a']);
@@ -290,7 +288,7 @@ describe('shiftAssignmentGateway published application', () => {
     if (!ref) throw new Error('missing OT ref');
 
     const result = browserShiftAssignmentGateway.apply(requestFrom('replace', ref), {
-      actorName: 'Administrator', overrideConflicts: true,
+      actorName: 'Administrator', overrideConflicts: true, now: new Date('2026-07-15T10:00:00'),
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -348,7 +346,7 @@ describe('shiftAssignmentGateway published application', () => {
     if (!januaryRef || !februaryRef) throw new Error('missing cross-month OT refs');
 
     const result = browserShiftAssignmentGateway.apply(requestFrom('exchange', januaryRef, februaryRef), {
-      actorName: 'Administrator', overrideConflicts: true,
+      actorName: 'Administrator', overrideConflicts: true, now: new Date('2026-07-15T10:00:00'),
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;

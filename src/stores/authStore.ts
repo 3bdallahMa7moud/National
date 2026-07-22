@@ -3,10 +3,14 @@ import type { AuthUser } from '@/types';
 import type { Language } from '@/i18n/constants';
 import { getStoredLanguage } from '@/i18n/constants';
 import i18n from '@/i18n';
-import { mockEmployeesSource } from '@/mocks/sources';
 import { resolveAuthUser } from '@/mocks/resolveMockData';
 import { verifyEmployeePassword, setEmployeePassword } from '@/mocks/mockPasswordStore';
 import { resolveCurrentEmployeeAccess } from './employeeAccessStore';
+import {
+  directoryRecordToMockSource,
+  getEmployeeDirectoryRecord,
+  useEmployeeDirectoryStore,
+} from './employeeDirectoryStore';
 
 interface AuthState {
   user: AuthUser | null;
@@ -17,6 +21,49 @@ interface AuthState {
   updateProfile: (updates: Partial<AuthUser>) => void;
   changePassword: (currentPw: string, newPw: string) => boolean;
   syncLocale: (lang: Language) => void;
+}
+
+const AUTH_USER_KEY = 'user';
+const AUTH_TOKEN_KEY = 'token';
+
+function readAuthValue(key: string): string | null {
+  try {
+    const current = window.sessionStorage.getItem(key);
+    if (current) return current;
+    const legacy = window.localStorage.getItem(key);
+    if (!legacy) return null;
+    window.sessionStorage.setItem(key, legacy);
+    window.localStorage.removeItem(key);
+    return legacy;
+  } catch {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function writeAuthValue(key: string, value: string): void {
+  try {
+    window.sessionStorage.setItem(key, value);
+    window.localStorage.removeItem(key);
+  } catch {
+    window.localStorage.setItem(key, value);
+  }
+}
+
+function removeAuthValue(key: string): void {
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Fall through to legacy cleanup.
+  }
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // The in-memory logout still completes in restricted browser contexts.
+  }
 }
 
 function getCurrentLanguage(): Language {
@@ -32,14 +79,14 @@ function applyEmployeeAccess(user: AuthUser): AuthUser {
 
 const loadUser = (): AuthUser | null => {
   try {
-    const stored = localStorage.getItem('user');
+    const stored = readAuthValue(AUTH_USER_KEY);
     if (!stored) return null;
     const parsed: AuthUser = JSON.parse(stored);
-    const source = mockEmployeesSource.find((e) => e.id === parsed.id);
-    if (source) {
-      const localized = resolveAuthUser(source, getCurrentLanguage());
-      const updated = applyEmployeeAccess({ ...localized, email: parsed.email, avatar: parsed.avatar });
-      localStorage.setItem('user', JSON.stringify(updated));
+    const record = getEmployeeDirectoryRecord(parsed.id);
+    if (record) {
+      const localized = resolveAuthUser(directoryRecordToMockSource(record), getCurrentLanguage());
+      const updated = applyEmployeeAccess(localized);
+      writeAuthValue(AUTH_USER_KEY, JSON.stringify(updated));
       return updated;
     }
     return applyEmployeeAccess(parsed);
@@ -50,28 +97,38 @@ const loadUser = (): AuthUser | null => {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: loadUser(),
-  isAuthenticated: !!localStorage.getItem('token'),
+  isAuthenticated: Boolean(readAuthValue(AUTH_TOKEN_KEY)),
   login: (user, token) => {
     const resolvedUser = applyEmployeeAccess(user);
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(resolvedUser));
+    writeAuthValue(AUTH_TOKEN_KEY, token);
+    writeAuthValue(AUTH_USER_KEY, JSON.stringify(resolvedUser));
     set({ user: resolvedUser, isAuthenticated: true });
   },
   logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    removeAuthValue(AUTH_TOKEN_KEY);
+    removeAuthValue(AUTH_USER_KEY);
     set({ user: null, isAuthenticated: false });
   },
   setUser: (user) => {
     const resolvedUser = applyEmployeeAccess(user);
-    localStorage.setItem('user', JSON.stringify(resolvedUser));
+    writeAuthValue(AUTH_USER_KEY, JSON.stringify(resolvedUser));
     set({ user: resolvedUser });
   },
   updateProfile: (updates) => {
     const current = get().user;
     if (!current) return;
+    const record = getEmployeeDirectoryRecord(current.id);
+    if (record) {
+      const result = useEmployeeDirectoryStore.getState().updateEmployee(current.id, {
+        ...(updates.name ? { name: { ar: updates.name, en: updates.name } } : {}),
+        ...(updates.email !== undefined ? { email: updates.email } : {}),
+        ...(updates.avatar !== undefined ? { avatar: updates.avatar } : {}),
+      }, current.name);
+      if (!result.ok) return;
+      return;
+    }
     const updated = applyEmployeeAccess({ ...current, ...updates });
-    localStorage.setItem('user', JSON.stringify(updated));
+    writeAuthValue(AUTH_USER_KEY, JSON.stringify(updated));
     set({ user: updated });
   },
   changePassword: (currentPw, newPw) => {
@@ -84,11 +141,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   syncLocale: (lang) => {
     const current = get().user;
     if (!current) return;
-    const source = mockEmployeesSource.find((e) => e.id === current.id);
-    if (!source) return;
-    const localized = resolveAuthUser(source, lang);
-    const updated = applyEmployeeAccess({ ...localized, email: current.email, avatar: current.avatar });
-    localStorage.setItem('user', JSON.stringify(updated));
+    const record = getEmployeeDirectoryRecord(current.id);
+    if (!record) return;
+    const localized = resolveAuthUser(directoryRecordToMockSource(record), lang);
+    const updated = applyEmployeeAccess(localized);
+    writeAuthValue(AUTH_USER_KEY, JSON.stringify(updated));
     set({ user: updated });
   },
 }));
@@ -96,3 +153,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 export function syncAuthUserLocale(lang: Language) {
   useAuthStore.getState().syncLocale(lang);
 }
+
+useEmployeeDirectoryStore.subscribe(() => {
+  const current = useAuthStore.getState().user;
+  if (!current) return;
+  const record = getEmployeeDirectoryRecord(current.id);
+  if (!record) return;
+  const localized = applyEmployeeAccess(resolveAuthUser(directoryRecordToMockSource(record), getCurrentLanguage()));
+  try {
+    writeAuthValue(AUTH_USER_KEY, JSON.stringify(localized));
+  } catch {
+    // The active in-memory session still receives the canonical identity.
+  }
+  useAuthStore.setState({ user: localized });
+});

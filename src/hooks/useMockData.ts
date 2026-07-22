@@ -1,13 +1,13 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/useLanguage';
 import {
-  mockEmployeesSource,
   mockDepartmentsSource,
   mockNotificationsSource,
   mockAuditLogSource,
   mockShiftTypesSource,
   mockShifts,
 } from '@/mocks/sources';
+import { directoryRecordToMockSource, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import {
   resolveEmployee,
   resolveDepartment,
@@ -23,6 +23,7 @@ export function triggerMockDataChange() {
 
 export function useMockData() {
   const { language } = useLanguage();
+  const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export function useMockData() {
 
   return useMemo(() => {
     void tick;
-    const employees = mockEmployeesSource.map((e) => resolveEmployee(e, language));
+    const employees = directoryRecords.map((record) => resolveEmployee(directoryRecordToMockSource(record), language));
     const departments = mockDepartmentsSource.map((d) => resolveDepartment(d, language));
     const notifications = mockNotificationsSource.map((n) => resolveNotification(n, language));
     const auditLog = mockAuditLogSource.map((e) => resolveAuditLog(e, language));
@@ -49,5 +50,5 @@ export function useMockData() {
       shiftTypes,
       shifts,
     };
-  }, [language, tick]);
+  }, [directoryRecords, language, tick]);
 }

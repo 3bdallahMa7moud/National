@@ -75,9 +75,9 @@ export interface ShiftRow {
   weekendOnly: boolean;
   /** day number (1-31) -> unlimited unique employee assignments */
   cellsByDay: Record<number, Assignment[]>;
-  /** Optional custom colors inherited from the linked shift definition. */
   backgroundColor?: string;
   textColor?: string;
+  icon?: string;
   archived?: boolean;
   isOverflowRow?: boolean;
 }

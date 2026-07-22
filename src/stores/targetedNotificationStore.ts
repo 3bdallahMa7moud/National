@@ -25,11 +25,11 @@ interface TargetedNotificationStoreOptions {
 export interface TargetedNotificationState {
   notifications: AppNotification[];
   storageError: string | null;
-  push(draft: TargetedNotificationDraft): { ok: true; notification: AppNotification } | { ok: false; reason: 'storage_error' };
-  pushMany(drafts: TargetedNotificationDraft[]): { ok: true; notifications: AppNotification[] } | { ok: false; reason: 'storage_error' };
-  markRead(id: string): boolean;
+  push(draft: TargetedNotificationDraft): { ok: true; notification: AppNotification } | { ok: false; reason: 'storage_error' | 'invalid_audience' };
+  pushMany(drafts: TargetedNotificationDraft[]): { ok: true; notifications: AppNotification[] } | { ok: false; reason: 'storage_error' | 'invalid_audience' };
+  markRead(id: string, user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>): boolean;
   markAllRead(user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>): boolean;
-  remove(id: string): boolean;
+  remove(id: string, user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>): boolean;
   forUser(user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>): AppNotification[];
   reloadFromStorage(): void;
   clearForTests(): void;
@@ -47,10 +47,27 @@ export function isNotificationForUser(
   notification: AppNotification,
   user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>,
 ): boolean {
+  if (notification.deletedForAccountIds?.includes(user.id)) return false;
+  if (notification.audience?.kind === 'account') return notification.audience.accountId === user.id;
+  if (notification.audience?.kind === 'departmentRole') {
+    return notification.audience.role === user.role && notification.audience.departmentId === user.departmentId;
+  }
+  if (notification.audience?.kind === 'broadcast') return true;
+  // Legacy targeted notifications are accepted during the v1 migration only.
   if (notification.recipientAccountId) return notification.recipientAccountId === user.id;
   if (notification.recipientRole && notification.recipientRole !== user.role) return false;
   if (notification.departmentId && notification.departmentId !== user.departmentId) return false;
   return Boolean(notification.recipientRole || notification.departmentId);
+}
+
+export function notificationForUser(
+  notification: AppNotification,
+  user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>,
+): AppNotification | null {
+  if (!isNotificationForUser(notification, user)) return null;
+  const explicitlyRead = notification.readByAccountIds?.includes(user.id) === true;
+  const legacyRead = notification.isRead && !notification.readByAccountIds?.length;
+  return { ...notification, isRead: explicitlyRead || legacyRead };
 }
 
 function isNotification(value: unknown): value is AppNotification {
@@ -70,7 +87,19 @@ function readNotifications(storage: TargetedNotificationStorage | null): AppNoti
   try {
     const parsed = JSON.parse(storage.getItem(TARGETED_NOTIFICATION_STORAGE_KEY) || 'null') as Partial<PersistedTargetedNotifications> | null;
     if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.notifications)) return [];
-    return parsed.notifications.filter(isNotification);
+    return parsed.notifications.filter(isNotification).map((notification) => {
+      if (notification.audience) return notification;
+      if (notification.recipientAccountId) {
+        return { ...notification, audience: { kind: 'account', accountId: notification.recipientAccountId } };
+      }
+      if (notification.recipientRole && notification.departmentId) {
+        return {
+          ...notification,
+          audience: { kind: 'departmentRole', role: notification.recipientRole, departmentId: notification.departmentId },
+        };
+      }
+      return notification;
+    });
   } catch {
     return [];
   }
@@ -101,30 +130,65 @@ function makeState(
     notifications: readNotifications(storage),
     storageError: null,
     push: (draft) => {
+      if (!draft.audience) return { ok: false, reason: 'invalid_audience' };
+      const existing = draft.dedupeKey
+        ? get().notifications.find((notification) => notification.dedupeKey === draft.dedupeKey)
+        : undefined;
+      if (existing) return { ok: true, notification: existing };
       const notification: AppNotification = {
         ...draft,
-        id: createId(),
+        id: draft.dedupeKey ? `notification:${draft.dedupeKey}` : createId(),
         createdAt: now(),
         isRead: draft.isRead ?? false,
+        readByAccountIds: [],
+        deletedForAccountIds: [],
       };
       const notifications = [notification, ...get().notifications].slice(0, 500);
       if (!commit(notifications)) return { ok: false, reason: 'storage_error' };
       return { ok: true, notification };
     },
     pushMany: (drafts) => {
-      const notifications = drafts.map((draft) => ({
-        ...draft,
-        id: createId(),
-        createdAt: now(),
-        isRead: draft.isRead ?? false,
-      } satisfies AppNotification));
-      if (!commit([...notifications, ...get().notifications].slice(0, 500))) return { ok: false, reason: 'storage_error' };
-      return { ok: true, notifications };
+      if (drafts.some((draft) => !draft.audience)) return { ok: false, reason: 'invalid_audience' };
+      const current = get().notifications;
+      const delivered: AppNotification[] = [];
+      const created: AppNotification[] = [];
+      for (const draft of drafts) {
+        const existing = draft.dedupeKey
+          ? [...created, ...current].find((notification) => notification.dedupeKey === draft.dedupeKey)
+          : undefined;
+        if (existing) {
+          delivered.push(existing);
+          continue;
+        }
+        const notification: AppNotification = {
+          ...draft,
+          id: draft.dedupeKey ? `notification:${draft.dedupeKey}` : createId(),
+          createdAt: now(),
+          isRead: draft.isRead ?? false,
+          readByAccountIds: [],
+          deletedForAccountIds: [],
+        };
+        created.push(notification);
+        delivered.push(notification);
+      }
+      if (created.length > 0 && !commit([...created, ...current].slice(0, 500))) return { ok: false, reason: 'storage_error' };
+      return { ok: true, notifications: delivered };
     },
-    markRead: (id) => commit(get().notifications.map((item) => item.id === id ? { ...item, isRead: true } : item)),
-    markAllRead: (user) => commit(get().notifications.map((item) => isNotificationForUser(item, user) ? { ...item, isRead: true } : item)),
-    remove: (id) => commit(get().notifications.filter((item) => item.id !== id)),
-    forUser: (user) => get().notifications.filter((item) => isNotificationForUser(item, user)),
+    markRead: (id, user) => commit(get().notifications.map((item) => {
+      if (item.id !== id || !isNotificationForUser(item, user)) return item;
+      return { ...item, readByAccountIds: [...new Set([...(item.readByAccountIds || []), user.id])] };
+    })),
+    markAllRead: (user) => commit(get().notifications.map((item) => {
+      if (!isNotificationForUser(item, user)) return item;
+      return { ...item, readByAccountIds: [...new Set([...(item.readByAccountIds || []), user.id])] };
+    })),
+    remove: (id, user) => commit(get().notifications.map((item) => {
+      if (item.id !== id || !isNotificationForUser(item, user)) return item;
+      return { ...item, deletedForAccountIds: [...new Set([...(item.deletedForAccountIds || []), user.id])] };
+    })),
+    forUser: (user) => get().notifications
+      .map((item) => notificationForUser(item, user))
+      .filter((item): item is AppNotification => Boolean(item)),
     reloadFromStorage: () => set({ notifications: readNotifications(storage), storageError: null }),
     clearForTests: () => commit([]),
   };

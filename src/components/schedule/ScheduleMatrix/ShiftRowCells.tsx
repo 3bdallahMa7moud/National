@@ -42,6 +42,7 @@ interface ShiftRowCellsProps {
   onRangeSelect?: (start: MatrixCellRef, end: MatrixCellRef) => void;
   onDragFill?: (source: MatrixCellRef, target: MatrixCellRef) => void;
   expandedCellsView?: boolean;
+  colorblindMode?: boolean;
 }
 
 const MONTH_LABELS = [
@@ -81,6 +82,7 @@ function ShiftRowCells({
   onRangeSelect,
   onDragFill,
   expandedCellsView = false,
+  colorblindMode = false,
 }: ShiftRowCellsProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const today = new Date();

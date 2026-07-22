@@ -1,4 +1,4 @@
-import { OFFICIAL_EMPLOYEE_ROSTER } from '@/data/officialEmployeeRoster';
+import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import { recalculateAllConflicts } from '@/lib/validateAssignment';
 import { LATE_SCHEDULE_STORAGE_KEY, useLateScheduleStore, type LateScheduleState } from '@/stores/lateScheduleStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
@@ -163,7 +163,7 @@ export function createOTAssignmentRef(
   if (row?.unitId && units.some((unit) => unit.id === row.unitId && unit.archived)) return null;
   if (!row || !(row.assignments[day] ?? []).some((assignment) => assignment.kind === 'employee' && assignment.employeeId === employeeId)) return null;
   const monthKey = formatMonthKey(year, month);
-  const employee = OFFICIAL_EMPLOYEE_ROSTER.find((candidate) => candidate.employeeId === employeeId);
+  const employee = getOfficialEmployeeRoster().find((candidate) => candidate.employeeId === employeeId);
   return {
     source: 'ot',
     departmentId,
@@ -701,13 +701,13 @@ export const browserShiftAssignmentGateway: ShiftAssignmentGateway = {
   validate: validateCurrentAssignment,
   inspectWarnings,
   apply: (request, options): ShiftAssignmentApplyResult => {
-    const requesterValidation = validateCurrentAssignment(request.requesterAssignment, new Date());
+    const requesterValidation = validateCurrentAssignment(request.requesterAssignment, options.now);
     if (!requesterValidation.ok) return {
       ok: false,
       reason: requesterValidation.reason === 'not_found' ? 'not_found' : 'stale',
     };
     if (request.offeredAssignment) {
-      const offeredValidation = validateCurrentAssignment(request.offeredAssignment, new Date());
+      const offeredValidation = validateCurrentAssignment(request.offeredAssignment, options.now);
       if (!offeredValidation.ok) return {
         ok: false,
         reason: offeredValidation.reason === 'not_found' ? 'not_found' : 'stale',
@@ -825,4 +825,3 @@ export function hasDayShiftOTConflict(
 
   return { conflict: false };
 }
-

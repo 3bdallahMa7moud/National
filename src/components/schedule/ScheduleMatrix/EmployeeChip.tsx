@@ -2,13 +2,23 @@
 // EmployeeChip - LTR employee code chip with conflict/history hints
 // ============================================================
 
-import { memo, useState, useRef } from 'react';
+import { memo, useState, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { Bell, Clock3, Moon, SunMedium } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { getShiftChipStyle } from './getShiftChipClasses';
 import { resolveAssignmentColorKey } from '@/lib/shiftColorOptions';
 import type { Assignment, AuditEntry, ShiftColorKey } from '@/types/scheduleMatrix';
+
+const markerIcons: Partial<Record<ShiftColorKey, ReactNode>> = {
+  morning:     <SunMedium className="h-3 w-3" />,
+  evening:     <Clock3   className="h-3 w-3" />,
+  night:       <Moon     className="h-3 w-3" />,
+  onCall:      <Bell     className="h-3 w-3" />,
+  onCallNight: <Moon     className="h-3 w-3" />,
+  overtime:    <Bell     className="h-3 w-3" />,
+};
 
 interface EmployeeChipProps {
   assignment: Assignment;
@@ -24,6 +34,7 @@ interface EmployeeChipProps {
   day: number;
   monthLabel: string;
   isHighlighted: boolean;
+  colorblindMode?: boolean;
   historyEntries?: AuditEntry[];
   /** Employee-facing mode: keep shift details, but never expose audit or edit actions. */
   readOnly?: boolean;
@@ -45,6 +56,7 @@ function EmployeeChip({
   day,
   monthLabel,
   isHighlighted,
+  colorblindMode = false,
   historyEntries = [],
   readOnly = false,
   suppressPopover = false,
@@ -102,6 +114,11 @@ function EmployeeChip({
         }}
         aria-label={ariaLabel}
       >
+        {colorblindMode && (
+          <span className="shrink-0" aria-hidden="true">
+            {markerIcons[resolveAssignmentColorKey(assignment, rowColorKey)]}
+          </span>
+        )}
         <span className="truncate">{assignment.employeeCode}</span>
       </button>
 

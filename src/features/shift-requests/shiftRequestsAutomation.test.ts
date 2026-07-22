@@ -129,9 +129,7 @@ describe('Shift Requests Automation & Schedule Synchronization Tests', () => {
     const createRes = store.getState().createRequest({
       type: 'replace',
       requesterAccountId: 'acc-ahmed',
-      requesterName: 'Ahmed',
       recipientAccountId: 'acc-omar',
-      recipientName: 'Omar',
       requesterAssignment: requesterAssignment!,
     });
     expect(createRes.ok).toBe(true);
@@ -206,9 +204,7 @@ describe('Shift Requests Automation & Schedule Synchronization Tests', () => {
     const createRes = store.getState().createRequest({
       type: 'exchange',
       requesterAccountId: 'acc-ahmed',
-      requesterName: 'Ahmed',
       recipientAccountId: 'acc-khalid',
-      recipientName: 'Khalid',
       requesterAssignment: requesterAssignment!,
       offeredAssignment: offeredAssignment!,
     });
@@ -276,9 +272,7 @@ describe('Shift Requests Automation & Schedule Synchronization Tests', () => {
     const createRes = store.getState().createRequest({
       type: 'exchange',
       requesterAccountId: 'emp-m-3',
-      requesterName: 'Hamad',
       recipientAccountId: 'emp-m-9',
-      recipientName: 'Eshraq',
       requesterAssignment: requesterAssignment!,
       offeredAssignment: offeredAssignment!,
     });
@@ -306,9 +300,7 @@ describe('Shift Requests Automation & Schedule Synchronization Tests', () => {
     const dupRes = store.getState().createRequest({
       type: 'exchange',
       requesterAccountId: 'emp-m-3',
-      requesterName: 'Hamad',
       recipientAccountId: 'emp-m-9',
-      recipientName: 'Eshraq',
       requesterAssignment: requesterAssignment!,
       offeredAssignment: offeredAssignment!,
     });
@@ -383,9 +375,7 @@ describe('Shift Requests Automation & Schedule Synchronization Tests', () => {
     const result = store.getState().createRequest({
       type: 'replace',
       requesterAccountId: 'emp-m-3',
-      requesterName: 'Hamad',
       recipientAccountId: 'emp-m-9',
-      recipientName: 'Eshraq',
       requesterAssignment: requesterAssignment!,
     });
 

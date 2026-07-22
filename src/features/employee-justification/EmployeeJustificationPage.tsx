@@ -29,7 +29,8 @@ import { useToast } from '@/components/ui/Toast';
 import { useAuthStore } from '@/stores/authStore';
 import { useLateScheduleStore } from '@/stores/lateScheduleStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
-import { OFFICIAL_EMPLOYEE_ROSTER } from '@/data/officialEmployeeRoster';
+import type { OfficialEmployee } from '@/data/officialEmployeeRoster';
+import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
 import { exportJustificationToDocx } from '@/lib/justificationDocxExport';
 import {
   DEFAULT_JUSTIFICATION_STATE,
@@ -136,6 +137,7 @@ function InlineEditSpan({
 /*  Main Page                                                                  */
 /* -------------------------------------------------------------------------- */
 export default function EmployeeJustificationPage() {
+  const officialEmployeeRoster = useEmployeeRosterStore((state) => state.employees);
   const { t, i18n } = useTranslation(['employeeJustification']);
   const { addToast } = useToast();
   const user = useAuthStore((state) => state.user);
@@ -166,15 +168,15 @@ export default function EmployeeJustificationPage() {
   const monthOptions = useMemo(() => getMonthOptions(isEngLocale), [isEngLocale]);
 
   const filteredRoster = useMemo(() => {
-    if (!rosterSearch.trim()) return OFFICIAL_EMPLOYEE_ROSTER.slice(0, 15);
+    if (!rosterSearch.trim()) return officialEmployeeRoster.slice(0, 15);
     const q = rosterSearch.toLowerCase();
-    return OFFICIAL_EMPLOYEE_ROSTER.filter(
+    return officialEmployeeRoster.filter(
       (e) =>
         e.fullName.toLowerCase().includes(q) ||
         e.code.toLowerCase().includes(q) ||
         (e.fullNameEn && e.fullNameEn.toLowerCase().includes(q)),
     ).slice(0, 20);
-  }, [rosterSearch]);
+  }, [officialEmployeeRoster, rosterSearch]);
 
   /* ---- Guard: Admin only ---- */
   if (!user || user.role !== 'admin') return null;
@@ -257,7 +259,7 @@ export default function EmployeeJustificationPage() {
     // ── Build final rows ───────────────────────────────────────────────────
     const newRows: JustificationEmployeeRow[] = [];
     for (const [empId, summary] of Object.entries(summaryMap)) {
-      const rosterEmp = OFFICIAL_EMPLOYEE_ROSTER.find((r) => r.employeeId === empId);
+      const rosterEmp = officialEmployeeRoster.find((r) => r.employeeId === empId);
       newRows.push({
         id: generateId(),
         bn: rosterEmp ? rosterEmp.code : empId.slice(0, 5),
@@ -357,7 +359,7 @@ export default function EmployeeJustificationPage() {
   }, []);
 
   const handleSelectRosterEmployee = useCallback(
-    (employee: (typeof OFFICIAL_EMPLOYEE_ROSTER)[number]) => {
+    (employee: OfficialEmployee) => {
       const exists = report.rows.some((r) => r.bn === employee.code);
       if (exists) {
         addToast({ type: 'warning', title: `${employee.fullName} is already in the table.` });

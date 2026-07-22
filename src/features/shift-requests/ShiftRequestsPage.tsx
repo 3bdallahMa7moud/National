@@ -9,11 +9,11 @@ import Modal from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { getStoredLanguage } from '@/i18n/constants';
 import { listPublishedAssignmentsForEmployee } from '@/lib/shiftAssignmentGateway';
-import { mockEmployeesSource } from '@/mocks/sources';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
 import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
+import { getEmployeeDirectoryRecord, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import { ShiftRequestCreateWizard } from './components/ShiftRequestCreateWizard';
 import { effectivePermissions, resolveEffectiveEmployeeAccess, type EmployeeAccessProfile } from '@/types/employeeAccess';
 import type {
@@ -54,10 +54,26 @@ function displayAssignment(ref: ShiftAssignmentRef): string {
   return `${ref.monthKey}-${String(ref.day).padStart(2, '0')} · ${ref.facilityLabel} / ${ref.unitLabel} · ${ref.shiftLabel} (${ref.timeRange})`;
 }
 
-function accountName(accountId: string): string {
-  const source = mockEmployeesSource.find((employee) => employee.id === accountId);
-  if (!source) return accountId;
-  return source.name[getStoredLanguage()];
+function accountName(accountId: string, language: string = getStoredLanguage()): string {
+  const record = getEmployeeDirectoryRecord(accountId);
+  if (!record) return accountId;
+  const locale = language.startsWith('ar') ? 'ar' : 'en';
+  return record.name[locale];
+}
+
+function requestPartyName(
+  party: ShiftRequest['requester'] | ShiftRequest['recipient'],
+  language: string,
+): string {
+  return accountName(party.accountId, language) || party.name;
+}
+
+function timelineActorName(event: ShiftRequest['timeline'][number], language: string): string {
+  if (!event.actorAccountId) return event.actorName;
+  const record = getEmployeeDirectoryRecord(event.actorAccountId);
+  if (!record) return event.actorName;
+  const locale = language.startsWith('ar') ? 'ar' : 'en';
+  return record.name[locale] || event.actorName;
 }
 
 function formatDateTime(value: string, language: string): string {
@@ -267,6 +283,8 @@ function RequestCard({
     && resolveEffectiveEmployeeAccess(user, accessProfile).permissions['schedule.requests.respond'];
   const canCancel = user.role === 'employee'
     && resolveEffectiveEmployeeAccess(user, accessProfile).permissions['schedule.requests.cancelOwn'];
+  const requesterName = requestPartyName(request.requester, i18n.language);
+  const recipientName = requestPartyName(request.recipient, i18n.language);
 
   return (
     <Card className="space-y-4">
@@ -278,7 +296,7 @@ function RequestCard({
               <h2 className="font-semibold text-text-primary">{t(`shiftRequests:type.${request.type}`)}</h2>
               <Badge variant={statusVariant[request.status]}>{t(`shiftRequests:status.${request.status}`)}</Badge>
             </div>
-            <p className="mt-1 text-xs text-text-secondary">{request.requester.name} → {request.recipient.name}</p>
+            <p className="mt-1 text-xs text-text-secondary">{requesterName} → {recipientName}</p>
           </div>
         </div>
         <span className="text-xs text-text-secondary">{formatDateTime(request.createdAt, i18n.language)}</span>
@@ -301,13 +319,13 @@ function RequestCard({
           </p>
           <div className="grid gap-3 lg:grid-cols-2">
             <AssignmentEffectCard
-              title={request.requester.name}
+              title={requesterName}
               value={request.type === 'exchange' && request.offeredAssignment
                 ? displayAssignment(request.offeredAssignment)
                 : t('shiftRequests:removedFromShift')}
             />
             <AssignmentEffectCard
-              title={request.recipient.name}
+              title={recipientName}
               value={displayAssignment(request.requesterAssignment)}
             />
           </div>
@@ -321,6 +339,18 @@ function RequestCard({
             {request.status === 'admin_rejected' && t('shiftRequests:statusNotices.admin_rejected')}
             {request.status === 'expired' && t('shiftRequests:statusNotices.expired')}
             {request.status === 'stale' && t('shiftRequests:statusNotices.stale')}
+            {request.status === 'admin_rejected' && request.adminRejectionReason && (
+              <span className="mt-1 block text-text-primary">
+                <strong>{t('shiftRequests:adminReason')}:</strong>{' '}
+                {t(`shiftRequests:reasons.${request.adminRejectionReason}`)}
+                {request.adminRejectionNote ? (
+                  <span className="mt-0.5 block">
+                    <strong>{t('shiftRequests:adminNote')}:</strong>{' '}
+                    {request.adminRejectionNote}
+                  </span>
+                ) : null}
+              </span>
+            )}
           </span>
         </div>
       )}
@@ -352,36 +382,56 @@ function RequestCard({
             {t('shiftRequests:cancel')}
           </Button>
         )}
-        {admin && request.status === 'pending_admin' && (
+        {admin && (request.status === 'pending_recipient' || request.status === 'pending_admin') && (
           <>
-            <Button
-              size="sm"
-              onClick={() => {
-                const result = approve(request.id, user.id, user.name, false);
-                if (!result.ok && result.reason === 'conflict_requires_override') setOverridePending(true);
-                report(result, 'approved');
-              }}
-            >
-              {t('shiftRequests:approve')}
-            </Button>
-            {overridePending && (
+            {request.status === 'pending_admin' && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  const result = approve(request.id, user.id, user.name, false);
+                  if (!result.ok && result.reason === 'conflict_requires_override') setOverridePending(true);
+                  report(result, 'approved');
+                }}
+              >
+                {t('shiftRequests:approve')}
+              </Button>
+            )}
+            {request.status === 'pending_admin' && overridePending && (
               <Button size="sm" variant="danger" onClick={() => {
                 if (report(approve(request.id, user.id, user.name, true), 'overrideApproved')) setOverridePending(false);
               }}>
                 {t('shiftRequests:approveOverride')}
               </Button>
             )}
-            <select aria-label={t('shiftRequests:adminReason')} className="input-field min-w-[12rem]" value={reason} onChange={(event) => setReason(event.target.value as ShiftRequestAdminRejectionReason)}>
+            <select
+              aria-label={t('shiftRequests:adminReason')}
+              className="input-field min-w-[12rem]"
+              value={reason}
+              onChange={(event) => {
+                const nextReason = event.target.value as ShiftRequestAdminRejectionReason;
+                setReason(nextReason);
+                if (nextReason !== 'other') setNote('');
+              }}
+            >
               {rejectionReasons.map((item) => <option key={item} value={item}>{t(`shiftRequests:reasons.${item}`)}</option>)}
             </select>
-            <input
-              className="input-field min-w-[12rem] flex-1"
-              aria-label={t('shiftRequests:adminNote')}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder={t('shiftRequests:adminNote')}
-            />
-            <Button size="sm" variant="danger" onClick={() => report(rejectAdmin(request.id, user.id, user.name, reason, note), 'rejectAdmin')}>
+            {reason === 'other' && (
+              <input
+                className="input-field min-w-[12rem] flex-1"
+                aria-label={t('shiftRequests:adminNote')}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder={t('shiftRequests:adminNote')}
+                required
+              />
+            )}
+            <Button size="sm" variant="danger" onClick={() => report(rejectAdmin(
+              request.id,
+              user.id,
+              user.name,
+              reason,
+              reason === 'other' ? note : undefined,
+            ), 'rejectAdmin')}>
               {t('shiftRequests:rejectAdmin')}
             </Button>
           </>
@@ -398,7 +448,7 @@ function RequestCard({
               <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
               <span>
                 <strong className="text-text-primary">
-                  {event.actorRole === 'system' ? t('shiftRequests:systemActor') : event.actorName}
+                  {event.actorRole === 'system' ? t('shiftRequests:systemActor') : timelineActorName(event, i18n.language)}
                 </strong> · {t(`shiftRequests:timelineActions.${event.action}`)} · {formatDateTime(event.createdAt, i18n.language)}
                 {event.note ? <span className="mt-0.5 block text-text-primary">{event.note}</span> : null}
               </span>
@@ -446,6 +496,7 @@ export function ShiftRequestCreateModal({
   const { t } = useTranslation(['shiftRequests']);
   const user = useAuthStore((state) => state.user);
   const profiles = useEmployeeAccessStore((state) => state.profiles);
+  const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
   const createRequest = useShiftRequestStore((state) => state.createRequest);
 
   const currentAccess = user ? resolveEffectiveEmployeeAccess(user, profiles[user.id]) : null;
@@ -454,22 +505,11 @@ export function ShiftRequestCreateModal({
       .filter((assignment) => new Date(assignment.startsAt).getTime() > Date.now())
     : [];
   const candidateProfiles = useMemo(() => {
-    const combined: Record<string, EmployeeAccessProfile> = { ...profiles };
-    for (const employee of mockEmployeesSource) {
-      if (employee.role !== 'employee' || !employee.scheduleEmployeeId || combined[employee.id]) continue;
-      combined[employee.id] = {
-        accountId: employee.id,
-        departmentId: employee.departmentId,
-        scheduleEmployeeId: employee.scheduleEmployeeId,
-        templateId: 'standard',
-        overrides: {},
-        active: employee.isActive,
-        updatedAt: new Date(0).toISOString(),
-        updatedBy: 'system',
-      };
-    }
-    return combined;
-  }, [profiles]);
+    return Object.fromEntries(Object.entries(profiles).filter(([accountId]) => {
+      const record = directoryRecords.find((candidate) => candidate.accountId === accountId);
+      return !record || record.issues.length === 0;
+    })) as Record<string, EmployeeAccessProfile>;
+  }, [directoryRecords, profiles]);
   const canExchange = currentAccess?.permissions['schedule.exchange.create'] === true;
   const canReplace = currentAccess?.permissions['schedule.replace.create'] === true;
   const recipients = useMemo(() => Object.values(candidateProfiles).filter((profile) =>

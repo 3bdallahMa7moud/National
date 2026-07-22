@@ -12,9 +12,10 @@ interface DayHeaderRowProps {
   year: number;
   month: number; // 0-indexed
   holidays?: HolidayRange[];
+  onResizeStart?: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
 }
 
-function DayHeaderRow({ daysInMonth, year, month, holidays = [] }: DayHeaderRowProps) {
+function DayHeaderRow({ daysInMonth, year, month, holidays = [], onResizeStart }: DayHeaderRowProps) {
   const { i18n } = useTranslation();
   const locale = i18n.language === 'ar' ? 'ar-SA-u-ca-gregory' : 'en-US';
   const numberFormatter = new Intl.NumberFormat(locale, { useGrouping: false });
@@ -39,7 +40,7 @@ function DayHeaderRow({ daysInMonth, year, month, holidays = [] }: DayHeaderRowP
             data-testid={`day-header-${day}`}
             data-holiday-day={holiday ? day : undefined}
             className={cn(
-              'relative flex flex-col items-center justify-center text-center select-none',
+              'relative flex flex-col items-center justify-center text-center select-none group',
               'border-b border-e border-border',
               isWeekend && 'bg-[var(--weekend-tint)]',
               holiday && 'bg-amber-100/80 dark:bg-amber-950/35',
@@ -75,6 +76,16 @@ function DayHeaderRow({ daysInMonth, year, month, holidays = [] }: DayHeaderRowP
             )}>
               {numberFormatter.format(day)}
             </span>
+
+            {/* Column Resizer */}
+            {onResizeStart && (
+              <div
+                className="absolute top-0 bottom-0 end-[-3px] w-[6px] z-20 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 hover:bg-primary-teal/50 transition-opacity"
+                onMouseDown={onResizeStart}
+                onTouchStart={onResizeStart}
+                aria-hidden="true"
+              />
+            )}
           </div>
         );
       })}

@@ -19,14 +19,14 @@ import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
-import { mockEmployeesSource, mockNotificationsSource } from '@/mocks/sources';
-import { triggerMockDataChange } from '@/hooks/useMockData';
 import { setEmployeePassword } from '@/mocks/mockPasswordStore';
 import AuthSplitLayout, {
   AUTH_FORM_COLUMN_CLASS,
   AUTH_HERO_COLUMN_CLASS,
   AUTH_MAIN_COLUMN_CLASS,
 } from './AuthSplitLayout';
+import { directoryRecordToMockSource, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
+import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
 
 /* ─── Types ─── */
 type Step = 1 | 2 | 3 | 'success' | 'no-email' | 'no-email-success';
@@ -103,7 +103,7 @@ export default function ForgotPasswordPage() {
     setIsChecking(true);
     await new Promise((r) => setTimeout(r, 900));
 
-    const found = mockEmployeesSource.find(
+    const found = useEmployeeDirectoryStore.getState().records.map(directoryRecordToMockSource).find(
       (emp) =>
         emp.email?.toLowerCase() === val.toLowerCase() ||
         emp.employeeNumber.toLowerCase() === val.toLowerCase()
@@ -230,24 +230,20 @@ export default function ForgotPasswordPage() {
     setIsRequestingReset(true);
     await new Promise((r) => setTimeout(r, 800));
 
-    mockNotificationsSource.push({
-      id: 'notif-' + Date.now(),
+    const employee = useEmployeeDirectoryStore.getState().records.find((record) => record.accountId === foundEmployeeId);
+    useTargetedNotificationStore.getState().push({
+      audience: { kind: 'departmentRole', role: 'admin', departmentId: employee?.departmentId || 'dept-1' },
+      recipientRole: 'admin',
+      departmentId: employee?.departmentId || 'dept-1',
       type: 'general',
-      title: {
-        ar: 'طلب إعادة تعيين كلمة المرور',
-        en: 'Password Reset Request'
-      },
-      message: {
-        ar: `الموظف ${foundEmployeeName} يطلب إعادة تعيين كلمة المرور الخاصة به.`,
-        en: `Employee ${foundEmployeeName} has requested a password reset.`
-      },
-      isRead: false,
+      title: 'Password reset request',
+      message: `Employee ${foundEmployeeName} requested a password reset.`,
+      titleKey: 'notifications:passwordReset.title',
+      messageKey: 'notifications:passwordReset.message',
+      params: { employee: foundEmployeeName },
       isUrgent: true,
       actionUrl: '/admin/employees',
-      createdAt: new Date().toISOString()
     });
-
-    triggerMockDataChange();
 
     setIsRequestingReset(false);
     setStep('no-email-success');

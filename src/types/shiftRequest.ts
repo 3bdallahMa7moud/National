@@ -101,9 +101,7 @@ export interface ShiftRequest {
 export interface CreateShiftRequestInput {
   type: ShiftRequestType;
   requesterAccountId: string;
-  requesterName: string;
   recipientAccountId: string;
-  recipientName: string;
   requesterAssignment: ShiftAssignmentRef;
   offeredAssignment?: ShiftAssignmentRef;
 }
@@ -176,6 +174,6 @@ export type ShiftAssignmentApplyResult =
 export interface ShiftAssignmentGateway {
   validate(assignment: ShiftAssignmentRef, now: Date): ShiftAssignmentValidationResult;
   inspectWarnings(request: ShiftRequest): ShiftRequestWarning[];
-  apply(request: ShiftRequest, options: { actorName: string; overrideConflicts: boolean }): ShiftAssignmentApplyResult;
+  apply(request: ShiftRequest, options: { actorName: string; overrideConflicts: boolean; now: Date }): ShiftAssignmentApplyResult;
   rollback(receipt: ShiftApplyReceipt): void;
 }

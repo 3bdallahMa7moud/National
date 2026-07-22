@@ -9,10 +9,9 @@ import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import Badge from '@/components/ui/Badge';
-import { triggerMockDataChange, useMockData } from '@/hooks/useMockData';
+import { useMockData } from '@/hooks/useMockData';
 import { useToast } from '@/components/ui/Toast';
 import { useLanguage } from '@/hooks/useLanguage';
-import { mockEmployeesSource, persistMockEmployeesSource } from '@/mocks/sources';
 import type { MockEmployeeSource } from '@/mocks/types';
 import {
   Plus, Edit2, Trash2, Search, CheckCircle2, Copy, UserPlus,
@@ -23,14 +22,21 @@ import { JOB_TITLE_OPTIONS, findJobTitleOption, type Employee } from '@/types';
 import EmployeePermissionsPanel from './EmployeePermissionsPanel';
 import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
+import { effectivePermissions } from '@/types/employeeAccess';
 import { useAuthStore } from '@/stores/authStore';
+import {
+  getEmployeeDirectoryRecord,
+  useEmployeeDirectoryStore,
+} from '@/stores/employeeDirectoryStore';
 
 /* ─── helpers ─── */
 function generateId(): string {
   return 'emp-' + Date.now();
 }
 function generateEmpNumber(): string {
-  const nums = mockEmployeesSource.map((e) => parseInt(e.employeeNumber.replace(/\D/g, ''), 10)).filter(Boolean);
+  const nums = useEmployeeDirectoryStore.getState().records
+    .map((employee) => parseInt(employee.employeeNumber.replace(/\D/g, ''), 10))
+    .filter(Boolean);
   const max = nums.length ? Math.max(...nums) : 0;
   return 'EMP-' + String(max + 1).padStart(3, '0');
 }
@@ -59,14 +65,14 @@ export default function EmployeesPage() {
   const { addToast } = useToast();
   const actor = useAuthStore((state) => state.user);
   const accessProfiles = useEmployeeAccessStore((state) => state.profiles);
-  const ensureAccessProfile = useEmployeeAccessStore((state) => state.ensureProfile);
-  const setAccessActive = useEmployeeAccessStore((state) => state.setActive);
+  const addDirectoryEmployee = useEmployeeDirectoryStore((state) => state.addEmployee);
+  const updateDirectoryEmployee = useEmployeeDirectoryStore((state) => state.updateEmployee);
+  const setDirectoryActive = useEmployeeDirectoryStore((state) => state.setActive);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const deptIdFilter = searchParams.get('departmentId') || '';
 
   /* ─── local state ─── */
-  const [deletedIds, setDeletedIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -85,10 +91,8 @@ export default function EmployeesPage() {
 
   /* ─── derived data ─── */
   const employees = useMemo(
-    () => allEmployees.filter((employee) =>
-      !deletedIds.includes(employee.id)
-      && (employee.role !== 'employee' || accessProfiles[employee.id]?.active !== false)),
-    [accessProfiles, allEmployees, deletedIds],
+    () => allEmployees,
+    [allEmployees],
   );
   const filtered = employees.filter((e) => {
     const matchesSearch = e.name.includes(search) || e.email.includes(search) || e.employeeNumber.includes(search);
@@ -132,27 +136,11 @@ export default function EmployeesPage() {
       isActive: true,
       createdAt: new Date().toISOString().split('T')[0],
     };
-    mockEmployeesSource.push(newSource);
-    const persisted = persistMockEmployeesSource();
-    if (!persisted.ok) {
-      mockEmployeesSource.splice(mockEmployeesSource.findIndex((employee) => employee.id === newSource.id), 1);
-      addToast({ type: 'error', title: t('common:toast.error', 'Error'), message: persisted.message });
+    const result = addDirectoryEmployee(newSource, actor?.name);
+    if (!result.ok) {
+      addToast({ type: 'error', title: t('common:toast.error'), message: result.message || result.reason });
       return;
     }
-    const accessResult = ensureAccessProfile({
-      accountId: newSource.id,
-      name: language === 'ar' ? newSource.name.ar : newSource.name.en,
-      departmentId: newSource.departmentId,
-      scheduleEmployeeId: newSource.scheduleEmployeeId,
-      active: newSource.isActive,
-    }, actor?.name);
-    if (!accessResult.ok) {
-      mockEmployeesSource.splice(mockEmployeesSource.findIndex((employee) => employee.id === newSource.id), 1);
-      persistMockEmployeesSource();
-      addToast({ type: 'error', title: t('common:toast.error'), message: accessResult.message || accessResult.reason });
-      return;
-    }
-    triggerMockDataChange();
     setAddedInfo({ empNumber, name: employeeName });
     setForm(emptyForm());
     setFormErrors({});
@@ -175,33 +163,11 @@ export default function EmployeesPage() {
   };
 
   const handleDelete = (id: string) => {
-    const source = mockEmployeesSource.find((employee) => employee.id === id);
-    if (source) {
-      const sourceIndex = mockEmployeesSource.indexOf(source);
-      mockEmployeesSource.splice(sourceIndex, 1);
-      const persisted = persistMockEmployeesSource();
-      if (!persisted.ok) {
-        mockEmployeesSource.splice(sourceIndex, 0, source);
-        addToast({ type: 'error', title: t('common:toast.error', 'Error'), message: persisted.message });
-        return;
-      }
-      const ensured = ensureAccessProfile({
-        accountId: source.id,
-        name: language === 'ar' ? source.name.ar : source.name.en,
-        departmentId: source.departmentId,
-        scheduleEmployeeId: source.scheduleEmployeeId,
-        active: source.isActive,
-      }, actor?.name);
-      const result = ensured.ok ? setAccessActive(id, false, actor?.name) : ensured;
-      if (!result.ok) {
-        mockEmployeesSource.splice(sourceIndex, 0, source);
-        persistMockEmployeesSource();
-        addToast({ type: 'error', title: t('common:toast.error'), message: result.message || result.reason });
-        return;
-      }
-      triggerMockDataChange();
+    const result = setDirectoryActive(id, false, actor?.name);
+    if (!result.ok) {
+      addToast({ type: 'error', title: t('common:toast.error'), message: result.message || result.reason });
+      return;
     }
-    setDeletedIds((prev) => [...prev, id]);
     setDeleteDialog(null);
     addToast({ type: 'success', title: t('common:toast.deleted'), message: t('employees:management.deleteSuccess') });
   };
@@ -230,12 +196,34 @@ export default function EmployeesPage() {
     {
       key: 'name',
       header: t('employees:management.columns.employee'),
-      render: (emp: Employee) => (
-        <div>
-          <p className="font-medium">{emp.name}</p>
-          <p className="text-xs text-text-secondary">{emp.position}</p>
-        </div>
-      ),
+      render: (emp: Employee) => {
+        const record = getEmployeeDirectoryRecord(emp.id);
+        return (
+          <div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="font-medium">{emp.name}</p>
+              {record && record.issues.length > 0 && (
+                <Badge variant="danger">{t('employees:management.needsReview', 'Needs review')}</Badge>
+              )}
+              {record?.role === 'employee' && !record.active && (
+                <Badge variant="danger">{t('employees:management.inactive', 'Inactive')}</Badge>
+              )}
+              {record?.role === 'employee' && !record.scheduleEmployeeId && (
+                <Badge variant="warning">{t('employees:management.notLinked', 'Not linked')}</Badge>
+              )}
+              {record?.role === 'employee'
+                && accessProfiles[record.accountId]
+                && !effectivePermissions(
+                  accessProfiles[record.accountId].templateId,
+                  accessProfiles[record.accountId].overrides,
+                )['schedule.requests.respond'] && (
+                  <Badge variant="warning">{t('employees:management.cannotReceiveSwap', 'Cannot receive shift requests')}</Badge>
+              )}
+            </div>
+            <p className="text-xs text-text-secondary">{emp.position}</p>
+          </div>
+        );
+      },
     },
     {
       key: 'email',
@@ -501,38 +489,16 @@ export default function EmployeesPage() {
             if (editingEmployee) {
               const selectedTitle = JOB_TITLE_OPTIONS.find((t) => t.id === editJobTitleId) ?? JOB_TITLE_OPTIONS[0];
               const titleText = language === 'ar' ? selectedTitle.ar : selectedTitle.en;
-              const previousEditingPosition = editingEmployee.position;
-              const previousEditingName = editingEmployee.name;
-              const previousEditingBn = editingEmployee.employeeNumber;
-              const previousEditingCode = editingEmployee.code;
-              editingEmployee.name = editName.trim();
-              editingEmployee.employeeNumber = editBn.trim();
-              editingEmployee.code = editCode.trim().toUpperCase();
-              editingEmployee.position = titleText;
-              const sourceEmp = mockEmployeesSource.find((s) => s.id === editingEmployee.id);
-              if (sourceEmp) {
-                const previousPosition = sourceEmp.position;
-                const previousName = sourceEmp.name;
-                const previousBn = sourceEmp.employeeNumber;
-                const previousCode = sourceEmp.code;
-                sourceEmp.name = { ar: editName.trim(), en: editName.trim() };
-                sourceEmp.employeeNumber = editBn.trim();
-                sourceEmp.code = editCode.trim().toUpperCase();
-                sourceEmp.position = { ar: selectedTitle.ar, en: selectedTitle.en };
-                const persisted = persistMockEmployeesSource();
-                if (!persisted.ok) {
-                  sourceEmp.position = previousPosition;
-                  sourceEmp.name = previousName;
-                  sourceEmp.employeeNumber = previousBn;
-                  sourceEmp.code = previousCode;
-                  editingEmployee.position = previousEditingPosition;
-                  editingEmployee.name = previousEditingName;
-                  editingEmployee.employeeNumber = previousEditingBn;
-                  editingEmployee.code = previousEditingCode;
-                  addToast({ type: 'error', title: t('common:toast.error', 'Error'), message: persisted.message });
-                  return;
-                }
-                triggerMockDataChange();
+              void titleText;
+              const result = updateDirectoryEmployee(editingEmployee.id, {
+                name: { ar: editName.trim(), en: editName.trim() },
+                employeeNumber: editBn.trim(),
+                code: editCode.trim().toUpperCase(),
+                position: { ar: selectedTitle.ar, en: selectedTitle.en },
+              }, actor?.name);
+              if (!result.ok) {
+                addToast({ type: 'error', title: t('common:toast.error', 'Error'), message: result.message || result.reason });
+                return;
               }
             }
             setEditOpen(false);
@@ -605,16 +571,16 @@ export default function EmployeesPage() {
         size="lg"
       >
         {permissionsEmployee && (() => {
-          const source = mockEmployeesSource.find((employee) => employee.id === permissionsEmployee.id);
+          const source = getEmployeeDirectoryRecord(permissionsEmployee.id);
           if (!source) return null;
           return (
             <EmployeePermissionsPanel
               employee={{
-                accountId: source.id,
+                accountId: source.accountId,
                 name: permissionsEmployee.name,
                 departmentId: source.departmentId,
                 scheduleEmployeeId: source.scheduleEmployeeId,
-                active: source.isActive,
+                active: source.active,
               }}
               roster={getOfficialEmployeeRoster().map((employee) => ({
                 employeeId: employee.employeeId,
@@ -623,17 +589,6 @@ export default function EmployeesPage() {
               }))}
               actorName={actor?.name || 'Administrator'}
               onSaved={() => {
-                const profile = useEmployeeAccessStore.getState().profiles[source.id];
-                const previousLink = source.scheduleEmployeeId;
-                source.scheduleEmployeeId = profile?.scheduleEmployeeId;
-                const persisted = persistMockEmployeesSource();
-                if (!persisted.ok) {
-                  source.scheduleEmployeeId = previousLink;
-                  useEmployeeAccessStore.getState().setRosterLink(source.id, previousLink, actor?.name);
-                  addToast({ type: 'error', title: t('common:toast.error', 'Error'), message: persisted.message });
-                  return;
-                }
-                triggerMockDataChange();
                 addToast({ type: 'success', title: t('common:toast.saved') });
               }}
               onError={(message) => addToast({

@@ -1,7 +1,5 @@
 import { create } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { OFFICIAL_EMPLOYEE_ROSTER } from '@/data/officialEmployeeRoster';
-import { getStoredLanguage } from '@/i18n/constants';
 import {
   assignmentCellHasEmployee,
   assignmentRequestKey,
@@ -9,7 +7,6 @@ import {
   hasDayShiftOTConflict,
   reloadPublishedAssignmentSnapshots,
 } from '@/lib/shiftAssignmentGateway';
-import { mockEmployeesSource } from '@/mocks/sources';
 import type { AuthUser } from '@/types/employee';
 import {
   EMPLOYEE_PERMISSION_TEMPLATES,
@@ -29,6 +26,7 @@ import type {
   ShiftRequestTimelineEvent,
 } from '@/types/shiftRequest';
 import { useEmployeeAccessStore } from './employeeAccessStore';
+import { getEmployeeDirectoryRecord, useEmployeeDirectoryStore } from './employeeDirectoryStore';
 import { useAuthStore } from './authStore';
 import { useOperationalAuditStore } from './operationalAuditStore';
 import { useTargetedNotificationStore } from './targetedNotificationStore';
@@ -77,6 +75,7 @@ interface ShiftRequestStoreOptions {
   notify?: (drafts: TargetedNotificationDraft[]) => boolean;
   onChanged?: (event: { scheduleChanged: boolean }) => void;
   recordAudit?: (request: ShiftRequest, action: ShiftRequestAuditAction, actorName: string) => ShiftRequestAuditResult;
+  migrateLegacy?: boolean;
 }
 
 export interface ShiftRequestState {
@@ -95,6 +94,7 @@ export interface ShiftRequestState {
     note?: string,
   ): ShiftRequestMutationResult;
   expirePending(): number;
+  reconcileDirectory(): number;
   visibleForUser(user: Pick<AuthUser, 'id' | 'role' | 'departmentId' | 'scheduleEmployeeId'>): ShiftRequest[];
   reloadFromStorage(): void;
   clearForTests(): void;
@@ -157,12 +157,77 @@ function isRequest(value: unknown): value is ShiftRequest {
     && typeof request.expiresAt === 'string';
 }
 
-function readRequests(storage: ShiftRequestStorage | null): ShiftRequest[] {
+function canonicalizeRequestIdentity(request: ShiftRequest): ShiftRequest {
+  const requester = getEmployeeDirectoryRecord(request.requester.accountId);
+  const recipient = getEmployeeDirectoryRecord(request.recipient.accountId);
+  const requesterName = requester?.name.ar || requester?.name.en || request.requester.name;
+  const recipientName = recipient?.name.ar || recipient?.name.en || request.recipient.name;
+  return {
+    ...request,
+    requester: {
+      ...request.requester,
+      name: requesterName,
+      employeeCode: requester?.code || request.requester.employeeCode,
+    },
+    recipient: {
+      ...request.recipient,
+      name: recipientName,
+      employeeCode: recipient?.code || request.recipient.employeeCode,
+    },
+    requesterAssignment: {
+      ...request.requesterAssignment,
+      employeeCode: requester?.code || request.requesterAssignment.employeeCode,
+    },
+    offeredAssignment: request.offeredAssignment ? {
+      ...request.offeredAssignment,
+      employeeCode: recipient?.code || request.offeredAssignment.employeeCode,
+    } : undefined,
+    timeline: request.timeline.map((event) => {
+      if (event.actorAccountId === request.requester.accountId) return { ...event, actorName: requesterName };
+      if (event.actorAccountId === request.recipient.accountId) return { ...event, actorName: recipientName };
+      return event;
+    }),
+  };
+}
+
+function hasValidDirectoryParties(request: ShiftRequest): boolean {
+  const requester = getEmployeeDirectoryRecord(request.requester.accountId);
+  const recipient = getEmployeeDirectoryRecord(request.recipient.accountId);
+  return Boolean(
+    requester?.active
+    && requester.issues.length === 0
+    && requester.scheduleEmployeeId === request.requester.employeeId
+    && recipient?.active
+    && recipient.issues.length === 0
+    && recipient.scheduleEmployeeId === request.recipient.employeeId,
+  );
+}
+
+function readRequests(storage: ShiftRequestStorage | null, migrateLegacy = false): ShiftRequest[] {
   if (!storage) return [];
   try {
     const parsed = JSON.parse(storage.getItem(SHIFT_REQUEST_STORAGE_KEY) || 'null') as Partial<ShiftRequestPersistedState> | null;
     if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.requests)) return [];
-    return parsed.requests.filter(isRequest);
+    const requests = parsed.requests.filter(isRequest).map(canonicalizeRequestIdentity);
+    if (!migrateLegacy) return requests;
+    return requests.map((request) => {
+      if (!ACTIVE_STATUSES.includes(request.status)) return request;
+      if (hasValidDirectoryParties(request)) return request;
+      const updatedAt = new Date().toISOString();
+      return {
+        ...request,
+        status: 'stale' as const,
+        updatedAt,
+        timeline: [{
+          id: `migration-stale-${request.id}`,
+          action: 'stale' as const,
+          actorRole: 'system' as const,
+          actorName: 'System',
+          createdAt: updatedAt,
+          note: 'Employee directory migration could not validate both request parties.',
+        }, ...request.timeline],
+      };
+    });
   } catch {
     return [];
   }
@@ -209,17 +274,17 @@ function defaultNotify(drafts: TargetedNotificationDraft[]): boolean {
 }
 
 function fallbackProfile(accountId: string): EmployeeAccessProfile | undefined {
-  const source = mockEmployeesSource.find((employee) => employee.id === accountId && employee.role === 'employee');
-  if (!source) return undefined;
+  const source = getEmployeeDirectoryRecord(accountId);
+  if (!source || source.role !== 'employee') return undefined;
   return {
-    accountId: source.id,
+    accountId: source.accountId,
     departmentId: source.departmentId,
     scheduleEmployeeId: source.scheduleEmployeeId,
-    templateId: 'standard',
-    overrides: {},
-    active: source.isActive,
-    updatedAt: new Date(0).toISOString(),
-    updatedBy: 'system',
+    templateId: source.access.templateId,
+    overrides: { ...source.access.overrides },
+    active: source.active && source.issues.length === 0,
+    updatedAt: source.access.updatedAt,
+    updatedBy: source.access.updatedBy,
   };
 }
 
@@ -227,81 +292,69 @@ function hasPermission(profile: EmployeeAccessProfile, permission: EmployeePermi
   return profile.active && effectivePermissions(profile.templateId, profile.overrides)[permission];
 }
 
-function localCopy(en: string, ar: string): string {
-  return getStoredLanguage() === 'ar' ? ar : en;
-}
-
 function notificationDrafts(event: string, request: ShiftRequest): TargetedNotificationDraft[] {
-  const typeLabel = request.type === 'exchange'
-    ? localCopy('Exchange', 'تبديل')
-    : localCopy('Replace', 'استبدال');
-  const common = { departmentId: request.departmentId, relatedRequestId: request.id, isUrgent: false } as const;
-  if (event === 'created') return [{
-    ...common,
+  const adminRejectionReason = request.adminRejectionReason
+    ? request.adminRejectionNote?.trim()
+      || request.adminRejectionReason.replace(/_/g, ' ')
+    : '';
+  const params = {
+    requesterAccountId: request.requester.accountId,
     recipientAccountId: request.recipient.accountId,
-    type: 'shift_request_received',
-    title: localCopy(`New ${typeLabel} request`, `طلب ${typeLabel} جديد`),
-    message: localCopy(`${request.requester.name} sent you a shift request.`, `أرسل لك ${request.requester.name} طلبًا بخصوص الشفت.`),
-    actionUrl: '/shift-requests',
-  }];
-  if (event === 'recipient_accepted') return [{
-    ...common,
-    recipientRole: 'admin',
-    type: 'shift_request_recipient_accepted',
-    title: localCopy(`${typeLabel} request awaiting approval`, `طلب ${typeLabel} بانتظار الاعتماد`),
-    message: localCopy(`${request.recipient.name} accepted the request.`, `وافق ${request.recipient.name} على الطلب.`),
-    actionUrl: '/admin/shift-requests',
-    isUrgent: true,
-  }];
-  if (event === 'recipient_rejected') return [{
-    ...common,
-    recipientAccountId: request.requester.accountId,
-    type: 'shift_request_rejected',
-    title: localCopy(`${typeLabel} request rejected`, `تم رفض طلب ${typeLabel}`),
-    message: localCopy(`${request.recipient.name} rejected your request.`, `رفض ${request.recipient.name} طلبك.`),
-    actionUrl: '/shift-requests',
-  }];
-  if (event === 'approved') return [request.requester, request.recipient].map((party) => ({
-    ...common,
-    recipientAccountId: party.accountId,
-    type: 'shift_request_approved' as const,
-    title: localCopy(`${typeLabel} request approved`, `تم اعتماد طلب ${typeLabel}`),
-    message: localCopy('The administrator approved the request and the published schedule was updated.', 'اعتمد الأدمن الطلب وتم تحديث الجدول المنشور.'),
-    actionUrl: '/shift-requests',
-    isUrgent: true,
-  }));
-  if (event === 'admin_rejected') return [request.requester, request.recipient].map((party) => ({
-    ...common,
-    recipientAccountId: party.accountId,
-    type: 'shift_request_rejected' as const,
-    title: localCopy(`${typeLabel} request declined by admin`, `رفض الأدمن طلب ${typeLabel}`),
-    message: localCopy('The administrator did not approve this request.', 'لم يعتمد الأدمن هذا الطلب.'),
-    actionUrl: '/shift-requests',
-  }));
-  if (event === 'stale') return [request.requester, request.recipient].map((party) => ({
-    ...common,
-    recipientAccountId: party.accountId,
-    type: 'shift_request_stale' as const,
-    title: localCopy(`${typeLabel} request is no longer valid`, `طلب ${typeLabel} لم يعد صالحًا`),
-    message: localCopy('The shift changed or another request was approved first.', 'تغير الشفت أو تم اعتماد طلب آخر عليه أولًا.'),
-    actionUrl: '/shift-requests',
-  }));
-  if (event === 'cancelled') return [{
-    ...common,
-    recipientAccountId: request.recipient.accountId,
-    type: 'shift_request_rejected',
-    title: localCopy(`${typeLabel} request cancelled`, `تم إلغاء طلب ${typeLabel}`),
-    message: localCopy(`${request.requester.name} cancelled the request.`, `ألغى ${request.requester.name} الطلب.`),
-    actionUrl: '/shift-requests',
-  }];
-  if (event === 'expired') return [request.requester, request.recipient].map((party) => ({
-    ...common,
-    recipientAccountId: party.accountId,
-    type: 'shift_request_stale' as const,
-    title: localCopy(`${typeLabel} request expired`, `انتهت صلاحية طلب ${typeLabel}`),
-    message: localCopy('The shift started before the approval flow was completed.', 'بدأ الشفت قبل اكتمال الموافقات.'),
-    actionUrl: '/shift-requests',
-  }));
+    requester: request.requester.name,
+    recipient: request.recipient.name,
+    adminRejectionReasonKey: request.adminRejectionReason ?? '',
+    adminRejectionReason,
+  };
+  const accountDraft = (
+    accountId: string,
+    type: TargetedNotificationDraft['type'],
+    urgent = false,
+    actionUrl = '/shift-requests',
+  ): TargetedNotificationDraft => ({
+    audience: { kind: 'account', accountId },
+    recipientAccountId: accountId,
+    departmentId: request.departmentId,
+    relatedRequestId: request.id,
+    dedupeKey: `${request.id}:${event}:account:${accountId}`,
+    type,
+    title: 'Shift request update',
+    message: 'A shift request was updated.',
+    titleKey: `notifications:shiftRequests.${event}.${type}.${request.type}.title`,
+    messageKey: `notifications:shiftRequests.${event}.${type}.${request.type}.message`,
+    params,
+    actionUrl,
+    isUrgent: urgent,
+  });
+  if (event === 'created') return [
+    accountDraft(request.recipient.accountId, 'shift_request_received'),
+    accountDraft(request.requester.accountId, 'shift_request_submitted'),
+  ];
+  if (event === 'recipient_accepted') return [
+    accountDraft(request.requester.accountId, 'shift_request_recipient_accepted'),
+    {
+      audience: { kind: 'departmentRole', role: 'admin', departmentId: request.departmentId },
+      recipientRole: 'admin',
+      departmentId: request.departmentId,
+      relatedRequestId: request.id,
+      dedupeKey: `${request.id}:${event}:admin:${request.departmentId}`,
+      type: 'shift_request_recipient_accepted',
+      title: 'Shift request awaiting approval',
+      message: 'A recipient accepted a shift request.',
+      titleKey: `notifications:shiftRequests.${event}.shift_request_recipient_accepted.${request.type}.title`,
+      messageKey: `notifications:shiftRequests.${event}.shift_request_recipient_accepted.${request.type}.message`,
+      params,
+      actionUrl: '/admin/shift-requests',
+      isUrgent: true,
+    },
+  ];
+  if (event === 'recipient_rejected') return [accountDraft(request.requester.accountId, 'shift_request_rejected')];
+  if (event === 'approved') return [request.requester, request.recipient]
+    .map((party) => accountDraft(party.accountId, 'shift_request_approved', true));
+  if (event === 'admin_rejected') return [request.requester, request.recipient]
+    .map((party) => accountDraft(party.accountId, 'shift_request_rejected'));
+  if (event === 'stale' || event === 'expired') return [request.requester, request.recipient]
+    .map((party) => accountDraft(party.accountId, 'shift_request_stale'));
+  if (event === 'cancelled') return [accountDraft(request.recipient.accountId, 'shift_request_cancelled')];
   return [];
 }
 
@@ -339,7 +392,22 @@ function makeState(
   const notify = options.notify ?? defaultNotify;
   const recordAudit = options.recordAudit ?? defaultAudit;
 
-  const initialRequests = readRequests(storage);
+  const migrateLegacy = options.migrateLegacy ?? options.storage === undefined;
+  const initialRequests = readRequests(storage, migrateLegacy);
+  if (migrateLegacy) {
+    try {
+      storage?.setItem(SHIFT_REQUEST_STORAGE_KEY, JSON.stringify({ version: 1, requests: initialRequests } satisfies ShiftRequestPersistedState));
+    } catch {
+      // A later explicit mutation will surface storage failures.
+    }
+    const migratedStale = initialRequests.filter((request) =>
+      request.status === 'stale'
+      && request.timeline.some((event) => event.id === `migration-stale-${request.id}`),
+    );
+    if (migratedStale.length > 0) {
+      notify(migratedStale.flatMap((request) => notificationDrafts('stale', request)));
+    }
+  }
   try {
     const journal = JSON.parse(storage?.getItem(SHIFT_REQUEST_TRANSACTION_STORAGE_KEY) || 'null') as ShiftRequestTransactionJournal | null;
     if (journal?.version === 1 && journal.receipt) {
@@ -434,10 +502,12 @@ function makeState(
       if (!isCurrentActor(input.requesterAccountId)) return fail('wrong_actor');
       const requesterProfile = currentProfile(input.requesterAccountId);
       const recipientProfile = currentProfile(input.recipientAccountId);
+      const requesterDirectory = getEmployeeDirectoryRecord(input.requesterAccountId);
+      const recipientDirectory = getEmployeeDirectoryRecord(input.recipientAccountId);
       if (!requesterProfile?.scheduleEmployeeId) return fail('unlinked_account');
-      if (!requesterProfile.active) return fail('inactive_account');
+      if (!requesterProfile.active || (requesterDirectory && requesterDirectory.issues.length > 0)) return fail('inactive_account');
       if (!recipientProfile?.scheduleEmployeeId) return fail('recipient_not_linked');
-      if (!recipientProfile.active) return fail('inactive_account');
+      if (!recipientProfile.active || (recipientDirectory && recipientDirectory.issues.length > 0)) return fail('inactive_account');
       const requiredPermission: EmployeePermission = input.type === 'exchange'
         ? 'schedule.exchange.create'
         : 'schedule.replace.create';
@@ -494,8 +564,10 @@ function makeState(
       );
       if (duplicate) return fail('duplicate_request');
       const createdAt = now().toISOString();
+      const requesterName = requesterDirectory?.name.ar || requesterDirectory?.name.en || input.requesterAccountId;
+      const recipientName = recipientDirectory?.name.ar || recipientDirectory?.name.en || input.recipientAccountId;
       const recipientCode = offered?.employeeCode
-        ?? OFFICIAL_EMPLOYEE_ROSTER.find((employee) => employee.employeeId === recipientProfile.scheduleEmployeeId)?.code
+        ?? recipientDirectory?.code
         ?? recipientProfile.scheduleEmployeeId;
       const request: ShiftRequest = {
         id: createId(),
@@ -505,13 +577,13 @@ function makeState(
           accountId: input.requesterAccountId,
           employeeId: requesterProfile.scheduleEmployeeId,
           employeeCode: validation.assignment.employeeCode,
-          name: input.requesterName,
+          name: requesterName,
         },
         recipient: {
           accountId: input.recipientAccountId,
           employeeId: recipientProfile.scheduleEmployeeId,
           employeeCode: recipientCode,
-          name: input.recipientName,
+          name: recipientName,
         },
         requesterAssignment: validation.assignment,
         offeredAssignment: offered,
@@ -520,13 +592,13 @@ function makeState(
         createdAt,
         updatedAt: createdAt,
         expiresAt: [validation.assignment.startsAt, ...(offered ? [offered.startsAt] : [])].sort()[0],
-        timeline: [timelineEvent('created', 'requester', input.requesterName, createdAt, createId, input.requesterAccountId)],
+        timeline: [timelineEvent('created', 'requester', requesterName, createdAt, createId, input.requesterAccountId)],
       };
       request.warnings = gateway.inspectWarnings(request);
       const previous = get().requests;
       const requests = [request, ...previous];
       if (!commitWithAudit(previous, requests, notificationDrafts('created', request), [
-        { request, action: 'request', actorName: input.requesterName },
+        { request, action: 'request', actorName: requesterName },
       ])) return fail('storage_error');
       return { ok: true, request };
     },
@@ -605,7 +677,7 @@ function makeState(
       if (request.requester.accountId !== accountId) return fail('wrong_actor', request);
       const profile = currentProfile(accountId);
       if (!profile || !hasPermission(profile, 'schedule.requests.cancelOwn')) return fail('permission_denied', request);
-      if (!ACTIVE_STATUSES.includes(request.status)) return fail('invalid_status', request);
+      if (request.status !== 'pending_admin') return fail('invalid_status', request);
       if (new Date(request.expiresAt).getTime() <= now().getTime()) {
         get().expirePending();
         return fail('past_shift', get().requests.find((candidate) => candidate.id === request.id));
@@ -635,7 +707,7 @@ function makeState(
       }
       const warnings = gateway.inspectWarnings(request);
       if (warnings.length > 0 && !overrideConflicts) return { ok: false, reason: 'conflict_requires_override', request, warnings };
-      const applyResult = gateway.apply(request, { actorName, overrideConflicts });
+      const applyResult = gateway.apply(request, { actorName, overrideConflicts, now: now() });
       if (!applyResult.ok) return fail(
         applyResult.reason === 'draft_conflict' ? 'draft_conflict'
           : applyResult.reason === 'stale' || applyResult.reason === 'not_found' ? 'stale'
@@ -707,7 +779,7 @@ function makeState(
       if (!request) return fail('not_found');
       if (!isCurrentActor(adminAccountId)) return fail('wrong_actor', request);
       if (!isAdmin(adminAccountId)) return fail('permission_denied', request);
-      if (request.status !== 'pending_admin') return fail('invalid_status', request);
+      if (!ACTIVE_STATUSES.includes(request.status)) return fail('invalid_status', request);
       if (new Date(request.expiresAt).getTime() <= now().getTime()) {
         get().expirePending();
         return fail('past_shift', get().requests.find((candidate) => candidate.id === request.id));
@@ -754,6 +826,46 @@ function makeState(
       )) return 0;
       return expired.length;
     },
+    reconcileDirectory: () => {
+      const previous = get().requests;
+      const staleRequests: ShiftRequest[] = [];
+      let identityChanged = false;
+      const requests = previous.map((request) => {
+        const canonical = canonicalizeRequestIdentity(request);
+        if (canonical.requester.name !== request.requester.name
+          || canonical.requester.employeeCode !== request.requester.employeeCode
+          || canonical.recipient.name !== request.recipient.name
+          || canonical.recipient.employeeCode !== request.recipient.employeeCode) identityChanged = true;
+        if (!ACTIVE_STATUSES.includes(canonical.status) || hasValidDirectoryParties(canonical)) return canonical;
+        const updatedAt = now().toISOString();
+        const stale: ShiftRequest = {
+          ...canonical,
+          status: 'stale',
+          updatedAt,
+          timeline: [timelineEvent(
+            'stale',
+            'system',
+            'System',
+            updatedAt,
+            createId,
+            undefined,
+            'Employee directory no longer validates both request parties.',
+          ), ...canonical.timeline],
+        };
+        staleRequests.push(stale);
+        return stale;
+      });
+      if (!identityChanged && staleRequests.length === 0) return 0;
+      const saved = staleRequests.length > 0
+        ? commitWithAudit(
+          previous,
+          requests,
+          staleRequests.flatMap((request) => notificationDrafts('stale', request)),
+          staleRequests.map((request) => ({ request, action: 'expire' as const, actorName: 'System' })),
+        )
+        : commit(previous, requests, []);
+      return saved ? staleRequests.length : 0;
+    },
     visibleForUser: (user) => {
       if (user.role === 'admin') return get().requests;
       const profile = currentProfile(user.id);
@@ -766,7 +878,7 @@ function makeState(
         && (request.requester.accountId === user.id || request.recipient.accountId === user.id),
       );
     },
-    reloadFromStorage: () => set({ requests: readRequests(storage), storageError: null }),
+    reloadFromStorage: () => set({ requests: readRequests(storage, migrateLegacy), storageError: null }),
     clearForTests: () => {
       persist([]);
       set({ requests: [], storageError: null });
@@ -790,6 +902,10 @@ const broadcastShiftRequests = (event: { scheduleChanged: boolean }) => {
 export const useShiftRequestStore = create<ShiftRequestState>()(
   (set, get) => makeState({ onChanged: broadcastShiftRequests }, set, get),
 );
+
+useEmployeeDirectoryStore.subscribe(() => {
+  useShiftRequestStore.getState().reconcileDirectory();
+});
 
 if (typeof window !== 'undefined') {
   try {

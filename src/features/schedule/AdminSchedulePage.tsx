@@ -32,6 +32,7 @@ import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
 import { useRole } from '@/hooks/useRole';
 import { useAuthStore } from '@/stores/authStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
+import EmployeeDetailedShiftsModal from './EmployeeDetailedShiftsModal';
 import type { MatrixCellRef, Assignment, ShiftColorKey, MatrixReorderCommand, MatrixReorderResult } from '@/types/scheduleMatrix';
 
 export default function AdminSchedulePage() {
@@ -128,6 +129,8 @@ export default function AdminSchedulePage() {
     unitLabel: string;
     assignments: number;
   } | null>(null);
+  const [detailedEmployee, setDetailedEmployee] = useState<{ id: string; name: string } | null>(null);
+  const [colorblindMode, setColorblindMode] = useState(false);
 
   useEffect(() => {
     if (deepLinkHandled.current) return;
@@ -735,6 +738,8 @@ export default function AdminSchedulePage() {
         onShiftFilterChange={setShiftFilter}
         conflictsOnly={conflictsOnly}
         onToggleConflictsOnly={() => setConflictsOnly(!conflictsOnly)}
+        colorblindMode={colorblindMode}
+        onToggleColorblindMode={() => setColorblindMode(!colorblindMode)}
         onUndo={() => {
           if (undoLastEdit()) {
             addToast({ type: 'info', title: t('schedule:toast.undoTitle'), message: t('schedule:toast.undoStepMsg') });
@@ -853,6 +858,7 @@ export default function AdminSchedulePage() {
               brushEmployeeCodes={[]}
               isExpanded={isExpanded}
               zoomLevel={zoomLevel}
+              colorblindMode={colorblindMode}
             />
           </div>
         </div>
@@ -910,6 +916,7 @@ export default function AdminSchedulePage() {
           expandedCellsView={expandedCellsView}
           onToggleExpandedCellsView={() => setExpandedCellsView(!expandedCellsView)}
           zoomLevel={zoomLevel}
+          colorblindMode={colorblindMode}
           onCellClick={handleCellClick}
           onChipClick={handleChipClick}
           onCellContextMenu={(ref, position) => {
@@ -931,6 +938,7 @@ export default function AdminSchedulePage() {
             addToast({ type: 'info', title: t('schedule:toast.vacationUpdateTitle'), message: t('schedule:toast.vacationUpdateMsg', { day }) });
           }}
           onLegendEmployeeClick={handleLegendEmployeeClick}
+          onLegendEmployeeDetailsClick={(id, name) => setDetailedEmployee({ id, name })}
           onUpdateRow={(rowId, updates) => {
             updateMatrixRow(rowId, updates);
             addToast({
@@ -1036,6 +1044,7 @@ export default function AdminSchedulePage() {
         onChipClick={handleChipClick}
         onVacationToggle={toggleVacation}
         onLegendEmployeeClick={handleLegendEmployeeClick}
+          onLegendEmployeeDetailsClick={(id, name) => setDetailedEmployee({ id, name })}
         onUpdateRow={(rowId, updates) => {
           updateMatrixRow(rowId, updates);
           addToast({
@@ -1211,6 +1220,15 @@ export default function AdminSchedulePage() {
           </div>
         )}
       </Modal>
+
+      {/* ── Employee Detailed Shifts Modal ── */}
+      <EmployeeDetailedShiftsModal
+        isOpen={Boolean(detailedEmployee)}
+        onClose={() => setDetailedEmployee(null)}
+        employeeId={detailedEmployee?.id ?? null}
+        employeeName={detailedEmployee?.name}
+        data={data ?? null}
+      />
     </div>
   );
 }

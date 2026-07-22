@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3 } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, LayoutList } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PublishedScheduleSurface, { type PublishedScheduleTab } from './PublishedScheduleSurface';
@@ -9,6 +9,7 @@ import { ShiftRequestCreateModal } from '@/features/shift-requests/ShiftRequests
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toast';
+import EmployeeDetailedShiftsModal from './EmployeeDetailedShiftsModal';
 import { DEFAULT_SCHEDULE_DEPARTMENT_ID, projectPublishedOTTable, projectPublishedScheduleMatrix } from '@/lib/employeePublishedTables';
 import { createOTAssignmentRef, createScheduleAssignmentRef } from '@/lib/shiftAssignmentGateway';
 import { useAuthStore } from '@/stores/authStore';
@@ -29,6 +30,7 @@ export default function EmployeeSchedulePage() {
   const [requestAssignment, setRequestAssignment] = useState<ShiftAssignmentRef | null>(null);
   const user = useAuthStore((state) => state.user);
   const accessProfile = useEmployeeAccessStore((state) => user ? state.profiles[user.id] : undefined);
+  const [showDetailedShifts, setShowDetailedShifts] = useState(false);
   const access = useMemo(
     () => user ? resolveCurrentEmployeeAccess(accessProfile ? {
       ...user,
@@ -146,6 +148,14 @@ export default function EmployeeSchedulePage() {
               roster={ownRoster}
             />
           )}
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<LayoutList className="h-4 w-4" />}
+            onClick={() => setShowDetailedShifts(true)}
+          >
+            {t('schedule:detailedShifts.myShiftsBtn', { defaultValue: 'My Detailed Shifts' })}
+          </Button>
           <span className="w-fit rounded-full border border-border bg-surface-muted px-3 py-1 text-xs font-semibold text-text-secondary">
             {t('publishedTables.readOnly')}
           </span>
@@ -190,6 +200,13 @@ export default function EmployeeSchedulePage() {
         initialAssignment={requestAssignment || undefined}
         onClose={() => setRequestAssignment(null)}
         onResult={handleRequestResult}
+      />
+      <EmployeeDetailedShiftsModal
+        isOpen={showDetailedShifts}
+        onClose={() => setShowDetailedShifts(false)}
+        employeeId={employeeId ?? null}
+        employeeName={user?.name}
+        data={sourceMatrix ?? null}
       />
     </div>
   );

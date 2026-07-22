@@ -28,7 +28,7 @@ describe('late schedule export colors', () => {
     });
 
     const workbook = buildLateScheduleWorkbook(rows, OFFICIAL_EMPLOYEE_ROSTER, 'JULY LATE SHIFT', 2026, 6, days);
-    const sheet = workbook.getWorksheet('OT Schedule')!;
+    const sheet = workbook.getWorksheet('Late Roster')!;
     expect(sheet.getCell('A4').fill).toMatchObject({ fgColor: { argb: 'FF123456' } });
     expect(sheet.getCell('A4').font.color).toEqual({ argb: 'FFFEDCBA' });
     expect(sheet.getCell('E4').fill).toMatchObject({ fgColor: { argb: 'FF123456' } });

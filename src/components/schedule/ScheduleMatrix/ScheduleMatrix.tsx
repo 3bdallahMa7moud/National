@@ -55,6 +55,7 @@ export interface ScheduleMatrixProps {
   onDragFill?: (source: MatrixCellRef, target: MatrixCellRef) => void;
   onVacationToggle?: (employeeId: string, day: number) => void;
   onLegendEmployeeClick?: (employeeId: string) => void;
+  onLegendEmployeeDetailsClick?: (employeeId: string, employeeName: string) => void;
   onUpdateRow?: (
     rowId: string,
     updates: Partial<Pick<ShiftRow, 'rowLabel' | 'shiftLabel' | 'timeRange' | 'colorKey' | 'weekendOnly' | 'shiftDefinitionId'>>,
@@ -69,6 +70,7 @@ export interface ScheduleMatrixProps {
   onReorder?: (command: MatrixReorderCommand) => MatrixReorderResult;
   expandedCellsView?: boolean;
   onToggleExpandedCellsView?: () => void;
+  colorblindMode?: boolean;
 }
 
 function MobileMatrixOrder({
@@ -174,6 +176,7 @@ function ScheduleMatrix({
   onDragFill,
   onVacationToggle,
   onLegendEmployeeClick,
+  onLegendEmployeeDetailsClick,
   onUpdateRow,
   onAddRow,
   onArchiveRow,
@@ -185,8 +188,9 @@ function ScheduleMatrix({
   onReorder,
   expandedCellsView = false,
   onToggleExpandedCellsView,
+  colorblindMode = false,
 }: ScheduleMatrixProps) {
-  const { t } = useTranslation(['schedule', 'common']);
+  const { t, i18n } = useTranslation(['schedule', 'common']);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [rowEditTarget, setRowEditTarget] = useState<RowEditTarget | null>(null);
@@ -200,9 +204,101 @@ function ScheduleMatrix({
   } | null>(null);
   const [newRowLabel, setNewRowLabel] = useState('');
   const [newRowShiftDefinitionId, setNewRowShiftDefinitionId] = useState('');
+  const [dayColWidth, setDayColWidth] = useState(56);
+  const [labelColWidth, setLabelColWidth] = useState(190);
+  const [facilityColWidth, setFacilityColWidth] = useState(40);
+  const [baseRowHeight, setBaseRowHeight] = useState(54);
+  
+  const currentRowHeight = expandedCellsView ? Math.max(baseRowHeight, 84) : baseRowHeight;
+
   const daysInMonth = useMemo(() => {
     return new Date(data.year, data.month + 1, 0).getDate();
   }, [data.year, data.month]);
+
+  const createHorizontalResizer = useCallback((
+    startWidth: number,
+    cssVar: string,
+    min: number,
+    max: number,
+    onComplete: (w: number) => void
+  ) => (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const isRTL = document.documentElement.dir === 'rtl';
+
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const currentX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : (moveEvent as MouseEvent).clientX;
+      const deltaX = currentX - startX;
+      const newWidth = Math.max(min, Math.min(max, startWidth + (isRTL ? -deltaX : deltaX)));
+      if (scrollRef.current) scrollRef.current.style.setProperty(cssVar, `${newWidth}px`);
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent | TouchEvent) => {
+      cleanup();
+      const currentX = 'changedTouches' in upEvent ? upEvent.changedTouches[0].clientX : (upEvent as MouseEvent).clientX;
+      const deltaX = currentX - startX;
+      const finalWidth = Math.max(min, Math.min(max, startWidth + (isRTL ? -deltaX : deltaX)));
+      onComplete(finalWidth);
+    };
+
+    const cleanup = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleMouseMove);
+      document.removeEventListener('touchend', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleMouseMove);
+    document.addEventListener('touchend', handleMouseUp);
+  }, []);
+
+  const handleColumnResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    createHorizontalResizer(dayColWidth, '--matrix-day-col', 40, 300, setDayColWidth)(e);
+  }, [dayColWidth, createHorizontalResizer]);
+
+  const handleLabelColResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    createHorizontalResizer(labelColWidth, '--matrix-label-col', 100, 400, setLabelColWidth)(e);
+  }, [labelColWidth, createHorizontalResizer]);
+
+  const handleFacilityColResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    createHorizontalResizer(facilityColWidth, '--matrix-facility-col', 30, 150, setFacilityColWidth)(e);
+  }, [facilityColWidth, createHorizontalResizer]);
+
+  const handleRowResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    const startHeight = baseRowHeight;
+    let animationFrameId: number;
+
+    const handleMouseMove = (moveEvent: MouseEvent | TouchEvent) => {
+      const currentY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : (moveEvent as MouseEvent).clientY;
+      const deltaY = currentY - startY;
+      const newHeight = Math.max(40, Math.min(200, startHeight + deltaY));
+      
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(() => {
+        setBaseRowHeight(newHeight);
+      });
+    };
+
+    const handleMouseUp = () => {
+      cancelAnimationFrame(animationFrameId);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleMouseMove);
+      document.removeEventListener('touchend', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleMouseMove);
+    document.addEventListener('touchend', handleMouseUp);
+  }, [baseRowHeight]);
+
 
   // Track scroll state for edge-fade
   useEffect(() => {
@@ -327,15 +423,15 @@ function ScheduleMatrix({
   const rowVirtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => (expandedCellsView ? 84 : 54),
+    estimateSize: () => currentRowHeight,
     overscan: isTestEnv ? Math.max(8, flatRows.length) : 8,
     initialRect: { width: 1200, height: 2400 },
   });
 
   const virtualItems = isTestEnv
-    ? flatRows.map((_, index) => ({ index, start: 0, size: expandedCellsView ? 84 : 54, end: expandedCellsView ? 84 : 54, key: index }))
+    ? flatRows.map((_, index) => ({ index, start: 0, size: currentRowHeight, end: currentRowHeight, key: index }))
     : rowVirtualizer.getVirtualItems();
-  const totalSize = isTestEnv ? flatRows.length * (expandedCellsView ? 84 : 54) : rowVirtualizer.getTotalSize();
+  const totalSize = isTestEnv ? flatRows.length * currentRowHeight : rowVirtualizer.getTotalSize();
 
   const handleCellClick = useCallback(
     (ref: MatrixCellRef, meta?: CellInteractionMeta) => onCellClick?.(ref, meta),
@@ -437,7 +533,13 @@ function ScheduleMatrix({
             'matrix-scroll-container overflow-auto',
             isScrolled && 'is-scrolled',
           )}
-          style={{ maxHeight: isExpanded ? 'calc(100vh - 160px)' : 'calc(100vh - 260px)' }}
+          style={{ 
+            maxHeight: isExpanded ? 'calc(100vh - 160px)' : 'calc(100vh - 260px)',
+            '--matrix-day-col': `${dayColWidth}px`,
+            '--matrix-label-col': `${labelColWidth}px`,
+            '--matrix-facility-col': `${facilityColWidth}px`,
+            '--matrix-row-height': `${currentRowHeight}px`
+          } as React.CSSProperties}
           role="grid"
           aria-label={t('schedule:matrix.gridAriaLabel')}
         >
@@ -450,17 +552,24 @@ function ScheduleMatrix({
             >
               {/* Corner: facility col placeholder */}
               <div
-                className="shrink-0 sticky z-30 bg-surface-muted border-b border-e border-border"
+                className="shrink-0 sticky z-30 bg-surface-muted border-b border-e border-border group"
                 style={{
                   width: 'var(--matrix-facility-col)',
                   minWidth: 'var(--matrix-facility-col)',
                   height: 'var(--matrix-header-height)',
                   insetInlineStart: 0,
                 }}
-              />
+              >
+                {/* Horizontal Resizer for Facility Col */}
+                <div 
+                   className="absolute top-0 bottom-0 end-[-3px] w-[6px] z-20 cursor-col-resize touch-none opacity-0 group-hover:opacity-100 hover:bg-primary-teal/50 transition-opacity"
+                   onMouseDown={handleFacilityColResizeStart}
+                   onTouchStart={handleFacilityColResizeStart}
+                />
+              </div>
               {/* Corner: label col placeholder */}
               <div
-                className="shrink-0 sticky z-30 bg-surface-muted border-b border-e border-border flex items-center justify-between px-2 gap-1.5"
+                className="shrink-0 sticky z-30 bg-surface-muted border-b border-e border-border flex items-center justify-between px-2 gap-1.5 group relative"
                 style={{
                   width: 'var(--matrix-label-col)',
                   minWidth: 'var(--matrix-label-col)',
@@ -495,6 +604,7 @@ function ScheduleMatrix({
                 year={data.year}
                 month={data.month}
                 holidays={data.holidays}
+                onResizeStart={handleColumnResizeStart}
               />
             </div>
 
@@ -617,15 +727,15 @@ function ScheduleMatrix({
                                 height: 'var(--matrix-row-height)',
                               }}
                             >
-                              {t('schedule:matrix.order.emptyUnit', { defaultValue: 'This unit has no active rows.' })}
+                                {t('schedule:matrix.order.emptyUnit', { defaultValue: 'This unit has no active rows.' })}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                        {activeRows.map((row, rowPosition) => {
-                          const currentRowIndex = rowIndex;
-                          rowIndex += 1;
-                          return (
-                        <SortableMatrixRow
+                          )}
+                          {activeRows.map((row, rowPosition) => {
+                            const currentRowIndex = rowIndex;
+                            rowIndex += 1;
+                            return (
+                          <SortableMatrixRow
                           key={row.id}
                           facilityId={facility.id}
                           unitId={unit.id}
@@ -633,7 +743,7 @@ function ScheduleMatrix({
                           rowLabel={row.rowLabel || row.shiftLabel}
                           enabled={isOrderMode && !!onReorder}
                         >
-                        {(rowHandle) => (
+                        {(dragProps) => (
                         <>
                           {/* Frozen col 2: unit/shift label */}
                           <div
@@ -643,13 +753,15 @@ function ScheduleMatrix({
                             <UnitShiftLabel
                               unitName={unit.name}
                               rowLabel={row.rowLabel}
+                              rowId={row.id}
                               shiftLabel={row.shiftLabel}
                               timeRange={row.timeRange}
                               isOverflowRow={row.isOverflowRow}
                               weekendOnly={row.weekendOnly}
-                              isEditable={canEditRows}
+                              isEditable={canEditRows && !isOrderMode}
                               showUnitName={rowPosition === 0}
-                              orderControls={isOrderMode ? <>{rowPosition === 0 && unitHandle}{rowHandle}</> : undefined}
+                              orderControls={isOrderMode && rowPosition === 0 ? <>{unitHandle}</> : undefined}
+                              dragProps={dragProps}
                               onEditRow={
                                 canEditRows
                                   ? (anchorRect) =>
@@ -667,6 +779,7 @@ function ScheduleMatrix({
                                 ? (anchorRect) => openManageUnit(facility.id, unit.id, anchorRect)
                                 : undefined}
                               expandedCellsView={expandedCellsView}
+                              onRowResizeStart={handleRowResizeStart}
                             />
                           </div>
 
@@ -727,15 +840,14 @@ function ScheduleMatrix({
                   const startIndex = flatRows.findIndex((item) => item.facility.id === facility.id);
                   if (startIndex === -1) return null;
                   const rowCount = facilityRowCounts.get(facility.id) || 1;
-                  const rowHeight = expandedCellsView ? 84 : 54;
                   return (
                     <div
                       key={`fb-${facility.id}`}
                       className="absolute sticky z-20 shrink-0 flex justify-center text-white border-e border-border pointer-events-none"
                       style={{
                         insetInlineStart: 0,
-                        top: `${startIndex * rowHeight}px`,
-                        height: `${rowCount * rowHeight}px`,
+                        top: `${startIndex * currentRowHeight}px`,
+                        height: `${rowCount * currentRowHeight}px`,
                         width: 'var(--matrix-facility-col)',
                         minWidth: 'var(--matrix-facility-col)',
                         backgroundColor: `var(--${facility.accentColorToken})`,
@@ -903,6 +1015,7 @@ function ScheduleMatrix({
                                   : undefined
                               }
                               expandedCellsView={expandedCellsView}
+                              onRowResizeStart={handleRowResizeStart}
                             />
                           </div>
 
@@ -933,6 +1046,7 @@ function ScheduleMatrix({
                             onRangeSelect={readOnly ? undefined : onRangeSelect}
                             onDragFill={readOnly ? undefined : onDragFill}
                             expandedCellsView={expandedCellsView}
+                            colorblindMode={colorblindMode}
                           />
                         </div>
                       )}
@@ -966,6 +1080,7 @@ function ScheduleMatrix({
         highlightedEmployeeId={highlightedEmployeeId}
         brushEmployeeCodes={brushEmployeeCodes}
         onEmployeeClick={readOnly ? undefined : handleLegendClick}
+        onEmployeeDetailsClick={onLegendEmployeeDetailsClick}
         codeToId={codeToId}
       />
 

@@ -60,7 +60,7 @@
   "approve": "Approve and update schedule",
   "approveOverride": "Confirm approval despite warnings",
   "adminReason": "Admin rejection reason",
-  "adminNote": "Comment",
+  "adminNote": "Rejection reason",
   "rejectAdmin": "Reject request",
   "reasons": {
     "staff_shortage": "Staff shortage",
@@ -140,7 +140,7 @@
     "storage": "The operation could not be saved; no schedule change was kept.",
     "stale": "The shift changed and this request is no longer valid.",
     "draftConflict": "Resolve the conflicting draft cell before approving this request.",
-    "rejectionNoteRequired": "Enter a comment when the rejection reason is Other.",
+    "rejectionNoteRequired": "Enter the rejection reason when choosing Other.",
     "rejectionReasonRequired": "Choose a rejection reason.",
     "permission": "You do not have permission to complete this request.",
     "generic": "The request could not be completed."

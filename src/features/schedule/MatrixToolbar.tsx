@@ -70,6 +70,8 @@ interface MatrixToolbarProps {
   onShiftFilterChange: (value: ShiftColorKey | '') => void;
   conflictsOnly: boolean;
   onToggleConflictsOnly: () => void;
+  colorblindMode: boolean;
+  onToggleColorblindMode: () => void;
   onUndo?: () => void;
   canUndo?: boolean;
   onExportExcel?: () => void;
@@ -114,6 +116,8 @@ function MatrixToolbar({
   shiftFilter,
   shiftStyles,
   onShiftFilterChange,
+  colorblindMode,
+  onToggleColorblindMode,
   onUndo,
   canUndo = false,
   onExportExcel,
@@ -181,6 +185,19 @@ function MatrixToolbar({
         </div>
 
         <div className="hidden items-center gap-2 flex-wrap md:flex">
+
+          <button
+            onClick={onToggleColorblindMode}
+            className={cn(
+              'min-h-11 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors shadow-sm',
+              colorblindMode
+                ? 'border-primary-teal bg-primary-teal text-white'
+                : 'border-border bg-surface text-text-primary hover:bg-hover',
+            )}
+            title={t('schedule:toolbar.legendAndColors')}
+          >
+            {t('schedule:toolbar.legendAndColors')}
+          </button>
 
           {onUndo && (
             <button
@@ -281,6 +298,9 @@ function MatrixToolbar({
             </button>
             <button type="button" onClick={() => onModeChange('settings')} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
               {t('schedule:toolbar.modes.settings')}
+            </button>
+            <button type="button" onClick={onToggleColorblindMode} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
+              {t('schedule:toolbar.legendAndColors')}
             </button>
             {onUndo && (
               <button type="button" onClick={onUndo} disabled={!canUndo} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover disabled:opacity-40">

@@ -25,8 +25,7 @@ import {
 } from '@/lib/shiftAssignmentGateway';
 import type { ShiftAssignmentRef, ShiftRequestType, ShiftRequestMutationResult } from '@/types/shiftRequest';
 import type { EmployeeAccessProfile } from '@/types/employeeAccess';
-import { mockEmployeesSource } from '@/mocks/sources';
-import { getStoredLanguage } from '@/i18n/constants';
+import { getEmployeeDirectoryRecord } from '@/stores/employeeDirectoryStore';
 import { localizeRowLabel } from '@/lib/scheduleMatrixLocale';
 
 export interface ShiftRequestCreateWizardProps {
@@ -43,18 +42,17 @@ export interface ShiftRequestCreateWizardProps {
   createRequest: (input: {
     type: ShiftRequestType;
     requesterAccountId: string;
-    requesterName: string;
     recipientAccountId: string;
-    recipientName: string;
     requesterAssignment: ShiftAssignmentRef;
     offeredAssignment?: ShiftAssignmentRef;
   }) => ShiftRequestMutationResult;
 }
 
-function accountName(accountId: string): string {
-  const source = mockEmployeesSource.find((employee) => employee.id === accountId);
-  if (!source) return accountId;
-  return source.name[getStoredLanguage()];
+function accountName(accountId: string, language: string): string {
+  const record = getEmployeeDirectoryRecord(accountId);
+  if (!record) return accountId;
+  const locale = language.startsWith('ar') ? 'ar' : 'en';
+  return record.name[locale];
 }
 
 export function ShiftRequestCreateWizard({
@@ -207,9 +205,7 @@ export function ShiftRequestCreateWizard({
       createRequest({
         type,
         requesterAccountId: user.id,
-        requesterName: user.name,
         recipientAccountId,
-        recipientName: accountName(recipientAccountId),
         requesterAssignment,
         offeredAssignment: type === 'exchange' ? offeredAssignment : undefined,
       }),
@@ -288,6 +284,7 @@ export function ShiftRequestCreateWizard({
                   setOfferedKey('');
                 }}
                 t={t}
+                i18n={i18n}
               />
             )}
 
@@ -322,7 +319,7 @@ export function ShiftRequestCreateWizard({
               <StepReviewAndConfirm
                 type={type}
                 requesterName={user.name}
-                recipientName={accountName(recipientAccountId)}
+                recipientName={accountName(recipientAccountId, i18n.language)}
                 requesterAssignment={requesterAssignment}
                 offeredAssignment={offeredAssignment}
                 requesterConflict={requesterConflict}
@@ -349,7 +346,7 @@ export function ShiftRequestCreateWizard({
                 <span className="font-medium text-text-secondary">
                   {t('shiftRequests:wizard.preview.recipient')}:{' '}
                   <strong className="text-text-primary">
-                    {recipientAccountId ? accountName(recipientAccountId) : t('shiftRequests:wizard.preview.notSelected')}
+                    {recipientAccountId ? accountName(recipientAccountId, i18n.language) : t('shiftRequests:wizard.preview.notSelected')}
                   </strong>
                 </span>
                 <span className="text-text-muted">|</span>
@@ -456,6 +453,7 @@ function StepTypeAndRecipient({
   recipientAccountId,
   setRecipientAccountId,
   t,
+  i18n,
 }: {
   type: ShiftRequestType;
   setType: (t: ShiftRequestType) => void;
@@ -466,6 +464,7 @@ function StepTypeAndRecipient({
   recipientAccountId: string;
   setRecipientAccountId: (id: string) => void;
   t: (key: string, opt?: Record<string, unknown>) => string;
+  i18n: { language: string };
 }) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -473,10 +472,10 @@ function StepTypeAndRecipient({
     if (!searchQuery.trim()) return recipients;
     const query = searchQuery.toLowerCase();
     return recipients.filter((profile) => {
-      const name = accountName(profile.accountId).toLowerCase();
+      const name = accountName(profile.accountId, i18n.language).toLowerCase();
       return name.includes(query) || profile.accountId.toLowerCase().includes(query);
     });
-  }, [recipients, searchQuery]);
+  }, [recipients, searchQuery, i18n.language]);
 
   return (
     <div className="space-y-6">
@@ -570,7 +569,7 @@ function StepTypeAndRecipient({
           ) : (
             filteredRecipients.map((profile) => {
               const isSelected = recipientAccountId === profile.accountId;
-              const name = accountName(profile.accountId);
+              const name = accountName(profile.accountId, i18n.language);
               const count = recipientShiftCounts[profile.accountId] || 0;
               const isUnavailableForExchange = type === 'exchange' && count === 0;
 

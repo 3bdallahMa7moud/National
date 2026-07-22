@@ -66,6 +66,7 @@ interface FullscreenMatrixModalProps {
   onChipClick: (ref: MatrixCellRef, a: Assignment) => void;
   onVacationToggle: (empId: string, day: number) => void;
   onLegendEmployeeClick: (empId: string) => void;
+  onLegendEmployeeDetailsClick?: (empId: string, employeeName: string) => void;
   onUpdateRow?: (
     rowId: string,
     updates: Partial<Pick<ShiftRow, 'rowLabel' | 'shiftLabel' | 'timeRange' | 'colorKey' | 'weekendOnly'>>,
@@ -119,6 +120,7 @@ function FullscreenMatrixModal({
   onChipClick,
   onVacationToggle,
   onLegendEmployeeClick,
+  onLegendEmployeeDetailsClick,
   onUpdateRow,
   onAddRow,
   onArchiveRow,
@@ -329,6 +331,7 @@ function FullscreenMatrixModal({
             onChipClick={onChipClick}
             onVacationToggle={onVacationToggle}
             onLegendEmployeeClick={onLegendEmployeeClick}
+            onLegendEmployeeDetailsClick={onLegendEmployeeDetailsClick}
             onUpdateRow={onUpdateRow}
             onAddRow={onAddRow}
             onArchiveRow={onArchiveRow}

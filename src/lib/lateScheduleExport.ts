@@ -32,17 +32,26 @@ export interface LateScheduleExportModel {
   roster: UnifiedEmployee[];
 }
 
+// Matches the "Late_Schedule_JULY_LATE_SHIFT_2026.xlsx" reference template:
+// slate title/header bar, amber notice + weekend highlighting, teal employee legend.
 const EXPORT_COLORS = {
-  brand: 'FF0F6B78',
-  brandDark: 'FF173952',
+  brand: 'FF0F172A',
+  headerFill: 'FFF1F5F9',
+  headerText: 'FF1E293B',
+  headerBorder: 'FFCBD5E1',
+  headerBorderBottom: 'FF94A3B8',
   surface: 'FFFFFFFF',
-  surfaceMuted: 'FFF1F5F7',
-  weekend: 'FFE4EEF1',
-  border: 'FFB8C7CD',
-  accent: 'FFF9E298',
-  unresolved: 'FFFFE4E6',
-  text: 'FF101B2D',
-  mutedText: 'FF5B6472',
+  border: 'FFE2E8F0',
+  assigned: 'FFE2E8F0',
+  notice: 'FFFEF3C7',
+  noticeText: 'FF92400E',
+  weekend: 'FFFDE68A',
+  weekendMuted: 'FFFFFBEB',
+  accent: 'FFFCD34D',
+  unresolved: 'FFFEE2E2',
+  unresolvedText: 'FFB91C1C',
+  text: 'FF0F172A',
+  legendHeader: 'FF0D9488',
 } as const;
 
 function printableEmployeeCode(employee: LateScheduleExportEmployee): string {
@@ -106,9 +115,15 @@ function safeCssColor(value: string | undefined): string | undefined {
   return /^#[0-9a-f]{6}$/i.test(value?.trim() || '') ? value!.trim() : undefined;
 }
 
-function border(style: ExcelJS.BorderStyle = 'thin'): Partial<ExcelJS.Borders> {
-  const edge = { style, color: { argb: EXPORT_COLORS.border } };
+function dataBorder(): Partial<ExcelJS.Borders> {
+  const edge = { style: 'thin' as const, color: { argb: EXPORT_COLORS.border } };
   return { top: edge, right: edge, bottom: edge, left: edge };
+}
+
+function headerBorder(): Partial<ExcelJS.Borders> {
+  const thin = { style: 'thin' as const, color: { argb: EXPORT_COLORS.headerBorder } };
+  const thick = { style: 'medium' as const, color: { argb: EXPORT_COLORS.headerBorderBottom } };
+  return { top: thin, left: thin, right: thin, bottom: thick };
 }
 
 function styleCell(
@@ -117,16 +132,19 @@ function styleCell(
     fill?: string;
     color?: string;
     bold?: boolean;
+    italic?: boolean;
     size?: number;
     horizontal?: ExcelJS.Alignment['horizontal'];
     wrap?: boolean;
+    borderVariant?: 'data' | 'header' | 'none';
   } = {},
 ): void {
   cell.font = {
-    name: 'Arial',
+    name: 'Calibri',
     family: 2,
-    size: options.size ?? 10,
+    size: options.size ?? 11,
     bold: options.bold ?? false,
+    italic: options.italic ?? false,
     color: { argb: options.color ?? EXPORT_COLORS.text },
   };
   cell.alignment = {
@@ -135,7 +153,9 @@ function styleCell(
     wrapText: options.wrap ?? true,
   };
   cell.fill = solidFill(options.fill ?? EXPORT_COLORS.surface);
-  cell.border = border();
+  const variant = options.borderVariant ?? 'data';
+  if (variant === 'header') cell.border = headerBorder();
+  else if (variant === 'data') cell.border = dataBorder();
 }
 
 function columnLetter(columnNumber: number): string {
@@ -157,7 +177,7 @@ function monthLabel(year: number, monthIndex: number): string {
 export function buildLateScheduleWorkbook(
   rows: OTShiftRow[],
   roster: UnifiedEmployee[],
-  _currentTitle: string,
+  currentTitle: string,
   year: number,
   monthIndex: number,
   daysList: LateScheduleCalendarDay[],
@@ -170,8 +190,8 @@ export function buildLateScheduleWorkbook(
 
   const lastColumn = 4 + daysList.length;
   const lastColumnLetter = columnLetter(lastColumn);
-  const schedule = workbook.addWorksheet('OT Schedule', {
-    views: [{ state: 'frozen', xSplit: 4, ySplit: 3, topLeftCell: 'E4', showGridLines: false }],
+  const schedule = workbook.addWorksheet('Late Roster', {
+    views: [{ state: 'frozen', xSplit: 4, ySplit: 3, topLeftCell: 'E4' }],
     pageSetup: {
       orientation: 'landscape',
       fitToPage: true,
@@ -181,40 +201,49 @@ export function buildLateScheduleWorkbook(
       margins: { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 },
     },
   });
-  schedule.properties.defaultRowHeight = 24;
+  schedule.properties.defaultRowHeight = 28;
   schedule.mergeCells(`A1:${lastColumnLetter}1`);
   schedule.mergeCells(`A2:${lastColumnLetter}2`);
 
   const title = schedule.getCell('A1');
-  title.value = `OT Schedule — ${monthLabel(year, monthIndex)}`;
-  styleCell(title, { fill: EXPORT_COLORS.brand, color: EXPORT_COLORS.surface, bold: true, size: 16 });
-  schedule.getRow(1).height = 30;
+  title.value = `${currentTitle} — ${monthLabel(year, monthIndex)}`;
+  styleCell(title, { fill: EXPORT_COLORS.brand, color: EXPORT_COLORS.surface, bold: true, size: 14, borderVariant: 'none' });
+  schedule.getRow(1).height = 36;
 
   const noticeCell = schedule.getCell('A2');
   noticeCell.value = notice;
   styleCell(noticeCell, {
-    fill: EXPORT_COLORS.surfaceMuted,
-    color: EXPORT_COLORS.mutedText,
-    horizontal: 'left',
+    fill: EXPORT_COLORS.notice,
+    color: EXPORT_COLORS.noticeText,
+    italic: true,
+    size: 10,
+    borderVariant: 'none',
   });
-  schedule.getRow(2).height = notice ? 34 : 10;
+  schedule.getRow(2).height = notice ? 24 : 10;
 
   const metadataHeaders = ['Shift', 'Location', 'Time', 'Hours'];
   metadataHeaders.forEach((label, index) => {
     const cell = schedule.getCell(3, index + 1);
     cell.value = label;
-    styleCell(cell, { fill: EXPORT_COLORS.brandDark, color: EXPORT_COLORS.surface, bold: true });
+    styleCell(cell, {
+      fill: EXPORT_COLORS.headerFill,
+      color: EXPORT_COLORS.headerText,
+      bold: true,
+      horizontal: index < 3 ? 'left' : 'center',
+      borderVariant: 'header',
+    });
   });
   daysList.forEach((day, index) => {
     const cell = schedule.getCell(3, index + 5);
     cell.value = `${day.weekdayName}\n${day.dayNum}`;
     styleCell(cell, {
-      fill: day.isWeekend ? EXPORT_COLORS.weekend : EXPORT_COLORS.surfaceMuted,
+      fill: day.isWeekend ? EXPORT_COLORS.weekend : EXPORT_COLORS.headerFill,
+      color: EXPORT_COLORS.headerText,
       bold: true,
-      size: 9,
+      borderVariant: 'header',
     });
   });
-  schedule.getRow(3).height = 34;
+  schedule.getRow(3).height = 28;
 
   model.rows.forEach((row, rowIndex) => {
     const excelRow = rowIndex + 4;
@@ -223,9 +252,7 @@ export function buildLateScheduleWorkbook(
       const cell = schedule.getCell(excelRow, index + 1);
       cell.value = value;
       styleCell(cell, {
-        fill: index === 0
-          ? colorArgb(row.backgroundColor, rowIndex % 2 === 0 ? EXPORT_COLORS.surface : EXPORT_COLORS.surfaceMuted)
-          : rowIndex % 2 === 0 ? EXPORT_COLORS.surface : EXPORT_COLORS.surfaceMuted,
+        fill: index === 0 ? colorArgb(row.backgroundColor, EXPORT_COLORS.surface) : EXPORT_COLORS.surface,
         color: index === 0 ? colorArgb(row.textColor, EXPORT_COLORS.text) : EXPORT_COLORS.text,
         bold: index === 0,
         horizontal: index < 3 ? 'left' : 'center',
@@ -238,22 +265,26 @@ export function buildLateScheduleWorkbook(
         ? assignments.map(printableEmployeeCode).join('-')
         : null;
       const hasUnresolved = assignments.some((assignment) => assignment.unresolved);
+      const hasAssignment = assignments.length > 0;
       const fill = hasUnresolved
         ? EXPORT_COLORS.unresolved
-        : assignments.length > 0 && row.backgroundColor
+        : hasAssignment && row.backgroundColor
           ? colorArgb(row.backgroundColor, EXPORT_COLORS.accent)
           : row.highlightedDays?.includes(day.dayNum)
-          ? EXPORT_COLORS.accent
-          : day.isWeekend
-            ? EXPORT_COLORS.weekend
-            : rowIndex % 2 === 0 ? EXPORT_COLORS.surface : EXPORT_COLORS.surfaceMuted;
+            ? EXPORT_COLORS.accent
+            : hasAssignment && day.isWeekend
+              ? EXPORT_COLORS.accent
+              : hasAssignment
+                ? EXPORT_COLORS.assigned
+                : day.isWeekend
+                  ? EXPORT_COLORS.weekendMuted
+                  : EXPORT_COLORS.surface;
       styleCell(cell, {
         fill,
-        color: assignments.length > 0 && !hasUnresolved
+        color: hasAssignment && !hasUnresolved
           ? colorArgb(row.textColor, EXPORT_COLORS.text)
-          : hasUnresolved ? 'FF9F1239' : EXPORT_COLORS.text,
-        bold: assignments.length > 0,
-        size: 9,
+          : hasUnresolved ? EXPORT_COLORS.unresolvedText : EXPORT_COLORS.text,
+        bold: hasAssignment,
       });
     });
   });
@@ -262,39 +293,39 @@ export function buildLateScheduleWorkbook(
   schedule.getColumn(2).width = 14;
   schedule.getColumn(3).width = 16;
   schedule.getColumn(4).width = 9;
-  for (let column = 5; column <= lastColumn; column += 1) schedule.getColumn(column).width = 6;
-  schedule.autoFilter = { from: 'A3', to: `${lastColumnLetter}3` };
+  for (let column = 5; column <= lastColumn; column += 1) schedule.getColumn(column).width = 13;
   schedule.pageSetup.printArea = `A1:${lastColumnLetter}${Math.max(4, model.rows.length + 3)}`;
 
-  const employees = workbook.addWorksheet('Employees', {
-    views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
-    pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 1, printTitlesRow: '1:3' },
+  const employees = workbook.addWorksheet('Employee Legend', {
+    pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
   });
-  employees.mergeCells('A1:C1');
-  employees.getCell('A1').value = 'Employees';
-  styleCell(employees.getCell('A1'), { fill: EXPORT_COLORS.brand, color: EXPORT_COLORS.surface, bold: true, size: 16 });
-  employees.getRow(1).height = 30;
-  ['No.', 'Code', 'Employee name'].forEach((label, index) => {
-    const cell = employees.getCell(3, index + 1);
+  ['Employee Code', 'English Name', 'Arabic Name'].forEach((label, index) => {
+    const cell = employees.getCell(1, index + 1);
     cell.value = label;
-    styleCell(cell, { fill: EXPORT_COLORS.brandDark, color: EXPORT_COLORS.surface, bold: true });
+    styleCell(cell, {
+      fill: EXPORT_COLORS.legendHeader,
+      color: EXPORT_COLORS.surface,
+      bold: true,
+      horizontal: 'left',
+      borderVariant: 'none',
+    });
   });
+  employees.getRow(1).height = 24;
   model.roster.forEach((employee, index) => {
-    const excelRow = index + 4;
-    [index + 1, employee.code, employee.fullNameEn || employee.fullName].forEach((value, cellIndex) => {
+    const excelRow = index + 2;
+    [employee.code, employee.fullNameEn || employee.fullName, employee.fullName || employee.fullNameEn].forEach((value, cellIndex) => {
       const cell = employees.getCell(excelRow, cellIndex + 1);
       cell.value = value;
       styleCell(cell, {
-        fill: index % 2 === 0 ? EXPORT_COLORS.surface : EXPORT_COLORS.surfaceMuted,
-        bold: cellIndex === 1,
-        horizontal: cellIndex === 2 ? 'left' : 'center',
+        fill: EXPORT_COLORS.surface,
+        horizontal: 'left',
+        borderVariant: 'none',
       });
     });
   });
-  employees.getColumn(1).width = 9;
-  employees.getColumn(2).width = 12;
-  employees.getColumn(3).width = 34;
-  employees.autoFilter = { from: 'A3', to: 'C3' };
+  employees.getColumn(1).width = 18;
+  employees.getColumn(2).width = 24;
+  employees.getColumn(3).width = 13;
 
   return workbook;
 }

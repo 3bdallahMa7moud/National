@@ -17,6 +17,64 @@
     "urgentBadge": "Emergency / Urgent",
     "deleteTitle": "Delete notification"
   },
+  "passwordReset": {
+    "title": "Password reset request",
+    "message": "Employee {{employee}} requested a password reset."
+  },
+  "shiftRequests": {
+    "created": {
+      "shift_request_received": {
+        "exchange": { "title": "New shift exchange request", "message": "{{requester}} sent you a shift exchange request." },
+        "replace": { "title": "New shift replacement request", "message": "{{requester}} asked you to cover a shift." }
+      },
+      "shift_request_submitted": {
+        "exchange": { "title": "Exchange request submitted", "message": "Your request was sent to {{recipient}}." },
+        "replace": { "title": "Replacement request submitted", "message": "Your request was sent to {{recipient}}." }
+      }
+    },
+    "recipient_accepted": {
+      "shift_request_recipient_accepted": {
+        "exchange": { "title": "Exchange request awaiting approval", "message": "{{recipient}} accepted the request. It is now waiting for administrator approval." },
+        "replace": { "title": "Replacement request awaiting approval", "message": "{{recipient}} accepted the request. It is now waiting for administrator approval." }
+      }
+    },
+    "recipient_rejected": {
+      "shift_request_rejected": {
+        "exchange": { "title": "Exchange request rejected", "message": "{{recipient}} rejected your request." },
+        "replace": { "title": "Replacement request rejected", "message": "{{recipient}} rejected your request." }
+      }
+    },
+    "approved": {
+      "shift_request_approved": {
+        "exchange": { "title": "Exchange request approved", "message": "The administrator approved the request and the published schedule was updated." },
+        "replace": { "title": "Replacement request approved", "message": "The administrator approved the request and the published schedule was updated." }
+      }
+    },
+    "admin_rejected": {
+      "shift_request_rejected": {
+        "exchange": { "title": "Exchange request declined by administrator", "message": "The administrator did not approve this request. Reason: {{adminRejectionReason}}." },
+        "replace": { "title": "Replacement request declined by administrator", "message": "The administrator did not approve this request. Reason: {{adminRejectionReason}}." }
+      }
+    },
+    "stale": {
+      "shift_request_stale": {
+        "exchange": { "title": "Exchange request is no longer valid", "message": "The shift changed or another request was approved first." },
+        "replace": { "title": "Replacement request is no longer valid", "message": "The shift changed or another request was approved first." }
+      }
+    },
+    "expired": {
+      "shift_request_stale": {
+        "exchange": { "title": "Exchange request expired", "message": "The shift started before the approval flow was completed." },
+        "replace": { "title": "Replacement request expired", "message": "The shift started before the approval flow was completed." }
+      }
+    },
+    "cancelled": {
+      "shift_request_cancelled": {
+        "exchange": { "title": "Exchange request cancelled", "message": "{{requester}} cancelled the request." },
+        "replace": { "title": "Replacement request cancelled", "message": "{{requester}} cancelled the request." }
+      }
+    }
+  },
   "mock": {
     "notif-1": {
       "title": "On-Call Assignment",

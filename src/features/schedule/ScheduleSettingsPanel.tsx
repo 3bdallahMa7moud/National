@@ -46,6 +46,13 @@ interface ScheduleSettingsPanelProps {
 
 const COLOR_OPTIONS: ShiftColorKey[] = ['morning', 'evening', 'night', 'onCall', 'onCallNight', 'overtime'];
 
+const SHIFT_SYMBOLS = [
+  '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌙', '🌛', '🌜', '⭐', '🌟', 
+  '🏥', '⚕️', '💊', '💉', '🩺', '🚑', '🚨', '🏖️', '🌴', '✈️', 
+  '🛌', '💤', '☕', '🍽️', '⚠️', '⚡', '🔴', '🟠', '🟡', '🟢', 
+  '🔵', '🟣', '⚫', '⚪'
+];
+
 const DEFAULT_SHIFT_FORM = {
   arabicName: '',
   englishName: '',
@@ -55,7 +62,6 @@ const DEFAULT_SHIFT_FORM = {
   backgroundColor: SHIFT_COLOR_PALETTE.morning.light.background,
   textColor: SHIFT_COLOR_PALETTE.morning.light.text,
   icon: '',
-  shortCode: '',
 };
 
 function assignmentCount(row: ShiftRow): number {
@@ -93,6 +99,7 @@ function ScheduleSettingsPanel({
   const [newShift, setNewShift] = useState(DEFAULT_SHIFT_FORM);
   const [rowDrafts, setRowDrafts] = useState<Record<string, { label: string; definitionId: string }>>({});
   const [paletteImport, setPaletteImport] = useState('');
+  const [openIconPickerId, setOpenIconPickerId] = useState<string | null>(null);
 
   const facility = useMemo(
     () => data.facilities.find((item) => item.id === facilityId) || data.facilities[0],
@@ -354,25 +361,40 @@ function ScheduleSettingsPanel({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-text-secondary">Short Code</label>
-                      <input
-                        value={newShift.shortCode}
-                        onChange={(event) => setNewShift((current) => ({ ...current, shortCode: event.target.value }))}
-                        placeholder="e.g. M"
-                        className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-xs text-ink focus:border-primary-teal focus:outline-none shadow-sm font-mono font-bold"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-text-secondary">Icon</label>
-                      <input
-                        value={newShift.icon}
-                        onChange={(event) => setNewShift((current) => ({ ...current, icon: event.target.value }))}
-                        placeholder="e.g. ☀️"
-                        className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-xs text-ink focus:border-primary-teal focus:outline-none shadow-sm text-center"
-                      />
-                    </div>
+                  <div className="space-y-1 relative">
+                    <label className="text-[11px] font-bold text-text-secondary">Shift Symbol</label>
+                    <button
+                      type="button"
+                      onClick={() => setOpenIconPickerId(openIconPickerId === 'new' ? null : 'new')}
+                      className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-xs text-ink focus:border-primary-teal focus:outline-none shadow-sm flex items-center justify-center transition-transform hover:scale-[1.02]"
+                      style={{
+                        backgroundColor: newShift.backgroundColor,
+                        color: newShift.textColor,
+                        borderColor: newShift.backgroundColor
+                      }}
+                    >
+                      <span className="font-bold text-lg">{newShift.icon || 'Pick Symbol...'}</span>
+                    </button>
+                    {openIconPickerId === 'new' && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={() => setOpenIconPickerId(null)}
+                        />
+                        <div className="absolute top-full mt-2 left-0 z-50 w-64 rounded-2xl border border-border bg-surface p-3 shadow-xl grid grid-cols-6 gap-1 max-h-56 overflow-y-auto">
+                          {SHIFT_SYMBOLS.map(sym => (
+                            <button
+                              key={sym}
+                              type="button"
+                              onClick={() => { setNewShift(current => ({ ...current, icon: sym })); setOpenIconPickerId(null); }}
+                              className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-hover text-xl transition-colors"
+                            >
+                              {sym}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex items-end sm:col-span-2 md:col-span-1">
@@ -397,7 +419,6 @@ function ScheduleSettingsPanel({
                           backgroundColor: isDefaultBg ? undefined : newShift.backgroundColor,
                           textColor: isDefaultBg && isDefaultText ? undefined : newShift.textColor,
                           icon: newShift.icon.trim(),
-                          shortCode: newShift.shortCode.trim(),
                           effectiveFromDay: 1,
                         });
                         setNewShift(DEFAULT_SHIFT_FORM);
@@ -433,7 +454,7 @@ function ScheduleSettingsPanel({
                         style={{ backgroundColor, color: textColor, borderColor: backgroundColor }}
                       >
                         {shift.icon ? `${shift.icon} ` : ''}
-                        {shift.englishName || shift.label} ({shift.shortCode || shift.colorKey})
+                        {shift.englishName || shift.label}
                       </span>
                       <span className="text-[11px] font-bold uppercase tracking-wider text-text-secondary">
                         {t(`schedule:shiftColors.${shift.colorKey}`)}
@@ -533,27 +554,40 @@ function ScheduleSettingsPanel({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-bold text-text-secondary block mb-0.5">Short Code</label>
-                          <input
-                            value={shift.shortCode || ''}
-                            disabled={shift.archived}
-                            onChange={(event) => onUpdateShift(facility.id, shift.id, { shortCode: event.target.value })}
-                            placeholder="Code (M)"
-                            className="h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2 text-xs font-mono font-bold text-ink focus:border-primary-teal focus:bg-surface focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-text-secondary block mb-0.5">Icon</label>
-                          <input
-                            value={shift.icon || ''}
-                            disabled={shift.archived}
-                            onChange={(event) => onUpdateShift(facility.id, shift.id, { icon: event.target.value })}
-                            placeholder="Icon (☀️)"
-                            className="h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2 text-xs text-ink focus:border-primary-teal focus:bg-surface focus:outline-none text-center"
-                          />
-                        </div>
+                      <div className="relative">
+                        <label className="text-[10px] font-bold text-text-secondary block mb-0.5">Shift Symbol</label>
+                        <button
+                          type="button"
+                          disabled={shift.archived}
+                          onClick={() => setOpenIconPickerId(openIconPickerId === shift.id ? null : shift.id)}
+                          className={cn(
+                            "h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2 text-xs font-bold text-ink focus:border-primary-teal focus:outline-none flex items-center justify-center shadow-sm transition-transform",
+                            !shift.archived && "hover:scale-[1.02] cursor-pointer"
+                          )}
+                          style={{ backgroundColor, color: textColor, borderColor: backgroundColor }}
+                        >
+                          <span className="text-sm">{shift.icon || 'Pick Symbol...'}</span>
+                        </button>
+                        {openIconPickerId === shift.id && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-40" 
+                              onClick={() => setOpenIconPickerId(null)}
+                            />
+                            <div className="absolute bottom-full mb-2 left-0 sm:left-auto sm:right-0 z-50 w-64 rounded-2xl border border-border bg-surface p-3 shadow-xl grid grid-cols-6 gap-1 max-h-56 overflow-y-auto">
+                              {SHIFT_SYMBOLS.map(sym => (
+                                <button
+                                  key={sym}
+                                  type="button"
+                                  onClick={() => { onUpdateShift(facility.id, shift.id, { icon: sym }); setOpenIconPickerId(null); }}
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-hover text-xl transition-colors"
+                                >
+                                  {sym}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 

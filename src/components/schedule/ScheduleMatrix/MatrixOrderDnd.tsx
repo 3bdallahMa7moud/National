@@ -42,7 +42,7 @@ export function MatrixFacilityOrderContext({
   children: ReactNode;
 }) {
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
@@ -95,13 +95,23 @@ export function MatrixFacilityOrderContext({
     });
   };
 
+  const unitItems = facility.units
+    .filter((unit) => !unit.archived)
+    .map((unit) => unitSortableId(facility.id, unit.id));
+  const rowItems = facility.units
+    .filter((unit) => !unit.archived)
+    .flatMap((unit) =>
+      unit.rows
+        .filter((row) => !row.archived)
+        .map((row) => rowSortableId(facility.id, unit.id, row.id))
+    );
+
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext
-        items={facility.units.map((unit) => unitSortableId(facility.id, unit.id))}
-        strategy={verticalListSortingStrategy}
-      >
-        {children}
+      <SortableContext items={unitItems} strategy={verticalListSortingStrategy}>
+        <SortableContext items={rowItems} strategy={verticalListSortingStrategy}>
+          {children}
+        </SortableContext>
       </SortableContext>
     </DndContext>
   );
@@ -193,12 +203,7 @@ export function SortableMatrixUnit({
       style={{ transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }}
       data-order-unit-id={unitId}
     >
-      <SortableContext
-        items={rowIds.map((rowId) => rowSortableId(facilityId, unitId, rowId))}
-        strategy={verticalListSortingStrategy}
-      >
-        {children(unitHandle)}
-      </SortableContext>
+      {children(unitHandle)}
     </div>
   );
 }
@@ -216,23 +221,22 @@ export function SortableMatrixRow({
   rowId: string;
   rowLabel: string;
   enabled: boolean;
-  children: (rowHandle: ReactNode) => ReactNode;
+  children: (dragProps: {
+    setActivatorNodeRef: (node: HTMLElement | null) => void;
+    attributes: ReturnType<typeof useSortable>['attributes'];
+    listeners: ReturnType<typeof useSortable>['listeners'];
+  } | null) => ReactNode;
 }) {
   const sortable = useSortable({
     id: rowSortableId(facilityId, unitId, rowId),
     disabled: !enabled,
     data: { kind: 'row', facilityId, unitId, rowId } satisfies MatrixSortableData,
   });
-  const rowHandle = enabled ? (
-    <OrderHandle
-      kind="row"
-      label={rowLabel}
-      testId={`matrix-order-handle-row-${rowId}`}
-      setActivatorNodeRef={sortable.setActivatorNodeRef}
-      attributes={sortable.attributes}
-      listeners={sortable.listeners}
-    />
-  ) : null;
+  const dragProps = enabled ? {
+    setActivatorNodeRef: sortable.setActivatorNodeRef,
+    attributes: sortable.attributes,
+    listeners: sortable.listeners,
+  } : null;
 
   return (
     <div
@@ -245,7 +249,7 @@ export function SortableMatrixRow({
       style={{ transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }}
       data-order-row-id={rowId}
     >
-      {children(rowHandle)}
+      {children(dragProps)}
     </div>
   );
 }

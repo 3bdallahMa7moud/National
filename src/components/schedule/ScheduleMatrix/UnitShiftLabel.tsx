@@ -6,10 +6,12 @@ import { memo, type ReactNode } from 'react';
 import { Archive, Pencil, Plus, Settings2, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core';
 
 interface UnitShiftLabelProps {
   unitName: string;
   rowLabel?: string;
+  rowId?: string;
   shiftLabel: string;
   timeRange: string;
   isOverflowRow?: boolean;
@@ -23,11 +25,18 @@ interface UnitShiftLabelProps {
   showUnitName?: boolean;
   expandedCellsView?: boolean;
   orderControls?: ReactNode;
+  dragProps?: {
+    setActivatorNodeRef: (node: HTMLElement | null) => void;
+    attributes: DraggableAttributes;
+    listeners: DraggableSyntheticListeners;
+  } | null;
+  onRowResizeStart?: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
 }
 
 function UnitShiftLabel({
   unitName,
   rowLabel,
+  rowId,
   shiftLabel,
   timeRange,
   isOverflowRow = false,
@@ -41,18 +50,26 @@ function UnitShiftLabel({
   showUnitName = true,
   expandedCellsView = false,
   orderControls,
+  dragProps,
+  onRowResizeStart,
 }: UnitShiftLabelProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const primaryLabel = showUnitName ? unitName : (rowLabel || shiftLabel);
 
   return (
     <div
+      ref={dragProps?.setActivatorNodeRef}
+      {...(dragProps ? dragProps.attributes : {})}
+      {...(dragProps ? dragProps.listeners : {})}
+      data-testid={dragProps && rowId ? `matrix-order-handle-row-${rowId}` : undefined}
+      aria-label={dragProps ? `Drag shift ${rowLabel || shiftLabel}` : undefined}
       className={cn(
         'group/label relative flex flex-col justify-center',
         'px-2.5 py-1 transition-all duration-150',
-        orderControls && 'ps-[86px]',
+        orderControls ? 'ps-[46px]' : '',
         'border-b border-e border-border',
         isOverflowRow ? 'bg-surface-muted/80' : 'bg-surface-muted',
+        dragProps && 'cursor-grab active:cursor-grabbing touch-none hover:bg-surface-muted/60'
       )}
       style={{
         width: 'var(--matrix-label-col)',
@@ -156,6 +173,16 @@ function UnitShiftLabel({
       <span dir="ltr" className="text-[10px] font-medium text-text-secondary truncate leading-tight" style={{ unicodeBidi: 'isolate' }}>
         {showUnitName ? `${shiftLabel} · ` : ''}{weekendOnly ? 'Fri/Sat · ' : ''}{timeRange}
       </span>
+
+      {/* Row Height Resizer */}
+      {onRowResizeStart && (
+        <div
+          className="absolute bottom-[-3px] start-0 end-0 h-[6px] z-30 cursor-row-resize touch-none opacity-0 group-hover/label:opacity-100 hover:bg-primary-teal/50 transition-opacity"
+          onMouseDown={onRowResizeStart}
+          onTouchStart={onRowResizeStart}
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }

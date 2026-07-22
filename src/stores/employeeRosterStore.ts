@@ -1,9 +1,11 @@
 import { create } from 'zustand';
+import { OFFICIAL_EMPLOYEE_ROSTER, type OfficialEmployee } from '@/data/officialEmployeeRoster';
 import {
-  OFFICIAL_EMPLOYEE_ROSTER,
-  type OfficialEmployee,
-} from '@/data/officialEmployeeRoster';
+  getEmployeeDirectoryRoster,
+  useEmployeeDirectoryStore,
+} from '@/stores/employeeDirectoryStore';
 
+/** Legacy key retained for the v3 directory migration only. */
 export const EMPLOYEE_ROSTER_STORAGE_KEY = 'ngh_official_employee_roster_v1';
 
 export type EmployeeRosterUpdateResult =
@@ -19,108 +21,59 @@ interface EmployeeRosterState {
   resetEmployees: () => void;
 }
 
-interface StoredRosterOverride {
-  employeeId: string;
-  code: string;
-  fullName: string;
-  fullNameEn?: string;
-}
+function updateRosterIdentity(employeeId: string, fullName: string, code: string): EmployeeRosterUpdateResult {
+  const normalizedName = fullName.trim();
+  const normalizedCode = code.trim().toUpperCase();
+  if (!normalizedName) return { ok: false, reason: 'name_required' };
+  if (!normalizedCode) return { ok: false, reason: 'code_required' };
 
-function cloneDefaultRoster(): OfficialEmployee[] {
-  return OFFICIAL_EMPLOYEE_ROSTER.map((employee) => ({ ...employee }));
-}
+  const directory = useEmployeeDirectoryStore.getState();
+  const record = directory.records.find((candidate) => candidate.scheduleEmployeeId === employeeId);
+  if (!record) return { ok: false, reason: 'employee_not_found' };
+  if (directory.records.some((candidate) =>
+    candidate.accountId !== record.accountId
+    && candidate.scheduleEmployeeId
+    && candidate.code.toUpperCase() === normalizedCode,
+  )) return { ok: false, reason: 'duplicate_code' };
 
-function browserStorage(): Storage | null {
-  try {
-    return typeof window === 'undefined' ? null : window.localStorage;
-  } catch {
-    return null;
+  const result = directory.updateEmployee(record.accountId, {
+    name: { ar: normalizedName, en: normalizedName },
+    code: normalizedCode,
+  }, 'Schedule administrator');
+  if (!result.ok) {
+    return {
+      ok: false,
+      reason: result.reason === 'duplicate_value' ? 'duplicate_code' : 'employee_not_found',
+    };
   }
+  return { ok: true, fullName: normalizedName, code: normalizedCode };
 }
 
-function readRoster(): OfficialEmployee[] {
-  const storage = browserStorage();
-  if (!storage) return cloneDefaultRoster();
-  try {
-    const parsed = JSON.parse(storage.getItem(EMPLOYEE_ROSTER_STORAGE_KEY) || '[]') as unknown;
-    if (!Array.isArray(parsed)) return cloneDefaultRoster();
-    const overrides = new Map<string, StoredRosterOverride>(
-      parsed.flatMap((candidate) => {
-        if (!candidate || typeof candidate !== 'object') return [];
-        const value = candidate as Partial<OfficialEmployee>;
-        if (typeof value.employeeId !== 'string' || typeof value.code !== 'string' || typeof value.fullName !== 'string') {
-          return [];
-        }
-        return [[value.employeeId, {
-          employeeId: value.employeeId,
-          code: value.code,
-          fullName: value.fullName,
-          fullNameEn: value.fullNameEn,
-        }] as const];
-      }),
-    );
-    const merged = cloneDefaultRoster().map((employee) => {
-      const override = overrides.get(employee.employeeId);
-      return override
-        ? {
-            ...employee,
-            code: override.code.trim().toUpperCase(),
-            fullName: override.fullName.trim(),
-            fullNameEn: (override.fullNameEn || override.fullName).trim(),
-          }
-        : employee;
-    });
-    const codes = new Set(merged.map((employee) => employee.code));
-    return codes.size === merged.length ? merged : cloneDefaultRoster();
-  } catch {
-    return cloneDefaultRoster();
-  }
-}
-
-function persistRoster(employees: OfficialEmployee[]): void {
-  try {
-    browserStorage()?.setItem(EMPLOYEE_ROSTER_STORAGE_KEY, JSON.stringify(employees));
-  } catch {
-    // Keep the in-memory roster usable when storage is unavailable.
-  }
-}
-
-export const useEmployeeRosterStore = create<EmployeeRosterState>((set, get) => ({
-  employees: readRoster(),
+export const useEmployeeRosterStore = create<EmployeeRosterState>((set) => ({
+  employees: getEmployeeDirectoryRoster(),
   updateEmployeeIdentity: (employeeId, fullName, code) => {
-    const normalizedName = fullName.trim();
-    const normalizedCode = code.trim().toUpperCase();
-    if (!normalizedName) return { ok: false, reason: 'name_required' };
-    if (!normalizedCode) return { ok: false, reason: 'code_required' };
-
-    const employees = get().employees;
-    if (!employees.some((employee) => employee.employeeId === employeeId)) {
-      return { ok: false, reason: 'employee_not_found' };
-    }
-    if (employees.some((employee) =>
-      employee.employeeId !== employeeId && employee.code.toUpperCase() === normalizedCode,
-    )) {
-      return { ok: false, reason: 'duplicate_code' };
-    }
-
-    const next = employees.map((employee) => employee.employeeId === employeeId
-      ? { ...employee, code: normalizedCode, fullName: normalizedName, fullNameEn: normalizedName }
-      : employee);
-    set({ employees: next });
-    persistRoster(next);
-    return { ok: true, fullName: normalizedName, code: normalizedCode };
+    const result = updateRosterIdentity(employeeId, fullName, code);
+    if (result.ok) set({ employees: getEmployeeDirectoryRoster() });
+    return result;
   },
   resetEmployees: () => {
-    const employees = cloneDefaultRoster();
-    set({ employees });
-    try {
-      browserStorage()?.removeItem(EMPLOYEE_ROSTER_STORAGE_KEY);
-    } catch {
-      // No-op when storage is unavailable.
+    const directory = useEmployeeDirectoryStore.getState();
+    for (const seed of OFFICIAL_EMPLOYEE_ROSTER) {
+      const record = directory.records.find((candidate) => candidate.scheduleEmployeeId === seed.employeeId);
+      if (!record) continue;
+      directory.updateEmployee(record.accountId, {
+        name: { ar: seed.fullName, en: seed.fullNameEn || seed.fullName },
+        code: seed.code,
+      }, 'System');
     }
+    set({ employees: getEmployeeDirectoryRoster() });
   },
 }));
 
+useEmployeeDirectoryStore.subscribe(() => {
+  useEmployeeRosterStore.setState({ employees: getEmployeeDirectoryRoster() });
+});
+
 export function getOfficialEmployeeRoster(): OfficialEmployee[] {
-  return useEmployeeRosterStore.getState().employees;
+  return getEmployeeDirectoryRoster();
 }

@@ -5,7 +5,7 @@ import {
   DEFAULT_LATE_SCHEDULE_NOTICE,
   LEGACY_LATE_SCHEDULE_ROWS,
 } from '@/data/lateScheduleSeed';
-import { OFFICIAL_EMPLOYEE_ROSTER } from '@/data/officialEmployeeRoster';
+import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import { migrateLateSchedulePayload, migrateRetiredOTEmployeeIds } from '@/lib/lateScheduleMigration';
 import type {
   LateSchedulePersistedState,
@@ -430,7 +430,7 @@ function browserStorage(): LateScheduleStorage | undefined {
 }
 
 function defaultMigrationRoster(): OTRosterEmployee[] {
-  return OFFICIAL_EMPLOYEE_ROSTER;
+  return getOfficialEmployeeRoster();
 }
 
 function seedRowsByMonth(roster: OTRosterEmployee[]): Record<string, OTShiftRow[]> {

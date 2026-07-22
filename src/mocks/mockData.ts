@@ -3,6 +3,11 @@ import { getStoredLanguage } from '@/i18n/constants';
 import { verifyEmployeePassword } from './mockPasswordStore';
 import { resolveCurrentEmployeeAccess } from '@/stores/employeeAccessStore';
 import {
+  directoryRecordToMockSource,
+  getEmployeeDirectoryRecord,
+  useEmployeeDirectoryStore,
+} from '@/stores/employeeDirectoryStore';
+import {
   mockDepartmentsSource,
   mockShiftTypesSource,
   mockEmployeesSource,
@@ -38,7 +43,7 @@ export {
 
 function resolveAll(lang = getStoredLanguage()) {
   return {
-    employees: mockEmployeesSource.map((e) => resolveEmployee(e, lang)),
+    employees: useEmployeeDirectoryStore.getState().records.map((record) => resolveEmployee(directoryRecordToMockSource(record), lang)),
     departments: mockDepartmentsSource.map((d) => resolveDepartment(d, lang)),
     notifications: mockNotificationsSource.map((n) => resolveNotification(n, lang)),
     auditLog: mockAuditLogSource.map((e) => resolveAuditLog(e, lang)),
@@ -61,7 +66,9 @@ export function mockLogin(identifier: string, password: string) {
   const input = identifier.trim().toLowerCase();
 
   // Find the matching employee by email, employee number, or name
-  const source = mockEmployeesSource.find((e) => {
+  const source = useEmployeeDirectoryStore.getState().records
+    .map(directoryRecordToMockSource)
+    .find((e) => {
     const nameEn = typeof e.name === 'object' ? (e.name as { en: string; ar: string }).en : '';
     const nameAr = typeof e.name === 'object' ? (e.name as { en: string; ar: string }).ar : '';
     const emailMatch  = e.email !== '' && e.email.toLowerCase() === input;
@@ -99,9 +106,12 @@ export function getShiftTypeById(id: string) {
 }
 
 export function findEmployeeSource(id: string) {
-  return mockEmployeesSource.find((e) => e.id === id);
+  const record = getEmployeeDirectoryRecord(id);
+  return record ? directoryRecordToMockSource(record) : undefined;
 }
 
 export function findEmployeeSourceByEmail(email: string) {
-  return mockEmployeesSource.find((e) => e.email === email);
+  const normalized = email.trim().toLowerCase();
+  const record = useEmployeeDirectoryStore.getState().records.find((candidate) => candidate.email.toLowerCase() === normalized);
+  return record ? directoryRecordToMockSource(record) : undefined;
 }

@@ -17,6 +17,64 @@
     "urgentBadge": "طوارئ / عاجل",
     "deleteTitle": "حذف الإشعار"
   },
+  "passwordReset": {
+    "title": "طلب إعادة تعيين كلمة المرور",
+    "message": "طلب الموظف {{employee}} إعادة تعيين كلمة المرور الخاصة به."
+  },
+  "shiftRequests": {
+    "created": {
+      "shift_request_received": {
+        "exchange": { "title": "طلب تبديل شفت جديد", "message": "أرسل لك {{requester}} طلب تبديل شفت." },
+        "replace": { "title": "طلب تغطية شفت جديد", "message": "طلب منك {{requester}} تغطية شفت." }
+      },
+      "shift_request_submitted": {
+        "exchange": { "title": "تم إرسال طلب التبديل", "message": "تم إرسال طلبك إلى {{recipient}}." },
+        "replace": { "title": "تم إرسال طلب التغطية", "message": "تم إرسال طلبك إلى {{recipient}}." }
+      }
+    },
+    "recipient_accepted": {
+      "shift_request_recipient_accepted": {
+        "exchange": { "title": "طلب التبديل بانتظار الاعتماد", "message": "وافق {{recipient}} على الطلب، وهو الآن بانتظار اعتماد الأدمن." },
+        "replace": { "title": "طلب التغطية بانتظار الاعتماد", "message": "وافق {{recipient}} على الطلب، وهو الآن بانتظار اعتماد الأدمن." }
+      }
+    },
+    "recipient_rejected": {
+      "shift_request_rejected": {
+        "exchange": { "title": "تم رفض طلب التبديل", "message": "رفض {{recipient}} طلبك." },
+        "replace": { "title": "تم رفض طلب التغطية", "message": "رفض {{recipient}} طلبك." }
+      }
+    },
+    "approved": {
+      "shift_request_approved": {
+        "exchange": { "title": "تم اعتماد طلب التبديل", "message": "اعتمد الأدمن الطلب وتم تحديث الجدول المنشور." },
+        "replace": { "title": "تم اعتماد طلب التغطية", "message": "اعتمد الأدمن الطلب وتم تحديث الجدول المنشور." }
+      }
+    },
+    "admin_rejected": {
+      "shift_request_rejected": {
+        "exchange": { "title": "رفض الأدمن طلب التبديل", "message": "لم يعتمد الأدمن هذا الطلب. سبب الرفض: {{adminRejectionReason}}." },
+        "replace": { "title": "رفض الأدمن طلب التغطية", "message": "لم يعتمد الأدمن هذا الطلب. سبب الرفض: {{adminRejectionReason}}." }
+      }
+    },
+    "stale": {
+      "shift_request_stale": {
+        "exchange": { "title": "طلب التبديل لم يعد صالحًا", "message": "تغير الشفت أو تم اعتماد طلب آخر عليه أولًا." },
+        "replace": { "title": "طلب التغطية لم يعد صالحًا", "message": "تغير الشفت أو تم اعتماد طلب آخر عليه أولًا." }
+      }
+    },
+    "expired": {
+      "shift_request_stale": {
+        "exchange": { "title": "انتهت صلاحية طلب التبديل", "message": "بدأ الشفت قبل اكتمال الموافقات." },
+        "replace": { "title": "انتهت صلاحية طلب التغطية", "message": "بدأ الشفت قبل اكتمال الموافقات." }
+      }
+    },
+    "cancelled": {
+      "shift_request_cancelled": {
+        "exchange": { "title": "تم إلغاء طلب التبديل", "message": "ألغى {{requester}} الطلب." },
+        "replace": { "title": "تم إلغاء طلب التغطية", "message": "ألغى {{requester}} الطلب." }
+      }
+    }
+  },
   "mock": {
     "notif-1": {
       "title": "تكليف تحت الطلب",

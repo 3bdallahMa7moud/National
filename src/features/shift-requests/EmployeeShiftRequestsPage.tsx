@@ -6,17 +6,14 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { useToast } from '@/components/ui/Toast';
-import { listPublishedAssignmentsForEmployee } from '@/lib/shiftAssignmentGateway';
-import { mockEmployeesSource } from '@/mocks/sources';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
+import { getEmployeeDirectoryRecord } from '@/stores/employeeDirectoryStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
 import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
 import { ShiftRequestCreateModal } from './ShiftRequestsPage';
 import {
-  effectivePermissions,
   resolveEffectiveEmployeeAccess,
-  type EmployeeAccessProfile,
 } from '@/types/employeeAccess';
 import type {
   ShiftAssignmentRef,
@@ -57,6 +54,24 @@ function formatDateTime(value: string, language: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
     new Date(value),
   );
+}
+
+function requestPartyName(
+  party: ShiftRequest['requester'] | ShiftRequest['recipient'],
+  language: string,
+): string {
+  const record = getEmployeeDirectoryRecord(party.accountId);
+  if (!record) return party.name;
+  const locale = language.startsWith('ar') ? 'ar' : 'en';
+  return record.name[locale] || party.name;
+}
+
+function timelineActorName(event: ShiftRequest['timeline'][number], language: string): string {
+  if (!event.actorAccountId) return event.actorName;
+  const record = getEmployeeDirectoryRecord(event.actorAccountId);
+  if (!record) return event.actorName;
+  const locale = language.startsWith('ar') ? 'ar' : 'en';
+  return record.name[locale] || event.actorName;
 }
 
 function mutationMessageKey(reason: ShiftRequestMutationReason): string {
@@ -151,46 +166,6 @@ export default function EmployeeShiftRequestsPage() {
     addToast({ type: 'error', title: t(key), message: t(key) });
     return false;
   }
-
-  /* ---- Build requesterAssignments for modal ---- */
-  const requesterAssignments = currentAccess?.scheduleEmployeeId
-    ? listPublishedAssignmentsForEmployee(
-      currentAccess.scheduleEmployeeId,
-      currentAccess.departmentId,
-    ).filter((a) => new Date(a.startsAt).getTime() > Date.now())
-    : [];
-
-  const candidateProfiles = useMemo(() => {
-    const combined: Record<string, EmployeeAccessProfile> = { ...profiles };
-    for (const employee of mockEmployeesSource) {
-      if (!employee.role || employee.role !== 'employee' || !employee.scheduleEmployeeId || combined[employee.id])
-        continue;
-      combined[employee.id] = {
-        accountId: employee.id,
-        departmentId: employee.departmentId,
-        scheduleEmployeeId: employee.scheduleEmployeeId,
-        templateId: 'standard',
-        overrides: {},
-        active: employee.isActive,
-        updatedAt: new Date(0).toISOString(),
-        updatedBy: 'system',
-      };
-    }
-    return combined;
-  }, [profiles]);
-
-  const recipients = useMemo(
-    () =>
-      Object.values(candidateProfiles).filter(
-        (profile) =>
-          profile.active &&
-          profile.departmentId === currentAccess?.departmentId &&
-          Boolean(profile.scheduleEmployeeId) &&
-          profile.accountId !== user?.id &&
-          effectivePermissions(profile.templateId, profile.overrides)['schedule.requests.respond'],
-      ),
-    [candidateProfiles, currentAccess?.departmentId, user?.id],
-  );
 
   const canExchange = currentAccess?.permissions['schedule.exchange.create'] === true;
   const canReplace = currentAccess?.permissions['schedule.replace.create'] === true;
@@ -379,6 +354,8 @@ function RequestCard({
   const canCancel =
     user.role === 'employee' &&
     resolveEffectiveEmployeeAccess(user, accessProfile).permissions['schedule.requests.cancelOwn'];
+  const requesterName = requestPartyName(request.requester, i18n.language);
+  const recipientName = requestPartyName(request.recipient, i18n.language);
 
   return (
     <Card className="space-y-4">
@@ -398,7 +375,7 @@ function RequestCard({
               </Badge>
             </div>
             <p className="mt-1 text-xs text-text-secondary">
-              {request.requester.name} → {request.recipient.name}
+              {requesterName} → {recipientName}
             </p>
           </div>
         </div>
@@ -434,7 +411,7 @@ function RequestCard({
           </p>
           <div className="grid gap-3 lg:grid-cols-2">
             <AssignmentEffectCard
-              title={request.requester.name}
+              title={requesterName}
               value={
                 request.type === 'exchange' && request.offeredAssignment
                   ? displayAssignment(request.offeredAssignment)
@@ -442,7 +419,7 @@ function RequestCard({
               }
             />
             <AssignmentEffectCard
-              title={request.recipient.name}
+              title={recipientName}
               value={displayAssignment(request.requesterAssignment)}
             />
           </div>
@@ -457,6 +434,18 @@ function RequestCard({
             {request.status === 'admin_rejected' && t('shiftRequests:statusNotices.admin_rejected')}
             {request.status === 'expired' && t('shiftRequests:statusNotices.expired')}
             {request.status === 'stale' && t('shiftRequests:statusNotices.stale')}
+            {request.status === 'admin_rejected' && request.adminRejectionReason && (
+              <span className="mt-1 block text-text-primary">
+                <strong>{t('shiftRequests:adminReason')}:</strong>{' '}
+                {t(`shiftRequests:reasons.${request.adminRejectionReason}`)}
+                {request.adminRejectionNote ? (
+                  <span className="mt-0.5 block">
+                    <strong>{t('shiftRequests:adminNote')}:</strong>{' '}
+                    {request.adminRejectionNote}
+                  </span>
+                ) : null}
+              </span>
+            )}
           </span>
         </div>
       )}
@@ -530,7 +519,7 @@ function RequestCard({
               <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
               <span>
                 <strong className="text-text-primary">
-                  {event.actorRole === 'system' ? t('shiftRequests:systemActor') : event.actorName}
+                  {event.actorRole === 'system' ? t('shiftRequests:systemActor') : timelineActorName(event, i18n.language)}
                 </strong>{' '}
                 · {t(`shiftRequests:timelineActions.${event.action}`)} ·{' '}
                 {formatDateTime(event.createdAt, i18n.language)}
