@@ -8,6 +8,7 @@ import {
   ChevronUp,
   Clock3,
   Filter,
+  Plus,
   Search,
   X,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { getEmployeeDirectoryRecord } from '@/stores/employeeDirectoryStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
 import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
+import { ShiftRequestCreateModal } from './ShiftRequestsPage';
 import type {
   ShiftRequest,
   ShiftRequestAdminRejectionReason,
@@ -150,6 +152,7 @@ export default function AdminShiftRequestsPage() {
   const [rejectReason, setRejectReason] = useState<ShiftRequestAdminRejectionReason>('operational_need');
   const [rejectNote, setRejectNote] = useState('');
   const [overridePendingId, setOverridePendingId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     useShiftRequestStore.getState().reloadFromStorage();
@@ -280,6 +283,9 @@ export default function AdminShiftRequestsPage() {
           </h1>
           <p className="mt-1 text-sm text-text-secondary">{t('shiftRequests:subtitle')}</p>
         </div>
+        <Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
+          {t('shiftRequests:newRequest')}
+        </Button>
       </header>
 
       {/* Counters */}
@@ -674,6 +680,14 @@ export default function AdminShiftRequestsPage() {
           </div>
         </div>
       </Modal>
+
+      <ShiftRequestCreateModal
+        isOpen={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onResult={(result) => {
+          if (report(result, 'approved')) setCreateOpen(false);
+        }}
+      />
     </div>
   );
 }

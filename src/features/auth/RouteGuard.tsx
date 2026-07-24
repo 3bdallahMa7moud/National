@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
-import type { UserRole } from '@/types';
+import { isAdminOrSuperAdmin, type UserRole } from '@/types';
 import { resolveEffectiveEmployeeAccess, type EmployeePermission } from '@/types/employeeAccess';
 
 interface RouteGuardProps {
@@ -18,8 +18,11 @@ export default function RouteGuard({ allowedRoles, requiredPermission, requiredA
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/403" replace />;
+  if (allowedRoles) {
+    const isAllowed = allowedRoles.includes(user.role) || (isAdminOrSuperAdmin(user) && allowedRoles.includes('admin'));
+    if (!isAllowed) {
+      return <Navigate to="/403" replace />;
+    }
   }
 
   if (user.role === 'employee') {

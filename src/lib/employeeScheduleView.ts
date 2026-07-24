@@ -5,7 +5,7 @@ import type { OTShiftRow } from '@/types/lateSchedule';
 import type { OperationalOccurrence, OperationalPeriod, OperationalShiftCategory } from '@/types/operationalSchedule';
 import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
 
-const CATEGORY_ORDER: OperationalShiftCategory[] = ['day', 'late', 'night', 'onCallDay', 'onCallNight', 'ot'];
+const CATEGORY_ORDER: OperationalShiftCategory[] = ['day', 'night', 'onCallDay', 'onCallNight', 'ot'];
 
 function parseDate(value: string): Date {
   const [year, month, day] = value.split('-').map(Number);
@@ -60,7 +60,7 @@ export function buildEmployeeScheduleView(
 ): EmployeeScheduleView {
   const occurrences = collectPublishedOperationalOccurrences(period, matrixMonths, otMonths, roster)
     .filter((entry) => entry.employeeId === employeeId);
-  const totals = { day: 0, late: 0, night: 0, onCallDay: 0, onCallNight: 0, ot: 0, otHours: 0 };
+  const totals = { day: 0, night: 0, onCallDay: 0, onCallNight: 0, ot: 0, otHours: 0 };
   for (const occurrence of occurrences) {
     totals[occurrence.category] += 1;
     if (occurrence.category === 'ot') totals.otHours += occurrence.hours;

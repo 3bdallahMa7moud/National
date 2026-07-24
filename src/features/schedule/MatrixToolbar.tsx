@@ -3,6 +3,7 @@
 // ============================================================
 
 import { memo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   CalendarOff,
   CheckCircle2,
@@ -19,6 +20,7 @@ import {
   Printer,
   Search,
   Settings2,
+  TimerReset,
   Undo2,
   X,
   ZoomIn,
@@ -151,7 +153,6 @@ function MatrixToolbar({
     { value: 'night' as const, label: t('schedule:toolbar.night'), colorKey: 'night' as const },
     { value: 'onCall' as const, label: t('schedule:toolbar.onCall'), colorKey: 'onCall' as const },
     { value: 'onCallNight' as const, label: t('schedule:toolbar.onCallNight'), colorKey: 'onCallNight' as const },
-    { value: 'overtime' as const, label: t('schedule:toolbar.overtime'), colorKey: 'overtime' as const },
   ];
 
   return (
@@ -447,6 +448,14 @@ function MatrixToolbar({
               {filter.label}
             </button>
           ))}
+          <Link
+            to={`/admin/late-schedule?year=${year}&month=${month + 1}`}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-bold text-amber-700 hover:bg-amber-500 hover:text-white dark:text-amber-300 dark:hover:bg-amber-600 transition-colors shadow-sm ms-1"
+            title={t('schedule:publishedTables.otTab', 'OT Schedule')}
+          >
+            <TimerReset className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>OT</span>
+          </Link>
         </div>
       </div>
 

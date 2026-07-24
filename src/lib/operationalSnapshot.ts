@@ -12,7 +12,7 @@ import type {
 import type { OperationalShiftCategory, OperationalShiftVisual } from '@/types/operationalSchedule';
 import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
 
-const COVERAGE_ORDER: CoverageCategory[] = ['day', 'late', 'night', 'onCall', 'ot'];
+const COVERAGE_ORDER: CoverageCategory[] = ['day', 'night', 'onCallDay', 'onCallNight', 'ot'];
 const ISSUE_ORDER: Record<OperationalIssue['kind'], number> = {
   uncovered: 0,
   conflict: 1,
@@ -33,7 +33,7 @@ function parseDate(value: string): { year: number; month: number; day: number; d
 function categoryFromColor(colorKey: ShiftColorKey): OperationalShiftCategory | null {
   switch (colorKey) {
     case 'morning': return 'day';
-    case 'evening': return 'late';
+    case 'evening': return 'night';
     case 'night': return 'night';
     case 'onCall': return 'onCallDay';
     case 'onCallNight': return 'onCallNight';
@@ -43,7 +43,6 @@ function categoryFromColor(colorKey: ShiftColorKey): OperationalShiftCategory | 
 }
 
 function coverageCategory(category: OperationalShiftCategory): CoverageCategory {
-  if (category === 'onCallDay' || category === 'onCallNight') return 'onCall';
   return category;
 }
 
@@ -340,7 +339,7 @@ export function buildOperationalSnapshot(
     group.issueCount = issues.filter((issue) => issue.category === category).length;
     group.items.sort((left, right) => {
       if (left.uncovered !== right.uncovered) return left.uncovered ? 1 : -1;
-      const subtypeOrder: OperationalShiftCategory[] = ['day', 'late', 'night', 'onCallDay', 'onCallNight', 'ot'];
+      const subtypeOrder: OperationalShiftCategory[] = ['day', 'night', 'onCallDay', 'onCallNight', 'ot'];
       return subtypeOrder.indexOf(left.subcategory) - subtypeOrder.indexOf(right.subcategory)
         || (left.employeeCode ?? '').localeCompare(right.employeeCode ?? '')
         || left.rowId.localeCompare(right.rowId);

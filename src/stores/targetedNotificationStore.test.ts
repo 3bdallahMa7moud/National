@@ -18,6 +18,7 @@ describe('targetedNotificationStore', () => {
     expect(store.getState().forUser({ id: 'employee-a', role: 'employee', departmentId: 'dept-1' })).toHaveLength(1);
     expect(store.getState().forUser({ id: 'admin-a', role: 'admin', departmentId: 'dept-1' })).toHaveLength(1);
     expect(store.getState().forUser({ id: 'admin-b', role: 'admin', departmentId: 'dept-2' })).toHaveLength(0);
+    expect(store.getState().forUser({ id: 'super-admin-a', role: 'super_admin', departmentId: 'dept-2' })).toHaveLength(1);
   });
 
   it('deduplicates request notifications and rejects notifications without an explicit target', () => {

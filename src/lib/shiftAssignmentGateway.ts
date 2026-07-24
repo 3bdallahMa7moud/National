@@ -290,6 +290,71 @@ export function listPublishedAssignmentsForEmployee(
   return refs.sort((left, right) => left.startsAt.localeCompare(right.startsAt));
 }
 
+export function listPublishedAssignmentsForDepartment(
+  departmentId = 'dept-1',
+  source?: 'schedule' | 'ot',
+): ShiftAssignmentRef[] {
+  const refs: ShiftAssignmentRef[] = [];
+  const seen = new Set<string>();
+  if (!source || source === 'schedule') {
+    for (const matrix of resolveAllPublishedMatrices()) {
+      if (matrix.departmentId !== departmentId) continue;
+      for (const facility of matrix.facilities) {
+        for (const unit of facility.units) {
+          for (const row of unit.rows) {
+            for (const dayText of Object.keys(row.cellsByDay)) {
+              const day = Number(dayText);
+              const cells = row.cellsByDay[day] ?? [];
+              for (const item of cells) {
+                if (item.status !== 'draft' && item.employeeId) {
+                  const key = `schedule|${matrix.year}-${matrix.month}|${row.id}|${day}|${item.employeeId}`;
+                  if (seen.has(key)) continue;
+                  seen.add(key);
+                  const ref = createScheduleAssignmentRef(matrix, row.id, day, item.employeeId, departmentId);
+                  if (ref) refs.push(ref);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  if (!source || source === 'ot') {
+    const state = useLateScheduleStore.getState() as LateScheduleStateWithPublished;
+    const months = resolveAllPublishedOTMonths();
+    for (const [monthKey, rows] of Object.entries(months)) {
+      if ((state.departmentIdsByMonth[monthKey] || 'dept-1') !== departmentId) continue;
+      const [yearText, monthText] = monthKey.split('-');
+      for (const row of rows) {
+        for (const dayText of Object.keys(row.assignments)) {
+          const day = Number(dayText);
+          const assignments = row.assignments[day] ?? [];
+          for (const item of assignments) {
+            if (item.kind === 'employee' && item.employeeId) {
+              const key = `ot|${monthKey}|${row.id}|${day}|${item.employeeId}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              const ref = createOTAssignmentRef(
+                rows,
+                Number(yearText),
+                Number(monthText) - 1,
+                row.id,
+                day,
+                item.employeeId,
+                departmentId,
+                state.publishedUnitsByMonth[monthKey] ?? [],
+              );
+              if (ref) refs.push(ref);
+            }
+          }
+        }
+      }
+    }
+  }
+  return refs.sort((left, right) => left.startsAt.localeCompare(right.startsAt));
+}
+
 function validateCurrentAssignment(assignment: ShiftAssignmentRef, now: Date) {
   if (assignment.monthKey !== formatMonthKey(assignment.year, assignment.month)) {
     return { ok: false as const, reason: 'stale' as const };
@@ -753,7 +818,7 @@ export function reloadPublishedAssignmentSnapshots(): void {
   }
 }
 
-export type CanonicalShiftType = 'Day' | 'Late' | 'Night' | 'On-call Day' | 'On-call Night' | 'Overtime';
+export type CanonicalShiftType = 'Day' | 'Night' | 'On-call Day' | 'On-call Night' | 'Overtime';
 
 export function normalizeShiftTypeCategory(shiftLabel: string, unitLabel: string = ''): CanonicalShiftType {
   const text = `${shiftLabel} ${unitLabel}`.toLowerCase();
@@ -766,11 +831,8 @@ export function normalizeShiftTypeCategory(shiftLabel: string, unitLabel: string
   if (text.includes('oncall') || text.includes('on-call') || text.includes('on call') || text.includes('استدعاء') || text.includes('طلب')) {
     return 'On-call Day';
   }
-  if (text.includes('night') || text.includes('ليلي') || text.includes('ليل')) {
+  if (text.includes('night') || text.includes('ليلي') || text.includes('ليل') || text.includes('late') || text.includes('evening') || text.includes('مسائي') || text.includes('مساء')) {
     return 'Night';
-  }
-  if (text.includes('late') || text.includes('evening') || text.includes('مسائي') || text.includes('مساء')) {
-    return 'Late';
   }
   return 'Day';
 }
@@ -781,47 +843,10 @@ export interface DayShiftOTConflictResult {
   message?: string;
 }
 
-/**
- * Business Rule:
- * If the selected shift is a Day Shift and the employee is assigned an OT Schedule shift immediately after it,
- * that Day Shift cannot be exchanged or replaced.
- */
 export function hasDayShiftOTConflict(
-  assignment: ShiftAssignmentRef,
-  employeeId: string,
+  _assignment: ShiftAssignmentRef,
+  _employeeId: string,
 ): DayShiftOTConflictResult {
-  if (assignment.source !== 'schedule' || normalizeShiftTypeCategory(assignment.shiftLabel, assignment.unitLabel) !== 'Day') {
-    return { conflict: false };
-  }
-
-  const allAssignments = listPublishedAssignmentsForEmployee(employeeId, assignment.departmentId);
-  const dayStartMs = new Date(assignment.startsAt).getTime();
-  if (!Number.isFinite(dayStartMs)) return { conflict: false };
-
-  for (const item of allAssignments) {
-    if (item.source !== 'ot' && normalizeShiftTypeCategory(item.shiftLabel, item.unitLabel) !== 'Overtime') {
-      continue;
-    }
-    const otStartMs = new Date(item.startsAt).getTime();
-    if (!Number.isFinite(otStartMs)) continue;
-
-    const isSameDayLater = item.year === assignment.year
-      && item.month === assignment.month
-      && item.day === assignment.day
-      && otStartMs > dayStartMs;
-
-    const isNextDay = otStartMs > dayStartMs
-      && otStartMs - dayStartMs <= 36 * 3600 * 1000
-      && (new Date(item.year, item.month, item.day).getTime() - new Date(assignment.year, assignment.month, assignment.day).getTime() === 24 * 3600 * 1000);
-
-    if (isSameDayLater || isNextDay) {
-      return {
-        conflict: true,
-        otShift: item,
-        message: 'This Day Shift cannot be exchanged or replaced because the employee is assigned an Overtime (OT) schedule shift immediately after it.',
-      };
-    }
-  }
-
+  // Day Shift + OT conflict restriction is lifted to allow employees to exchange/replace day shifts and OT shifts.
   return { conflict: false };
 }

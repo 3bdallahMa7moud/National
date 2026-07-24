@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { AuthUser } from '@/types/employee';
+import type { AuthUser, UserRole } from '@/types/employee';
 import type { AppNotification, TargetedNotificationDraft } from '@/types/notification';
 
 export const TARGETED_NOTIFICATION_STORAGE_KEY = 'ngh_targeted_notifications_v1';
@@ -48,14 +48,17 @@ export function isNotificationForUser(
   user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>,
 ): boolean {
   if (notification.deletedForAccountIds?.includes(user.id)) return false;
+  const roleMatches = (role: UserRole) => role === user.role || (role === 'admin' && user.role === 'super_admin');
   if (notification.audience?.kind === 'account') return notification.audience.accountId === user.id;
   if (notification.audience?.kind === 'departmentRole') {
-    return notification.audience.role === user.role && notification.audience.departmentId === user.departmentId;
+    if (!roleMatches(notification.audience.role)) return false;
+    return user.role === 'super_admin' || notification.audience.departmentId === user.departmentId;
   }
   if (notification.audience?.kind === 'broadcast') return true;
   // Legacy targeted notifications are accepted during the v1 migration only.
   if (notification.recipientAccountId) return notification.recipientAccountId === user.id;
-  if (notification.recipientRole && notification.recipientRole !== user.role) return false;
+  if (notification.recipientRole && !roleMatches(notification.recipientRole)) return false;
+  if (notification.recipientRole === 'admin' && user.role === 'super_admin') return true;
   if (notification.departmentId && notification.departmentId !== user.departmentId) return false;
   return Boolean(notification.recipientRole || notification.departmentId);
 }

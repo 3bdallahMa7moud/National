@@ -12,6 +12,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
 import { mockLogin } from '@/mocks/mockData';
+import { isAdminOrSuperAdmin } from '@/types';
 import AuthSplitLayout, {
   AUTH_FORM_COLUMN_CLASS,
   AUTH_HERO_COLUMN_CLASS,
@@ -53,7 +54,7 @@ export default function LoginPage() {
     }
 
     login(result.user, result.token);
-    navigate(result.user.role === 'admin' ? '/admin/dashboard' : '/employee/dashboard');
+    navigate(isAdminOrSuperAdmin(result.user) ? '/admin/dashboard' : '/employee/dashboard');
   };
 
   return (
@@ -192,15 +193,27 @@ export default function LoginPage() {
             <div className="mt-3 border-t border-border pt-2.5">
               <p className="mb-1.5 text-center text-[11px] font-semibold text-text-secondary">{t('auth:login.demoAccounts')}</p>
               <div className="flex flex-col gap-2 text-[11px]">
-                {/* Admin demo */}
+                {/* Super Admin demo */}
                 <button
                   type="button"
                   onClick={() => handleFillDemo('EMP-001')}
+                  className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-500/10 p-2 flex items-center justify-between w-full text-start hover:bg-amber-500/20 transition-all cursor-pointer"
+                >
+                  <div>
+                    <span className="font-bold text-amber-600 dark:text-amber-400">👑 {t('common:role.superAdmin', 'Super Admin')}</span>
+                    <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-001</span>
+                  </div>
+                  <span className="text-text-secondary font-mono text-[10px] bg-background px-2 py-0.5 rounded border border-border font-semibold" dir="ltr">123456</span>
+                </button>
+                {/* Admin demo */}
+                <button
+                  type="button"
+                  onClick={() => handleFillDemo('EMP-003')}
                   className="rounded-lg border border-border bg-surface-muted/80 p-2 flex items-center justify-between w-full text-start hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
                 >
                   <div>
-                    <span className="font-bold text-primary">{t('common:role.admin')}</span>
-                    <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-001</span>
+                    <span className="font-bold text-teal-600 dark:text-teal-400">🛡️ {t('common:role.admin', 'Admin')}</span>
+                    <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-003</span>
                   </div>
                   <span className="text-text-secondary font-mono text-[10px] bg-background px-2 py-0.5 rounded border border-border font-semibold" dir="ltr">123456</span>
                 </button>
@@ -211,7 +224,7 @@ export default function LoginPage() {
                   className="rounded-lg border border-border bg-surface-muted/80 p-2 flex items-center justify-between w-full text-start hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
                 >
                   <div>
-                    <span className="font-bold text-primary">{t('common:role.employee')}</span>
+                    <span className="font-bold text-text-primary">👤 {t('common:role.employee', 'Employee')}</span>
                     <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-002</span>
                   </div>
                   <span className="text-text-secondary font-mono text-[10px] bg-background px-2 py-0.5 rounded border border-border font-semibold" dir="ltr">123456</span>

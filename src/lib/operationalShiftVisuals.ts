@@ -10,21 +10,22 @@ export type OperationalShiftVisualsByCategory = Record<CoverageCategory, Operati
 
 const DEFAULT_VISUALS: Record<CoverageCategory, OperationalShiftVisual> = {
   day: { colorKey: 'morning' },
-  late: { colorKey: 'evening' },
   night: { colorKey: 'night' },
+  onCallDay: { colorKey: 'onCall' },
+  onCallNight: { colorKey: 'onCallNight' },
   onCall: { colorKey: 'onCall' },
   ot: { colorKey: 'overtime' },
 };
 
 function emptyVisuals(): OperationalShiftVisualsByCategory {
-  return { day: [], late: [], night: [], onCall: [], ot: [] };
+  return { day: [], night: [], onCallDay: [], onCallNight: [], onCall: [], ot: [] };
 }
 
 function categoryFromColor(colorKey: ShiftColorKey): CoverageCategory | null {
   if (colorKey === 'morning') return 'day';
-  if (colorKey === 'evening') return 'late';
-  if (colorKey === 'night') return 'night';
-  if (colorKey === 'onCall' || colorKey === 'onCallNight') return 'onCall';
+  if (colorKey === 'night' || colorKey === 'evening') return 'night';
+  if (colorKey === 'onCall') return 'onCallDay';
+  if (colorKey === 'onCallNight') return 'onCallNight';
   if (colorKey === 'overtime') return 'ot';
   return null;
 }

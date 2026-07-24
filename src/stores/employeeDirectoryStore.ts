@@ -6,6 +6,7 @@ import {
   mockEmployeesSource,
 } from '@/mocks/sources';
 import type { MockEmployeeSource } from '@/mocks/types';
+import { isUserRole, type UserRole } from '@/types/employee';
 import type { EmployeeAccessProfile, EmployeePermissionTemplateId } from '@/types/employeeAccess';
 import type {
   EmployeeDirectoryIssue,
@@ -30,13 +31,17 @@ type EmployeeDirectoryAuditResult =
   | { ok: false; message?: string };
 
 interface EmployeeDirectoryStoreOptions {
+  /** Production reads the live session; tests can inject explicit trusted callers. */
+  canManageRoles?: () => boolean;
+  now?: () => string;
   onChanged?: () => void;
   recordAudit?: (entry: {
     actorName: string;
     action: 'create' | 'update' | 'delete';
     accountId: string;
-    before?: EmployeeDirectoryRecord;
-    after: EmployeeDirectoryRecord;
+    entityLabel?: string;
+    before?: unknown;
+    after: unknown;
   }) => EmployeeDirectoryAuditResult;
 }
 
@@ -71,9 +76,10 @@ export interface EmployeeDirectoryState {
   updateEmployee(
     accountId: string,
     updates: Partial<Pick<EmployeeDirectoryRecord,
-      'name' | 'email' | 'phone' | 'departmentId' | 'departmentName' | 'position' | 'employeeNumber' | 'code' | 'avatar' | 'active'>>,
+      'name' | 'email' | 'phone' | 'role' | 'departmentId' | 'departmentName' | 'position' | 'employeeNumber' | 'code' | 'avatar' | 'active'>>,
     actorName?: string,
   ): EmployeeDirectoryMutationResult;
+  setRole(accountId: string, newRole: UserRole, actorName?: string): EmployeeDirectoryMutationResult;
   setRosterLink(accountId: string, scheduleEmployeeId: string | undefined, actorName?: string): EmployeeDirectoryMutationResult;
   setAccess(
     accountId: string,
@@ -97,6 +103,19 @@ function browserStorage(): EmployeeDirectoryStorage | null {
     return typeof window === 'undefined' ? null : window.localStorage;
   } catch {
     return null;
+  }
+}
+
+function hasBrowserSuperAdminSession(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    const hasToken = Boolean(window.sessionStorage.getItem('token') || window.localStorage.getItem('token'));
+    if (!hasToken) return false;
+    const stored = window.sessionStorage.getItem('user') || window.localStorage.getItem('user');
+    const user = JSON.parse(stored || 'null') as { role?: unknown } | null;
+    return user?.role === 'super_admin';
+  } catch {
+    return false;
   }
 }
 
@@ -163,7 +182,7 @@ function normalizeLegacySource(value: unknown): MockEmployeeSource | null {
   const candidate = value as Partial<MockEmployeeSource>;
   if (typeof candidate.id !== 'string' || !candidate.id.trim()) return null;
   const seed = BUILTIN_EMPLOYEE_ACCOUNTS.find((record) => record.id === candidate.id);
-  const role = candidate.role === 'admin' || candidate.role === 'employee'
+  const role = isUserRole(candidate.role)
     ? candidate.role
     : seed?.role || 'employee';
   const fallbackName = seed?.name || { ar: candidate.id, en: candidate.id };
@@ -204,7 +223,7 @@ function normalizeRecord(value: unknown): EmployeeDirectoryRecord | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const record = value as Partial<EmployeeDirectoryRecord>;
   if (!record.accountId || !isLocalized(record.name) || !isLocalized(record.departmentName) || !isLocalized(record.position)) return null;
-  if (record.role !== 'admin' && record.role !== 'employee') return null;
+  if (!isUserRole(record.role)) return null;
   if (!record.departmentId || typeof record.employeeNumber !== 'string' || typeof record.code !== 'string') return null;
   const templateId = record.access?.templateId;
   const normalizedTemplate: EmployeePermissionTemplateId = templateId === 'view_only' || templateId === 'coordinator'
@@ -259,6 +278,30 @@ function mergeEditable(base: EmployeeDirectoryRecord, source: MockEmployeeSource
     active: source.isActive !== false,
     scheduleEmployeeId: source.scheduleEmployeeId || base.scheduleEmployeeId,
   };
+}
+
+function ensureActiveSuperAdmin(records: Map<string, EmployeeDirectoryRecord>): boolean {
+  if ([...records.values()].some((record) => record.active && record.role === 'super_admin')) return false;
+  const seed = BUILTIN_EMPLOYEE_ACCOUNTS.find((record) => record.role === 'super_admin');
+  if (!seed) return false;
+
+  const current = records.get(seed.id);
+  if (!current) {
+    records.set(seed.id, sourceToRecord(seed, 'official'));
+    return true;
+  }
+
+  records.set(seed.id, {
+    ...current,
+    role: 'super_admin',
+    active: true,
+    access: {
+      ...current.access,
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'system',
+    },
+  });
+  return true;
 }
 
 function validateRecords(input: EmployeeDirectoryRecord[]): EmployeeDirectoryRecord[] {
@@ -333,12 +376,14 @@ function migrate(storage: EmployeeDirectoryStorage | null): PersistedDirectory {
       byId.set(seed.id, sourceToRecord(seed, 'official'));
       restored += 1;
     }
+    const repairedSuperAdmin = ensureActiveSuperAdmin(byId);
     const records = validateRecords([...byId.values()]);
+    const sourceVersions = repairedSuperAdmin ? ['directory-v3', 'super-admin-recovery'] : ['directory-v3'];
     return {
       version: 3,
       records,
-      migrationReport: restored > 0
-        ? migrationReport(records, ['directory-v3'], normalized.length, restored)
+      migrationReport: restored > 0 || repairedSuperAdmin
+        ? migrationReport(records, sourceVersions, normalized.length, restored)
         : existing.migrationReport || migrationReport(records, ['directory-v3'], normalized.length, 0),
     };
   }
@@ -398,12 +443,15 @@ function migrate(storage: EmployeeDirectoryStorage | null): PersistedDirectory {
     };
   }
 
+  const repairedSuperAdmin = ensureActiveSuperAdmin(byId);
   const records = validateRecords([...byId.values()]);
   const restored = BUILTIN_EMPLOYEE_ACCOUNTS.filter((seed) => !accounts.some((account) => account.id === seed.id)).length;
+  const importedSources = sourceVersions.length ? sourceVersions : ['built-in-seed'];
+  const reportSources = repairedSuperAdmin ? [...importedSources, 'super-admin-recovery'] : importedSources;
   return {
     version: 3,
     records,
-    migrationReport: migrationReport(records, sourceVersions.length ? sourceVersions : ['built-in-seed'], accounts.length, restored),
+    migrationReport: migrationReport(records, reportSources, accounts.length, restored),
   };
 }
 
@@ -437,6 +485,7 @@ function makeState(storage: EmployeeDirectoryStorage | null, syncLegacy = false)
     storageError: null,
     addEmployee: () => ({ ok: false, reason: 'invalid_record' }),
     updateEmployee: () => ({ ok: false, reason: 'invalid_record' }),
+    setRole: () => ({ ok: false, reason: 'invalid_record' }),
     setRosterLink: () => ({ ok: false, reason: 'invalid_record' }),
     setAccess: () => ({ ok: false, reason: 'invalid_record' }),
     applyAccessProfile: () => ({ ok: false, reason: 'invalid_record' }),
@@ -449,15 +498,19 @@ function defaultAudit(entry: {
   actorName: string;
   action: 'create' | 'update' | 'delete';
   accountId: string;
-  before?: EmployeeDirectoryRecord;
-  after: EmployeeDirectoryRecord;
+  entityLabel?: string;
+  before?: unknown;
+  after: unknown;
 }): EmployeeDirectoryAuditResult {
+  const afterRecord = entry.after as Partial<EmployeeDirectoryRecord>;
   const result = useOperationalAuditStore.getState().record({
     actorName: entry.actorName,
     action: entry.action,
     module: 'employees',
     entityId: entry.accountId,
-    entityLabel: entry.after.name.en || entry.after.name.ar || entry.accountId,
+    entityLabel: entry.entityLabel
+      || (afterRecord.name?.en || afterRecord.name?.ar)
+      || entry.accountId,
     before: entry.before ? JSON.stringify(entry.before) : undefined,
     after: JSON.stringify(entry.after),
     context: { route: '/admin/employees' },
@@ -476,11 +529,24 @@ export function createEmployeeDirectoryStore(
 ) {
   return create<EmployeeDirectoryState>((set, get) => {
     const base = makeState(storage, syncLegacy);
+    const canManageRoles = options.canManageRoles ?? hasBrowserSuperAdminSession;
+    const now = options.now ?? (() => new Date().toISOString());
+    const activeSuperAdmins = (records = get().records) => records.filter((record) => record.active && record.role === 'super_admin');
+    const wouldRemoveLastActiveSuperAdmin = (
+      record: EmployeeDirectoryRecord,
+      nextRole: UserRole,
+      nextActive = record.active,
+      records = get().records,
+    ) => record.active
+      && record.role === 'super_admin'
+      && (!nextActive || nextRole !== 'super_admin')
+      && activeSuperAdmins(records).length <= 1;
     const commit = (
       records: EmployeeDirectoryRecord[],
       accountId: string,
       actorName = 'Administrator',
       action: 'create' | 'update' | 'delete' = 'update',
+      audit?: { entityLabel?: string; before?: unknown; after?: unknown },
     ) => {
       const validated = validateRecords(records);
       const record = validated.find((candidate) => candidate.accountId === accountId);
@@ -488,7 +554,14 @@ export function createEmployeeDirectoryStore(
       const before = get().records.find((candidate) => candidate.accountId === accountId);
       let auditResult: EmployeeDirectoryAuditResult;
       try {
-        auditResult = options.recordAudit?.({ actorName, action, accountId, before, after: record });
+        auditResult = options.recordAudit?.({
+          actorName,
+          action,
+          accountId,
+          entityLabel: audit?.entityLabel,
+          before: audit?.before ?? before,
+          after: audit?.after ?? record,
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unable to save the employee audit.';
         set({ storageError: message });
@@ -517,31 +590,75 @@ export function createEmployeeDirectoryStore(
           return { ok: false, reason: 'invalid_record' };
         }
         const record = sourceToRecord(source, 'custom');
-        record.access.updatedAt = new Date().toISOString();
+        record.access.updatedAt = now();
         record.access.updatedBy = actorName?.trim() || 'Administrator';
         return commit([...get().records, record], record.accountId, actorName?.trim() || 'Administrator', 'create');
       },
-      updateEmployee: (accountId, updates, actorName) => commit(get().records.map((record) => record.accountId === accountId ? ({
-        ...record,
-        ...updates,
-        name: updates.name ? { ...updates.name } : record.name,
-        departmentName: updates.departmentName ? { ...updates.departmentName } : record.departmentName,
-        position: updates.position ? { ...updates.position } : record.position,
-        employeeNumber: updates.employeeNumber?.trim() ?? record.employeeNumber,
-        code: updates.code?.trim().toUpperCase() ?? record.code,
-        access: { ...record.access, updatedAt: new Date().toISOString(), updatedBy: actorName?.trim() || record.access.updatedBy },
-      }) : record), accountId, actorName?.trim() || 'Administrator'),
+      updateEmployee: (accountId, updates, actorName) => {
+        const current = get().records.find((record) => record.accountId === accountId);
+        if (!current) return { ok: false, reason: 'not_found', message: 'Employee record not found.' };
+        if (updates.role !== undefined) {
+          if (!isUserRole(updates.role)) return { ok: false, reason: 'invalid_record', message: 'Invalid user role.' };
+          if (updates.role !== current.role && !canManageRoles()) {
+            return { ok: false, reason: 'permission_denied', message: 'Only super admins can change user roles.' };
+          }
+          if (wouldRemoveLastActiveSuperAdmin(current, updates.role, updates.active ?? current.active)) {
+            return { ok: false, reason: 'invalid_record', message: 'Cannot demote the last active super admin.' };
+          }
+        }
+        if (updates.active === false && wouldRemoveLastActiveSuperAdmin(current, updates.role ?? current.role, false)) {
+          return { ok: false, reason: 'invalid_record', message: 'Cannot deactivate the last active super admin.' };
+        }
+        return commit(get().records.map((record) => record.accountId === accountId ? ({
+          ...record,
+          ...updates,
+          name: updates.name ? { ...updates.name } : record.name,
+          departmentName: updates.departmentName ? { ...updates.departmentName } : record.departmentName,
+          position: updates.position ? { ...updates.position } : record.position,
+          employeeNumber: updates.employeeNumber?.trim() ?? record.employeeNumber,
+          code: updates.code?.trim().toUpperCase() ?? record.code,
+          access: { ...record.access, updatedAt: now(), updatedBy: actorName?.trim() || record.access.updatedBy },
+        }) : record), accountId, actorName?.trim() || 'Administrator');
+      },
+      setRole: (accountId, newRole, actorName) => {
+        const current = get().records.find((r) => r.accountId === accountId);
+        if (!current) return { ok: false, reason: 'not_found', message: 'Employee record not found.' };
+        if (!isUserRole(newRole)) return { ok: false, reason: 'invalid_record', message: 'Invalid user role.' };
+        if (!canManageRoles()) {
+          return { ok: false, reason: 'permission_denied', message: 'Only super admins can change user roles.' };
+        }
+        if (current.role === newRole) return { ok: true, record: current };
+        if (wouldRemoveLastActiveSuperAdmin(current, newRole)) {
+          return { ok: false, reason: 'invalid_record', message: 'Cannot demote the last active super admin.' };
+        }
+        const actor = actorName?.trim() || 'Administrator';
+        return commit(
+          get().records.map((record) => record.accountId === accountId ? ({
+            ...record,
+            role: newRole,
+            access: { ...record.access, updatedAt: now(), updatedBy: actor },
+          }) : record),
+          accountId,
+          actor,
+          'update',
+          {
+            entityLabel: current.name.en || current.name.ar || current.accountId,
+            before: { role: current.role },
+            after: { role: newRole },
+          },
+        );
+      },
       setRosterLink: (accountId, scheduleEmployeeId, actorName) => commit(get().records.map((record) => record.accountId === accountId ? ({
         ...record,
         scheduleEmployeeId: scheduleEmployeeId || undefined,
-        access: { ...record.access, updatedAt: new Date().toISOString(), updatedBy: actorName?.trim() || 'Administrator' },
+        access: { ...record.access, updatedAt: now(), updatedBy: actorName?.trim() || 'Administrator' },
       }) : record), accountId, actorName?.trim() || 'Administrator'),
       setAccess: (accountId, access, actorName) => commit(get().records.map((record) => record.accountId === accountId ? ({
         ...record,
         access: {
           templateId: access.templateId,
           overrides: { ...access.overrides },
-          updatedAt: new Date().toISOString(),
+          updatedAt: now(),
           updatedBy: actorName?.trim() || 'Administrator',
         },
       }) : record), accountId, actorName?.trim() || 'Administrator'),
@@ -553,15 +670,22 @@ export function createEmployeeDirectoryStore(
         access: {
           templateId: profile.templateId,
           overrides: { ...profile.overrides },
-          updatedAt: profile.updatedAt || new Date().toISOString(),
+          updatedAt: profile.updatedAt || now(),
           updatedBy: actorName?.trim() || profile.updatedBy || 'Administrator',
         },
       }) : record), profile.accountId, actorName?.trim() || 'Administrator'),
-      setActive: (accountId, active, actorName) => commit(get().records.map((record) => record.accountId === accountId ? ({
-        ...record,
-        active,
-        access: { ...record.access, updatedAt: new Date().toISOString(), updatedBy: actorName?.trim() || 'Administrator' },
-      }) : record), accountId, actorName?.trim() || 'Administrator', active ? 'update' : 'delete'),
+      setActive: (accountId, active, actorName) => {
+        const current = get().records.find((record) => record.accountId === accountId);
+        if (!current) return { ok: false, reason: 'not_found', message: 'Employee record not found.' };
+        if (!active && wouldRemoveLastActiveSuperAdmin(current, current.role, false)) {
+          return { ok: false, reason: 'invalid_record', message: 'Cannot deactivate the last active super admin.' };
+        }
+        return commit(get().records.map((record) => record.accountId === accountId ? ({
+          ...record,
+          active,
+          access: { ...record.access, updatedAt: now(), updatedBy: actorName?.trim() || 'Administrator' },
+        }) : record), accountId, actorName?.trim() || 'Administrator', active ? 'update' : 'delete');
+      },
       reloadFromStorage: () => {
         const payload = migrate(storage);
         if (syncLegacy) syncCompatibility(payload.records);
@@ -581,6 +705,7 @@ const broadcastEmployeeDirectory = () => {
 };
 
 export const useEmployeeDirectoryStore = createEmployeeDirectoryStore(browserStorage(), true, {
+  canManageRoles: hasBrowserSuperAdminSession,
   onChanged: broadcastEmployeeDirectory,
   recordAudit: defaultAudit,
 });

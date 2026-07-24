@@ -32,6 +32,7 @@ import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import type { OfficialEmployee } from '@/data/officialEmployeeRoster';
 import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
 import { exportJustificationToDocx } from '@/lib/justificationDocxExport';
+import { isAdminOrSuperAdmin } from '@/types';
 import {
   DEFAULT_JUSTIFICATION_STATE,
   type DataSourceKind,
@@ -179,7 +180,7 @@ export default function EmployeeJustificationPage() {
   }, [officialEmployeeRoster, rosterSearch]);
 
   /* ---- Guard: Admin only ---- */
-  if (!user || user.role !== 'admin') return null;
+  if (!isAdminOrSuperAdmin(user)) return null;
 
   /* ---- Generate/Sync report from OT data ---- */
   function executeGenerateReport(targetMonthKey?: string) {

@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowUpRight, CalendarDays, UsersRound } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, CalendarDays, ExternalLink, Palmtree, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import EmployeeNextShiftCard from './EmployeeNextShiftCard';
@@ -58,7 +58,7 @@ export default function EmployeeDashboardPage() {
   }
 
   const totals = [
-    ['day', month.totals.day], ['late', month.totals.late], ['night', month.totals.night],
+    ['day', month.totals.day], ['night', month.totals.night],
     ['onCallDay', month.totals.onCallDay], ['onCallNight', month.totals.onCallNight], ['ot', month.totals.ot],
   ] as const;
 
@@ -70,6 +70,21 @@ export default function EmployeeDashboardPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
           <Link to="/schedule/me" className="group flex min-h-[92px] items-center gap-3 rounded-card border border-border bg-surface p-4 shadow-card hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"><span className="flex h-11 w-11 items-center justify-center rounded-btn bg-primary-50 text-primary"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span><span className="flex-1 font-semibold text-text-primary">{t('employee.links.mySchedule')}</span><ArrowUpRight className="h-4 w-4 text-primary rtl:-scale-x-100" aria-hidden="true" /></Link>
           {canViewDepartment && <Link to="/schedule/department" className="group flex min-h-[92px] items-center gap-3 rounded-card border border-border bg-surface p-4 shadow-card hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"><span className="flex h-11 w-11 items-center justify-center rounded-btn bg-primary-50 text-primary"><UsersRound className="h-5 w-5" aria-hidden="true" /></span><span className="flex-1 font-semibold text-text-primary">{t('employee.links.departmentSchedule')}</span><ArrowUpRight className="h-4 w-4 text-primary rtl:-scale-x-100" aria-hidden="true" /></Link>}
+          <a
+            href="http://www.ctgate.cc"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex min-h-[92px] items-center gap-3 rounded-card border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-card transition-all hover:border-emerald-500/40 hover:bg-emerald-500/10 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-btn bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <Palmtree className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <span className="block font-semibold text-text-primary truncate">{t('employee.links.ctGateTitle')}</span>
+              <span className="block text-xs text-text-secondary truncate">{t('employee.links.ctGateSub')}</span>
+            </div>
+            <ExternalLink className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 rtl:-scale-x-100" aria-hidden="true" />
+          </a>
         </div>
       </div>
       <EmployeeWeekAgenda days={week.days} locale={i18n.language} />

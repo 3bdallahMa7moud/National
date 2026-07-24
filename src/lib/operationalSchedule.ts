@@ -10,11 +10,10 @@ import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
 
 const CATEGORY_ORDER: Record<OperationalShiftCategory, number> = {
   day: 0,
-  late: 1,
-  night: 2,
-  onCallDay: 3,
-  onCallNight: 4,
-  ot: 5,
+  night: 1,
+  onCallDay: 2,
+  onCallNight: 3,
+  ot: 4,
 };
 
 function parseLocalDate(value: string): Date {
@@ -42,7 +41,7 @@ function monthKey(year: number, monthIndex: number): string {
 function categoryFromColor(colorKey: ShiftColorKey): OperationalShiftCategory | null {
   switch (colorKey) {
     case 'morning': return 'day';
-    case 'evening': return 'late';
+    case 'evening': return 'night';
     case 'night': return 'night';
     case 'onCall': return 'onCallDay';
     case 'onCallNight': return 'onCallNight';

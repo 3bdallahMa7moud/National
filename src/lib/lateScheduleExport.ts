@@ -185,7 +185,7 @@ export function buildLateScheduleWorkbook(
 ): ExcelJS.Workbook {
   const model = buildLateScheduleExportModel(rows, roster);
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'CT Scan Department - National Guard Hospital';
+  workbook.creator = 'CT Scan Department - Specialized Medical Center';
   workbook.created = new Date(year, monthIndex, 1);
 
   const lastColumn = 4 + daysList.length;

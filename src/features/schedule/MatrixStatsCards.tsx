@@ -3,6 +3,7 @@
 // ============================================================
 
 import { memo, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Users,
@@ -15,6 +16,7 @@ import {
   TrendingUp,
   CheckCircle2,
   Filter,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
@@ -24,6 +26,7 @@ import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
 interface StatItem {
   id: string;
   filterKey?: ShiftColorKey | '';
+  href?: string;
   label: string;
   value: number;
   subLabel?: string;
@@ -50,21 +53,18 @@ function StatCard({ item, isActive, isRtl, locale, onClick }: StatCardProps) {
   const paletteStyle = item.paletteKey
     ? getShiftChipStyle(item.paletteKey, item.backgroundColor, item.shiftTextColor)
     : undefined;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'group relative flex flex-col justify-between overflow-hidden rounded-2xl text-start w-full',
-        'border transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-        'min-h-44 p-4 cursor-pointer select-none',
-        isActive
-          ? cn('bg-slate-50/95 dark:bg-slate-800/90 shadow-md', item.activeRing)
-          : 'border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 backdrop-blur-md hover:-translate-y-0.5 hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700'
-      )}
-      style={isActive && paletteStyle ? { borderColor: paletteStyle.borderColor } : undefined}
-      title={isRtl ? `اضغط لتصفية الجدول حسب: ${item.label}` : `Click to filter table by: ${item.label}`}
-    >
+
+  const cardClasses = cn(
+    'group relative flex flex-col justify-between overflow-hidden rounded-2xl text-start w-full',
+    'border transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+    'min-h-44 p-4 cursor-pointer select-none',
+    isActive
+      ? cn('bg-slate-50/95 dark:bg-slate-800/90 shadow-md', item.activeRing)
+      : 'border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/80 backdrop-blur-md hover:-translate-y-0.5 hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700'
+  );
+
+  const cardContent = (
+    <>
       {/* Top delicate colored accent bar */}
       <div
         className={cn(
@@ -130,9 +130,38 @@ function StatCard({ item, isActive, isRtl, locale, onClick }: StatCardProps) {
           <span className="text-[11px] font-medium text-slate-500 dark:text-slate-300 truncate">
             {item.subLabel}
           </span>
-          <Filter className={cn('h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity', isActive && 'opacity-100 text-primary')} />
+          {item.href ? (
+            <ExternalLink className="h-3 w-3 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform" />
+          ) : (
+            <Filter className={cn('h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity', isActive && 'opacity-100 text-primary')} />
+          )}
         </div>
       )}
+    </>
+  );
+
+  if (item.href) {
+    return (
+      <Link
+        to={item.href}
+        className={cardClasses}
+        style={isActive && paletteStyle ? { borderColor: paletteStyle.borderColor } : undefined}
+        title={isRtl ? `الانتقال إلى: ${item.label}` : `Go to: ${item.label}`}
+      >
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cardClasses}
+      style={isActive && paletteStyle ? { borderColor: paletteStyle.borderColor } : undefined}
+      title={isRtl ? `اضغط لتصفية الجدول حسب: ${item.label}` : `Click to filter table by: ${item.label}`}
+    >
+      {cardContent}
     </button>
   );
 }
@@ -170,16 +199,14 @@ function MatrixStatsCards({
           Object.values(row.cellsByDay).forEach(assignments => {
             const count = assignments.length;
             if (row.colorKey === 'morning') morningShifts += count;
-            else if (row.colorKey === 'evening') eveningShifts += count;
-            else if (row.colorKey === 'night') nightShifts += count;
+            else if (row.colorKey === 'evening' || row.colorKey === 'night') nightShifts += count;
             else if (row.colorKey === 'onCall') onCallDay += count;
             else if (row.colorKey === 'onCallNight') onCallNight += count;
             else if (row.colorKey === 'overtime') overtime += count;
             else {
               const lower = (row.shiftLabel || row.unitLabel || '').toLowerCase();
               if (lower.includes('morning') || lower.includes('صباح')) morningShifts += count;
-              else if (lower.includes('evening') || lower.includes('مساء')) eveningShifts += count;
-              else if (lower.includes('night') || lower.includes('ليل')) nightShifts += count;
+              else if (lower.includes('evening') || lower.includes('night') || lower.includes('مساء') || lower.includes('ليل')) nightShifts += count;
               else if (lower.includes('oncall') || lower.includes('طلب')) onCallDay += count;
               else morningShifts += count;
             }
@@ -196,12 +223,12 @@ function MatrixStatsCards({
       });
     }
 
-    const totalShifts = morningShifts + eveningShifts + nightShifts + onCallDay + onCallNight + overtime;
+    const totalShifts = morningShifts + nightShifts + onCallDay + onCallNight + overtime;
 
     return {
       totalEmployees,
       morningShifts,
-      eveningShifts,
+      eveningShifts: 0,
       nightShifts,
       vacations,
       onCallDay,
@@ -239,26 +266,12 @@ function MatrixStatsCards({
       paletteKey: 'morning',
     },
     {
-      id: 'evening',
-      filterKey: 'evening',
-      label: isRtl ? 'الشفت المتأخر' : 'Late Shift',
-      value: stats.eveningShifts,
-      percent: Math.round((stats.eveningShifts / stats.totalShifts) * 100),
-      subLabel: isRtl ? 'فلترة صفوف الشفت المتأخر' : 'Filter late-shift rows',
-      icon: <Sunset className="h-4 w-4 text-orange-500 dark:text-orange-400" />,
-      accentBar: 'bg-gradient-to-r from-orange-500 to-rose-500',
-      iconBox: 'bg-orange-50 border border-orange-100 dark:bg-orange-950/50 dark:border-orange-900/60',
-      activeRing: 'border-orange-500 ring-2 ring-orange-500/30 dark:border-orange-400',
-      textColor: 'text-slate-900 dark:text-white',
-      paletteKey: 'evening',
-    },
-    {
       id: 'night',
       filterKey: 'night',
       label: isRtl ? 'الشفت الليلي' : 'Night Shift',
       value: stats.nightShifts,
       percent: Math.round((stats.nightShifts / stats.totalShifts) * 100),
-      subLabel: isRtl ? 'فلترة النوبة الليلية' : 'Filter night rows',
+      subLabel: isRtl ? 'فلترة النوبة الليلية' : 'Filter night-shift rows',
       icon: <Moon className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />,
       accentBar: 'bg-gradient-to-r from-indigo-500 to-violet-600',
       iconBox: 'bg-indigo-50 border border-indigo-100 dark:bg-indigo-950/50 dark:border-indigo-900/60',
@@ -296,15 +309,15 @@ function MatrixStatsCards({
     },
     {
       id: 'overtime',
-      filterKey: 'overtime',
-      label: isRtl ? 'عمل إضافي' : 'Overtime',
+      href: `/admin/late-schedule?year=${data.year}&month=${data.month + 1}`,
+      label: 'OT Schedule',
       value: stats.overtime,
       percent: Math.round((stats.overtime / stats.totalShifts) * 100),
-      subLabel: isRtl ? 'فلترة صفوف العمل الإضافي' : 'Filter overtime rows',
+      subLabel: isRtl ? 'فتح جدول OT Schedule' : 'Open OT Schedule',
       icon: <Timer className="h-4 w-4" />,
-      accentBar: 'bg-gradient-to-r from-pink-500 to-rose-500',
-      iconBox: 'border',
-      activeRing: 'ring-2 ring-pink-500/30',
+      accentBar: 'bg-gradient-to-r from-amber-500 to-orange-500',
+      iconBox: 'bg-amber-50 border border-amber-200 dark:bg-amber-950/50 dark:border-amber-800 text-amber-600',
+      activeRing: 'ring-2 ring-amber-500/30',
       textColor: 'text-slate-900 dark:text-white',
       paletteKey: 'overtime',
     },

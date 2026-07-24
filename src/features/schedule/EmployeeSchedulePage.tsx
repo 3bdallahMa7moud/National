@@ -19,6 +19,7 @@ import { formatLateScheduleMonthKey, useLateScheduleStore } from '@/stores/lateS
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import type { Assignment, MatrixCellRef } from '@/types/scheduleMatrix';
 import type { ShiftAssignmentRef, ShiftRequestMutationResult } from '@/types/shiftRequest';
+import { isAdminOrSuperAdmin } from '@/types';
 
 export default function EmployeeSchedulePage() {
   const { t, i18n } = useTranslation(['schedule', 'shiftRequests']);
@@ -60,9 +61,9 @@ export default function EmployeeSchedulePage() {
   const otTable = employeeId && otDepartments[key] === departmentId
     ? projectPublishedOTTable(publishedOTRows[key], publishedOTUnits[key], employeeId)
     : null;
-  const canCreateRequest = Boolean(access?.active && access.linked && (
+  const canCreateRequest = Boolean(isAdminOrSuperAdmin(user) || (access?.active && access.linked && (
     access.permissions['schedule.exchange.create'] || access.permissions['schedule.replace.create']
-  ));
+  )));
   const canExport = Boolean(access?.active && access.permissions['schedule.own.export']);
   const ownRoster = useMemo(
     () => employeeId ? roster.filter((employee) => employee.employeeId === employeeId) : [],

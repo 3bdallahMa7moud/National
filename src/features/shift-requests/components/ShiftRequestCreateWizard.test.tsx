@@ -1,30 +1,61 @@
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest';
 import React from 'react';
 import { ShiftRequestCreateWizard } from './ShiftRequestCreateWizard';
 import type { ShiftAssignmentRef } from '@/types/shiftRequest';
+import type { EmployeeDirectoryRecord } from '@/types/employeeDirectory';
 import type { EmployeeAccessProfile } from '@/types/employeeAccess';
+import { useAuthStore } from '@/stores/authStore';
+import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
+import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
+import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
+import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
+
+function sampleMatrix(): ScheduleMatrixData {
+  return {
+    departmentId: 'dept-1',
+    year: 2099,
+    month: 6,
+    facilities: [{
+      id: 'fac-KAMC',
+      name: 'KAMC',
+      accentColorToken: 'facility-kamc',
+      units: [{
+        id: 'unit-1',
+        name: 'Room 1',
+        blockType: 'equipmentDay',
+        rows: [
+          {
+            id: 'row-1',
+            blockType: 'equipmentDay',
+            unitLabel: 'Room 1',
+            rowLabel: 'Day Shift',
+            shiftLabel: 'Day Shift',
+            timeRange: '08:00 - 17:00',
+            colorKey: 'morning',
+            weekendOnly: false,
+            cellsByDay: {
+              15: [{ employeeId: 'emp-1', employeeCode: 'code-1', status: 'published' }],
+              16: [{ employeeId: 'emp-2', employeeCode: 'code-2', status: 'published' }],
+              17: [{ employeeId: 'emp-3', employeeCode: 'code-3', status: 'published' }],
+            },
+          },
+        ],
+      }],
+    }],
+    legend: [],
+    vacations: [],
+    holidays: [],
+    settings: [],
+    auditLog: [],
+  };
+}
+
+import { createScheduleAssignmentRef } from '@/lib/shiftAssignmentGateway';
 
 function makeAssignment(id: string, facilityLabel: string, shiftLabel: string, day: number): ShiftAssignmentRef {
-  return {
-    source: 'schedule',
-    departmentId: 'dept-1',
-    monthKey: '2026-07',
-    year: 2026,
-    month: 7,
-    day,
-    rowId: `row-${id}`,
-    employeeId: `emp-${id}`,
-    employeeCode: `code-${id}`,
-    facilityId: `fac-${facilityLabel}`,
-    unitId: 'unit-1',
-    facilityLabel,
-    unitLabel: 'Room 1',
-    shiftLabel,
-    timeRange: '08:00 - 17:00',
-    startsAt: new Date('2026-07-20T08:00:00Z').toISOString(),
-    fingerprint: `fp-${id}`,
-  };
+  const matrix = useScheduleMatrixStore.getState().matricesByMonth['2099-07']!;
+  return createScheduleAssignmentRef(matrix, 'row-1', day, `emp-${id}`, 'dept-1')!;
 }
 
 function makeProfile(accountId: string, scheduleEmployeeId: string): EmployeeAccessProfile {
@@ -40,14 +71,75 @@ function makeProfile(accountId: string, scheduleEmployeeId: string): EmployeeAcc
   };
 }
 
+function directoryRecord(
+  accountId: string,
+  role: EmployeeDirectoryRecord['role'],
+  code: string,
+  name: string,
+  scheduleEmployeeId?: string,
+): EmployeeDirectoryRecord {
+  return {
+    accountId,
+    name: { ar: name, en: name },
+    email: '',
+    phone: '',
+    role,
+    departmentId: 'dept-1',
+    departmentName: { ar: 'CT', en: 'CT' },
+    position: { ar: role === 'admin' ? 'Admin' : 'Employee', en: role === 'admin' ? 'Admin' : 'Employee' },
+    employeeNumber: accountId,
+    code,
+    active: true,
+    createdAt: '2026-07-01T00:00:00Z',
+    scheduleEmployeeId,
+    origin: 'custom',
+    issues: [],
+    access: {
+      templateId: 'standard',
+      overrides: {},
+      updatedAt: '2026-07-01T00:00:00Z',
+      updatedBy: 'system',
+    },
+  };
+}
+
 describe('ShiftRequestCreateWizard', () => {
+  beforeEach(() => {
+    const data = sampleMatrix();
+    useScheduleMatrixStore.setState({
+      data,
+      matricesByMonth: { '2099-07': data },
+      draftsByMonth: { '2099-07': data },
+      snapshot: JSON.stringify(data),
+      undoStack: [],
+      versionsByMonth: {},
+      monthStatuses: { '2099-07': 'published' },
+      storageError: null,
+    });
+    useAuthStore.setState({
+      user: { id: 'user-1', name: 'User One', role: 'admin', departmentId: 'dept-1' } as any,
+    });
+    useEmployeeAccessStore.setState({
+      profiles: {
+        'user-1': makeProfile('user-1', 'emp-user-1'),
+        'rec-1': makeProfile('rec-1', 'emp-rec-1'),
+      },
+    });
+    useEmployeeDirectoryStore.setState({
+      records: [
+        directoryRecord('user-1', 'admin', 'USR-1', 'User One', 'emp-user-1'),
+        directoryRecord('rec-1', 'employee', 'REC-1', 'Recipient One', 'emp-rec-1'),
+      ],
+    });
+  });
+
   afterEach(() => {
     cleanup();
   });
-  const user = { id: 'user-1', name: 'User One' };
-  const mockAssignments = [
+  const user = { id: 'user-1', name: 'User One', role: 'admin' as const };
+  const getMockAssignments = () => [
     makeAssignment('1', 'KAMC', 'Day Shift', 15),
-    makeAssignment('2', 'KAMC', 'Night Shift', 16),
+    makeAssignment('2', 'KAMC', 'Day Shift', 16),
     makeAssignment('3', 'KASCH', 'Day Shift', 17),
   ];
   const mockRecipients = [
@@ -69,7 +161,7 @@ describe('ShiftRequestCreateWizard', () => {
         onResult={onResult}
         canExchange
         canReplace
-        requesterAssignments={mockAssignments}
+        requesterAssignments={getMockAssignments()}
         recipients={mockRecipients}
         candidateProfiles={candidateProfiles}
         user={user}
@@ -78,7 +170,7 @@ describe('ShiftRequestCreateWizard', () => {
       />
     );
 
-    expect(screen.getAllByText('rec-1')[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Recipient One|rec-1/)[0]).toBeInTheDocument();
   });
 
   it('allows selecting replace and advancing to step 2 to select assignment via branch and shift type tabs', () => {
@@ -93,7 +185,7 @@ describe('ShiftRequestCreateWizard', () => {
         onResult={onResult}
         canExchange
         canReplace
-        requesterAssignments={mockAssignments}
+        requesterAssignments={getMockAssignments()}
         recipients={mockRecipients}
         candidateProfiles={candidateProfiles}
         user={user}
@@ -107,7 +199,7 @@ describe('ShiftRequestCreateWizard', () => {
     fireEvent.click(replaceBtns[0]);
 
     // Select Recipient
-    const recipientBtn = screen.getAllByText('rec-1')[0];
+    const recipientBtn = screen.getAllByText(/Recipient One|rec-1/)[0];
     fireEvent.click(recipientBtn);
 
     // Click Next step
@@ -122,8 +214,8 @@ describe('ShiftRequestCreateWizard', () => {
     fireEvent.click(screen.getByText('KAMC'));
 
     // Check Day Shift is present
-    expect(screen.getByText(/Day Shift/)).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/Day Shift/));
+    expect(screen.getAllByText(/Day Shift/)[0]).toBeInTheDocument();
+    fireEvent.click(screen.getAllByText(/Day Shift/)[0]);
 
     // Calendar day 15 button should be rendered and clickable
     const dayBtn = screen.getAllByText('15')[0];
@@ -135,5 +227,61 @@ describe('ShiftRequestCreateWizard', () => {
     // Submit button should be enabled in review step
     const submitBtn = screen.getByText('Confirm & Send Request');
     expect(submitBtn).not.toBeDisabled();
+    fireEvent.click(submitBtn);
+    expect(createRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports selecting range mode for multiple replace requests by an admin', () => {
+    const onClose = vi.fn();
+    const onResult = vi.fn();
+    const createRequest = vi.fn().mockReturnValue({ ok: true, request: { id: 'req-1' } });
+
+    render(
+      <ShiftRequestCreateWizard
+        isOpen
+        onClose={onClose}
+        onResult={onResult}
+        canExchange
+        canReplace
+        requesterAssignments={getMockAssignments()}
+        recipients={mockRecipients}
+        candidateProfiles={candidateProfiles}
+        user={user}
+        initialAssignment={null}
+        createRequest={createRequest}
+      />
+    );
+
+    // Select Replace type
+    const replaceBtns = screen.getAllByText('Replace');
+    fireEvent.click(replaceBtns[0]);
+
+    // Select Recipient
+    const recipientBtn = screen.getAllByText(/Recipient One|rec-1/)[0];
+    fireEvent.click(recipientBtn);
+
+    // Click Next step
+    fireEvent.click(screen.getByText('Next'));
+
+    // Switch to Range Mode
+    const rangeToggle = screen.getByText('Date Range / Multi-Shift');
+    fireEvent.click(rangeToggle);
+
+    // Click day 15 and day 16 (both Day Shift)
+    const day15Btn = screen.getAllByText('15')[0];
+    const day16Btn = screen.getAllByText('16')[0];
+    fireEvent.click(day15Btn);
+    fireEvent.click(day16Btn);
+
+    // Click Next step to Review
+    fireEvent.click(screen.getByText('Next'));
+
+    // Check batch submit button label
+    const submitBtn = screen.getByText('Submit 2 Requests');
+    expect(submitBtn).not.toBeDisabled();
+    fireEvent.click(submitBtn);
+
+    // Verify onResult was called
+    expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
   });
 });

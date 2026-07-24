@@ -83,7 +83,7 @@ function buildMatrixExportLayout(daysInMonth: number): MatrixExportLayout {
 function getEnglishExportLabels(month: number, year: number): ScheduleMatrixExportLabels {
   const monthName = EN_MONTHS[month] || '';
   return {
-    title: `Shift schedule for ${monthName} ${year} - King Abdulaziz Medical City`,
+    title: `Shift schedule for ${monthName} ${year} - Specialized Medical Center`,
     unitShiftCol: 'Unit / Shift',
     vacationsBand: 'Vacations',
     legendTitle: 'Legend',
@@ -452,7 +452,7 @@ export function buildScheduleMatrixExportHtml(
 <body>
   <section class="schedule-page">
     <header class="export-header">
-      <img src="/mngha-logo.png" alt="National Guard Hospital" />
+      <img src="/ct-logo.png" alt="Medical Center" />
       <div class="export-title">${escapeHtml(labels.title)}</div>
       <img src="/ct-logo.png" alt="CT Department" />
     </header>

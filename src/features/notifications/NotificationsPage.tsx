@@ -7,6 +7,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useAuthStore } from '@/stores/authStore';
 import { Bell, CheckCheck, Trash2, Filter, AlertTriangle } from 'lucide-react';
 import dayjs from '@/lib/dayjs';
+import { isAdminOrSuperAdmin } from '@/types';
 
 export default function NotificationsPage() {
   const { t } = useTranslation(['notifications', 'common']);
@@ -76,7 +77,7 @@ export default function NotificationsPage() {
                   if (notif.actionUrl) {
                     const user = useAuthStore.getState().user;
                     let url = notif.actionUrl;
-                    if (user?.role === 'admin') {
+                    if (isAdminOrSuperAdmin(user)) {
                       if (url === '/schedule') url = '/admin/schedule';
                       if (url === '/employees') url = '/admin/employees';
                     } else {

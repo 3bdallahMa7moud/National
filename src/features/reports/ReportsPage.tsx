@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
+import { useTheme } from '@/hooks/useTheme';
 import {
   BarChart,
   Bar,
@@ -11,6 +12,9 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import {
   Calendar,
@@ -20,6 +24,10 @@ import {
   Search,
   FileSpreadsheet,
   Printer,
+  User,
+  Filter,
+  X,
+  RotateCcw,
 } from 'lucide-react';
 import {
   exportEmployeeAnalysisExcel,
@@ -73,6 +81,9 @@ export default function ReportsPage() {
   const [anchorDate, setAnchorDate] = useState(initialAnalysisAnchor);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
+  const [stackMode, setStackMode] = useState<'stacked' | 'grouped'>('stacked');
+
   const matricesByMonth = useScheduleMatrixStore((state) => state.matricesByMonth);
   const otRowsByMonth = useLateScheduleStore((state) => state.publishedRowsByMonth);
   const roster = useEmployeeRosterStore((state) => state.employees);
@@ -99,6 +110,7 @@ export default function ReportsPage() {
   const workloadRows: EmployeeWorkloadRow[] = useMemo(() => {
     return analysisRows.map((row) => {
       const total = row.totalScheduledAssignments;
+      const totalHours = (row.day * 8) + (row.late * 8) + (row.night * 12) + (row.onCallDay * 8) + (row.onCallNight * 12) + row.otScheduleHours;
       return {
         ...row,
         id: row.employeeId,
@@ -108,13 +120,50 @@ export default function ReportsPage() {
         evening: row.late,
         weekend: row.onCallDay + row.onCallNight,
         oncall: row.onCallDay + row.onCallNight,
+        onCallDay: row.onCallDay,
+        onCallNight: row.onCallNight,
         overtimeHours: row.otScheduleHours,
         otShifts: row.matrixOTShifts + row.otScheduleShifts,
         totalShifts: total,
+        totalHours,
         workloadStatus: total > 26 ? 'high' : total < 8 ? 'under' : 'balanced',
       };
     });
   }, [analysisRows, isRtl]);
+
+  const selectedEmployee = useMemo(
+    () => workloadRows.find((emp) => emp.id === selectedEmployeeId),
+    [workloadRows, selectedEmployeeId],
+  );
+
+  const { isDark } = useTheme();
+
+  const shiftColors = useMemo(() => ({
+    morning: isDark ? '#2DD4BF' : '#0D9488',
+    evening: isDark ? '#FBBF24' : '#D97706',
+    night: isDark ? '#38BDF8' : '#0284C7',
+    onCallDay: isDark ? '#FACC15' : '#EAB308',
+    onCallNight: isDark ? '#22D3D8' : '#06B6D4',
+    ot: isDark ? '#FB7185' : '#E11D48',
+    vacation: isDark ? '#94A3B8' : '#64748B',
+  }), [isDark]);
+
+  const employeePieData = useMemo(() => {
+    if (!selectedEmployee) return [];
+    return [
+      { name: isRtl ? 'Day (نهاري)' : 'Day', value: selectedEmployee.morning, hours: selectedEmployee.morning * 8, isHoursBased: false, color: shiftColors.morning },
+      { name: isRtl ? 'Night / Evening (ليلي / مسائي)' : 'Night / Evening', value: selectedEmployee.night, hours: selectedEmployee.night * 12, isHoursBased: false, color: shiftColors.night },
+      { name: isRtl ? 'On-call Day' : 'On-call Day', value: selectedEmployee.onCallDay, hours: selectedEmployee.onCallDay * 8, isHoursBased: true, color: shiftColors.onCallDay },
+      { name: isRtl ? 'On-call Night' : 'On-call Night', value: selectedEmployee.onCallNight, hours: selectedEmployee.onCallNight * 12, isHoursBased: true, color: shiftColors.onCallNight },
+      { name: isRtl ? 'OT (عمل إضافي)' : 'OT', value: selectedEmployee.otShifts, hours: selectedEmployee.overtimeHours, isHoursBased: true, color: shiftColors.ot },
+      { name: isRtl ? 'إجازة' : 'Vacation', value: selectedEmployee.vacationDays, hours: 0, isHoursBased: false, color: shiftColors.vacation },
+    ];
+  }, [selectedEmployee, shiftColors, isRtl]);
+
+  const selectedEmployeeTotalShifts = useMemo(() => {
+    if (!selectedEmployee) return 0;
+    return selectedEmployee.morning + selectedEmployee.evening + selectedEmployee.night + selectedEmployee.onCallDay + selectedEmployee.onCallNight + selectedEmployee.otShifts;
+  }, [selectedEmployee]);
 
   const analysisView = useMemo(
     () => buildEmployeeAnalysisView(workloadRows, searchQuery),
@@ -127,17 +176,27 @@ export default function ReportsPage() {
     return analysisView.chartRows.map((r) => {
       const row = r as EmployeeWorkloadRow & { otShifts?: number; vacationDays?: number };
       return {
+        id: r.id,
         name: r.code,
         fullName: r.name,
         morning: r.morning,
         evening: r.evening,
         night: r.night,
-        oncall: r.oncall,
+        onCallDay: r.onCallDay,
+        onCallNight: r.onCallNight,
         ot: row.otShifts ?? 0,
         vacation: row.vacationDays ?? 0,
       };
     });
   }, [analysisView.chartRows]);
+
+  const displayedChartData = useMemo(() => {
+    if (selectedEmployeeId === 'all' || !selectedEmployee) {
+      return chartData;
+    }
+    const empBar = chartData.find((d) => d.id === selectedEmployeeId);
+    return empBar ? [empBar] : chartData;
+  }, [chartData, selectedEmployeeId, selectedEmployee]);
 
   const totalShifts = analysisView.summary.totalAssignments;
   const totalNight = analysisView.summary.totalNight;
@@ -147,35 +206,60 @@ export default function ReportsPage() {
   const averageNightPerAssignedEmployee = assignedEmployeeCount > 0
     ? Math.round((totalNight / assignedEmployeeCount) * 10) / 10
     : 0;
-  const visualsForCategory = (category: CoverageCategory) => publishedShiftVisuals[category].length > 0
-    ? publishedShiftVisuals[category]
-    : [defaultOperationalShiftVisual(category)];
+
+  const targetSummary = useMemo(() => {
+    if (selectedEmployeeId === 'all' || !selectedEmployee) {
+      return {
+        totalDay: analysisView.summary.totalDay,
+        totalLate: analysisView.summary.totalLate,
+        totalNight,
+        totalOnCallDay: analysisView.summary.totalOnCallDay,
+        totalOnCallNight: analysisView.summary.totalOnCallNight,
+        totalOTShifts: analysisView.summary.totalOTShifts,
+        totalVacationDays: analysisView.summary.totalVacationDays,
+        totalHours: analysisView.summary.totalHours,
+      };
+    }
+    return {
+      totalDay: selectedEmployee.morning,
+      totalLate: selectedEmployee.evening,
+      totalNight: selectedEmployee.night,
+      totalOnCallDay: selectedEmployee.onCallDay,
+      totalOnCallNight: selectedEmployee.onCallNight,
+      totalOTShifts: selectedEmployee.otShifts,
+      totalVacationDays: selectedEmployee.vacationDays,
+      totalHours: selectedEmployee.totalHours,
+    };
+  }, [selectedEmployeeId, selectedEmployee, analysisView.summary, totalNight]);
+
   const chartSeriesBackgrounds = {
-    morning: operationalShiftBackgrounds(visualsForCategory('day')),
-    evening: operationalShiftBackgrounds(visualsForCategory('late')),
-    night: operationalShiftBackgrounds(visualsForCategory('night')),
-    oncall: operationalShiftBackgrounds(visualsForCategory('onCall')),
-    ot: operationalShiftBackgrounds(visualsForCategory('ot')),
-    vacation: [operationalShiftStyle({ colorKey: 'vacation' }).backgroundColor],
+    morning: [shiftColors.morning],
+    evening: [shiftColors.evening],
+    night: [shiftColors.night],
+    onCallDay: [shiftColors.onCallDay],
+    onCallNight: [shiftColors.onCallNight],
+    ot: [shiftColors.ot],
+    vacation: [shiftColors.vacation],
   };
   const chartFill = (series: keyof typeof chartSeriesBackgrounds) => {
     const backgrounds = chartSeriesBackgrounds[series];
     return backgrounds.length > 1 ? `url(#reports-shift-${series})` : backgrounds[0];
   };
+  const otTotalHours = selectedEmployee ? selectedEmployee.overtimeHours : analysisView.summary.totalOTHours;
   const shiftDistribution = [
-    { name: t('common:shifts.morning'), value: analysisView.summary.totalDay, color: operationalShiftGradient(visualsForCategory('day')) },
-    { name: t('common:shifts.evening'), value: analysisView.summary.totalLate, color: operationalShiftGradient(visualsForCategory('late')) },
-    { name: t('common:shifts.night'), value: totalNight, color: operationalShiftGradient(visualsForCategory('night')) },
-    { name: t('common:shifts.oncall'), value: analysisView.summary.totalOnCall, color: operationalShiftGradient(visualsForCategory('onCall')) },
-    { name: isRtl ? 'عمل إضافي' : 'Overtime', value: analysisView.summary.totalOTShifts, color: operationalShiftGradient(visualsForCategory('ot')) },
-  ].filter((item) => item.value > 0);
+    { name: isRtl ? 'Day (نهاري)' : 'Day', value: targetSummary.totalDay, hours: targetSummary.totalDay * 8, isHoursBased: false, color: shiftColors.morning },
+    { name: isRtl ? 'Night / Evening (ليلي / مسائي)' : 'Night / Evening', value: targetSummary.totalNight, hours: targetSummary.totalNight * 12, isHoursBased: false, color: shiftColors.night },
+    { name: isRtl ? 'On-call Day' : 'On-call Day', value: targetSummary.totalOnCallDay, hours: targetSummary.totalOnCallDay * 8, isHoursBased: true, color: shiftColors.onCallDay },
+    { name: isRtl ? 'On-call Night' : 'On-call Night', value: targetSummary.totalOnCallNight, hours: targetSummary.totalOnCallNight * 12, isHoursBased: true, color: shiftColors.onCallNight },
+    { name: isRtl ? 'OT (عمل إضافي)' : 'OT', value: targetSummary.totalOTShifts, hours: otTotalHours, isHoursBased: true, color: shiftColors.ot },
+  ];
   const totalShiftDistribution = shiftDistribution.reduce((sum, item) => sum + item.value, 0);
-  const totalVacationDays = analysisView.summary.totalVacationDays;
+  const totalVacationDays = targetSummary.totalVacationDays;
   const leaveDistribution = totalVacationDays > 0
     ? [{
         name: isRtl ? 'إجازة' : 'Vacation',
         value: totalVacationDays,
-        color: operationalShiftStyle({ colorKey: 'vacation' }).backgroundColor,
+        color: shiftColors.vacation,
       }]
     : [];
 
@@ -337,8 +421,8 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* ─── 2. Executive KPI Cards Grid (3 Cards) ─── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* ─── 2. Executive KPI Cards Grid (4 Cards) ─── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Scheduled Shifts */}
         <Card className="flex items-center gap-4 border-s-4 border-primary">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary">
@@ -359,7 +443,27 @@ export default function ReportsPage() {
           </div>
         </Card>
 
-        {/* Card 2: Night Shifts */}
+        {/* Card 2: Total Calculated Hours */}
+        <Card className="flex items-center gap-4 border-s-4 border-teal-500">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400">
+            <Clock className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-text-secondary">
+              {isRtl ? 'إجمالي الساعات الكلية' : 'Total Calculated Hours'}
+            </p>
+            <p data-testid="analysis-total-hours" className="mt-1 text-2xl font-bold leading-none text-text-primary">
+              {formatNumber(targetSummary.totalHours)} {isRtl ? 'ساعة' : 'hours'}
+            </p>
+            <p className="text-xs font-medium text-teal-600 mt-1">
+              {isRtl
+                ? 'شاملة الـ OT والأونكول نهاري وليلي'
+                : 'Includes OT & On-call Day/Night'}
+            </p>
+          </div>
+        </Card>
+
+        {/* Card 3: Night Shifts */}
         <Card className="flex items-center gap-4 border-s-4 border-purple-500">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400">
             <Clock className="h-6 w-6" />
@@ -379,7 +483,7 @@ export default function ReportsPage() {
           </div>
         </Card>
 
-        {/* Card 3: Overtime Shifts */}
+        {/* Card 4: Overtime Shifts */}
         <Card className="flex items-center gap-4 border-s-4 border-amber-500">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
             <Phone className="h-6 w-6" />
@@ -436,116 +540,342 @@ export default function ReportsPage() {
       {/* TAB 1: Overview & Charts — all 29 employees */}
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          {/* Main bar chart: all employees */}
+          {/* Main bar chart: all employees or single employee filter */}
           <Card className="lg:col-span-2">
-            <h3 className="mb-4 text-base font-semibold text-text-primary">
-              {isRtl
-                ? `توزيع النوبات — جميع الموظفين (${formatNumber(filteredRows.length)})`
-                : `Shift Distribution — All Employees (${formatNumber(filteredRows.length)})`}
-            </h3>
-            <div className="space-y-2 sm:hidden">
-              {chartData.slice(0, 6).map((employee) => {
-                const total = employee.morning + employee.evening + employee.night + employee.oncall + employee.ot;
-                return (
-                  <div key={employee.name} className="flex min-h-14 items-center gap-3 rounded-xl border border-border bg-surface-muted p-3">
-                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-bold text-white" dir="ltr">
-                      {employee.name}
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-text-primary">
+                  {selectedEmployee
+                    ? (isRtl
+                        ? `تحليل نوبات الموظف: ${selectedEmployee.name} (${selectedEmployee.code})`
+                        : `Shift Analysis — ${selectedEmployee.name} (${selectedEmployee.code})`)
+                    : (isRtl
+                        ? `توزيع النوبات — جميع الموظفين (${formatNumber(filteredRows.length)})`
+                        : `Shift Distribution — All Employees (${formatNumber(filteredRows.length)})`)}
+                </h3>
+                <p className="mt-0.5 text-xs text-text-secondary">
+                  {selectedEmployee
+                    ? (isRtl ? 'تحليل تفصيلي دائر ي وقطاعي لنوبات الموظف المختار' : 'Detailed donut & workload breakdown for selected employee')
+                    : (isRtl ? 'انقر على عمود أي موظف للتركيز عليه أو استخدم التصفية' : 'Click any employee bar to focus or filter')}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Mode toggle (Stacked vs Grouped) — shown when viewing all employees */}
+                {selectedEmployeeId === 'all' && (
+                  <div className="flex items-center rounded-lg border border-border bg-surface-muted p-1" role="group" aria-label={isRtl ? 'نمط عرض الرسم البياني' : 'Chart stack mode'}>
+                    <button
+                      type="button"
+                      onClick={() => setStackMode('stacked')}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                        stackMode === 'stacked'
+                          ? 'bg-primary text-white shadow-xs'
+                          : 'text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      {isRtl ? 'مكدّس' : 'Stacked'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStackMode('grouped')}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                        stackMode === 'grouped'
+                          ? 'bg-primary text-white shadow-xs'
+                          : 'text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      {isRtl ? 'مُقسّم' : 'Grouped'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Dropdown Employee Selector */}
+                <div className="relative min-w-[170px]">
+                  <select
+                    value={selectedEmployeeId}
+                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                    className="w-full min-h-10 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text-primary shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    aria-label={isRtl ? 'فلترة حسب الموظف' : 'Filter by employee'}
+                  >
+                    <option value="all">
+                      {isRtl ? `جميع الموظفين (${formatNumber(workloadRows.length)})` : `All Employees (${formatNumber(workloadRows.length)})`}
+                    </option>
+                    {workloadRows.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedEmployeeId !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEmployeeId('all')}
+                    className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-border bg-surface-muted px-3 text-xs font-semibold text-primary transition-colors hover:bg-hover hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>{isRtl ? 'عرض الجميع' : 'Show All'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* SINGLE EMPLOYEE VIEW: Donut PieChart + Detailed Breakdown */}
+            {selectedEmployee ? (
+              <div className="grid grid-cols-1 gap-6 pt-2 md:grid-cols-2 items-center">
+                {/* Donut Chart */}
+                <div className="relative flex flex-col items-center justify-center min-h-[280px]" dir="ltr">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie
+                        data={employeePieData.filter((item) => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={65}
+                        outerRadius={95}
+                        paddingAngle={4}
+                        dataKey="value"
+                        nameKey="name"
+                      >
+                        {employeePieData.filter((item) => item.value > 0).map((entry) => (
+                          <Cell key={entry.name} fill={entry.color} stroke={isDark ? '#0f172a' : '#ffffff'} strokeWidth={2} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                          borderRadius: '10px',
+                          border: isDark ? '1px solid #334155' : '1px solid #E2E8F0',
+                          boxShadow: isDark ? '0 10px 25px -5px rgba(0, 0, 0, 0.5)' : '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                          fontSize: '12px',
+                          color: isDark ? '#F8FAFC' : '#0F172A',
+                        }}
+                        formatter={(value, name) => [
+                          `${formatNumber(Number(value))} (${selectedEmployeeTotalShifts > 0 ? Math.round((Number(value) / selectedEmployeeTotalShifts) * 100) : 0}%)`,
+                          name,
+                        ]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Central Donut Text */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-xl sm:text-2xl font-extrabold text-text-primary">
+                      {formatNumber(selectedEmployee.totalHours)} <span className="text-xs font-semibold text-teal-600 dark:text-teal-400">{isRtl ? 'ساعة' : 'hrs'}</span>
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-text-primary">{employee.fullName}</span>
-                      <span className="mt-0.5 block text-xs text-text-secondary">
-                        {isRtl ? `${formatNumber(total)} نوبة` : `${formatNumber(total)} shifts`} · {isRtl ? `${formatNumber(employee.night)} ليلية` : `${formatNumber(employee.night)} night`}
-                      </span>
+                    <span className="text-xs font-semibold text-text-secondary">
+                      {isRtl ? `${formatNumber(selectedEmployeeTotalShifts)} شفت` : `${formatNumber(selectedEmployeeTotalShifts)} Shifts`}
                     </span>
                   </div>
-                );
-              })}
-              {chartData.length > 6 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('workloadMatrix')}
-                  className="min-h-11 w-full rounded-btn border border-border bg-surface-muted px-4 text-sm font-semibold text-primary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
-                >
-                  {isRtl ? `عرض كل الموظفين (${formatNumber(chartData.length)})` : `View all employees (${formatNumber(chartData.length)})`}
-                </button>
-              )}
-            </div>
-            <div className="hidden h-96 w-full min-h-[280px] overflow-x-auto sm:block" dir="ltr">
-              <ResponsiveContainer width={Math.max(chartData.length * 52, 600)} height="100%">
-                <BarChart
-                  data={chartData}
-                  margin={{ top: 10, right: 20, left: 0, bottom: 40 }}
-                >
-                  <defs>
-                    {Object.entries(chartSeriesBackgrounds).map(([series, backgrounds]) => backgrounds.length > 1 && (
-                      <linearGradient key={series} id={`reports-shift-${series}`} x1="0" y1="0" x2="1" y2="0">
-                        {backgrounds.map((background, index) => (
-                          <stop
-                            key={`${series}-${background}`}
-                            offset={`${(index / Math.max(1, backgrounds.length - 1)) * 100}%`}
-                            stopColor={background}
-                          />
+                </div>
+
+                {/* Individual Employee Metrics Breakdown Cards */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-muted p-3">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-xs font-bold text-white" dir="ltr">
+                        {selectedEmployee.code}
+                      </span>
+                      <div>
+                        <h4 className="text-sm font-bold text-text-primary">{selectedEmployee.name}</h4>
+                        <p className="text-xs text-text-secondary">{selectedEmployee.department}</p>
+                      </div>
+                    </div>
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      selectedEmployee.workloadStatus === 'high'
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
+                        : selectedEmployee.workloadStatus === 'under'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                    }`}>
+                      {selectedEmployee.workloadStatus === 'high'
+                        ? (isRtl ? 'حمل مرتفع' : 'High Load')
+                        : selectedEmployee.workloadStatus === 'under'
+                        ? (isRtl ? 'حمل منخفض' : 'Under Loaded')
+                        : (isRtl ? 'متوازن' : 'Balanced')}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {employeePieData.map((item) => {
+                      const pct = selectedEmployeeTotalShifts > 0 ? Math.round((item.value / selectedEmployeeTotalShifts) * 100) : 0;
+                      const labelText = item.isHoursBased
+                        ? (isRtl
+                          ? `${formatNumber(item.hours)} ساعة (${formatNumber(item.value)} شفت)`
+                          : `${formatNumber(item.hours)} hrs (${formatNumber(item.value)} shifts)`)
+                        : item.name === (isRtl ? 'إجازة' : 'Vacation')
+                        ? (isRtl ? `${formatNumber(item.value)} يوم` : `${formatNumber(item.value)} days`)
+                        : (isRtl
+                          ? `${formatNumber(item.value)} شفت (${formatNumber(item.hours)} س)`
+                          : `${formatNumber(item.value)} shifts (${formatNumber(item.hours)}h)`);
+
+                      return (
+                        <div key={item.name} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="flex items-center gap-1.5 font-medium text-text-primary">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                              {item.name}
+                            </span>
+                            <span className="font-semibold text-text-secondary">
+                              {labelText} <span className="text-text-primary font-bold">({formatNumber(pct)}%)</span>
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-muted">
+                            <div
+                              className="h-full rounded-full transition-all duration-300"
+                              style={{ width: `${pct}%`, backgroundColor: item.color }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* ALL EMPLOYEES BAR CHART VIEW */
+              <>
+                <div className="space-y-2 sm:hidden">
+                  {workloadRows.slice(0, 6).map((employee) => {
+                    const total = employee.morning + employee.evening + employee.night + employee.oncall + employee.otShifts;
+                    return (
+                      <button
+                        type="button"
+                        key={employee.id}
+                        onClick={() => setSelectedEmployeeId(employee.id)}
+                        className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-border bg-surface-muted p-3 text-start transition-all hover:bg-hover"
+                      >
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-bold text-white" dir="ltr">
+                          {employee.code}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-text-primary">{employee.name}</span>
+                          <span className="mt-0.5 block text-xs text-text-secondary">
+                            {isRtl ? `${formatNumber(total)} نوبة` : `${formatNumber(total)} shifts`} · {isRtl ? `${formatNumber(employee.night)} ليلية` : `${formatNumber(employee.night)} night`}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {workloadRows.length > 6 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('workloadMatrix')}
+                      className="min-h-11 w-full rounded-btn border border-border bg-surface-muted px-4 text-sm font-semibold text-primary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      {isRtl ? `عرض كل الموظفين (${formatNumber(workloadRows.length)})` : `View all employees (${formatNumber(workloadRows.length)})`}
+                    </button>
+                  )}
+                </div>
+
+                <div className="hidden h-96 w-full min-h-[280px] overflow-x-auto sm:block" dir="ltr">
+                  <ResponsiveContainer width={Math.max(displayedChartData.length * (stackMode === 'grouped' ? 110 : 52), 600)} height="100%">
+                    <BarChart
+                      data={displayedChartData}
+                      margin={{ top: 10, right: 20, left: 0, bottom: 40 }}
+                      onClick={(state) => {
+                        if (state && state.activePayload && state.activePayload.length > 0) {
+                          const clickedId = state.activePayload[0]?.payload?.id;
+                          if (clickedId) setSelectedEmployeeId(clickedId);
+                        }
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <defs>
+                        {Object.entries(chartSeriesBackgrounds).map(([series, backgrounds]) => backgrounds.length > 1 && (
+                          <linearGradient key={series} id={`reports-shift-${series}`} x1="0" y1="0" x2="1" y2="0">
+                            {backgrounds.map((background, index) => (
+                              <stop
+                                key={`${series}-${background}`}
+                                offset={`${(index / Math.max(1, backgrounds.length - 1)) * 100}%`}
+                                stopColor={background}
+                              />
+                            ))}
+                          </linearGradient>
                         ))}
-                      </linearGradient>
-                    ))}
-                  </defs>
-                  <XAxis
-                    dataKey="name"
-                    stroke="#64748B"
-                    fontSize={11}
-                    angle={-45}
-                    textAnchor="end"
-                    interval={0}
-                    tick={{ fill: '#64748B' }}
-                  />
-                  <YAxis stroke="#64748B" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      borderRadius: '8px',
-                      border: '1px solid #E2E8F0',
-                      fontSize: '12px',
-                    }}
-                    formatter={(value, name, props) => [
-                      value,
-                      props.payload?.fullName || name,
-                    ]}
-                    labelFormatter={(label) => {
-                      const emp = chartData.find((d) => d.name === label);
-                      return emp ? emp.fullName : label;
-                    }}
-                  />
-                  <Legend wrapperStyle={{ paddingTop: '12px' }} />
-                  <Bar dataKey="morning" name={t('common:shifts.morning')} stackId="a" fill={chartFill('morning')} />
-                  <Bar dataKey="evening" name={t('common:shifts.evening')} stackId="a" fill={chartFill('evening')} />
-                  <Bar
-                    dataKey="night"
-                    name={t('common:shifts.night')}
-                    stackId="a"
-                    fill={chartFill('night')}
-                  />
-                  <Bar
-                    dataKey="oncall"
-                    name={t('common:shifts.oncall')}
-                    stackId="a"
-                    fill={chartFill('oncall')}
-                  />
-                  <Bar
-                    dataKey="ot"
-                    name={isRtl ? 'عمل إضافي' : 'Overtime'}
-                    stackId="a"
-                    fill={chartFill('ot')}
-                  />
-                  <Bar
-                    dataKey="vacation"
-                    name={isRtl ? 'إجازة' : 'Vacation'}
-                    stackId="a"
-                    fill={chartFill('vacation')}
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+                      </defs>
+                      <XAxis
+                        dataKey="name"
+                        stroke={isDark ? '#94A3B8' : '#64748B'}
+                        fontSize={11}
+                        angle={-45}
+                        textAnchor="end"
+                        interval={0}
+                        tick={{ fill: isDark ? '#CBD5E1' : '#64748B' }}
+                      />
+                      <YAxis stroke={isDark ? '#94A3B8' : '#64748B'} fontSize={12} tick={{ fill: isDark ? '#CBD5E1' : '#64748B' }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                          borderRadius: '10px',
+                          border: isDark ? '1px solid #334155' : '1px solid #E2E8F0',
+                          boxShadow: isDark ? '0 10px 25px -5px rgba(0, 0, 0, 0.5)' : '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                          fontSize: '12px',
+                          color: isDark ? '#F8FAFC' : '#0F172A',
+                        }}
+                        itemStyle={{
+                          color: isDark ? '#E2E8F0' : '#1E293B',
+                        }}
+                        labelStyle={{
+                          color: isDark ? '#F8FAFC' : '#0F172A',
+                          fontWeight: 600,
+                          marginBottom: '4px',
+                        }}
+                        formatter={(value, name) => [
+                          formatNumber(Number(value)),
+                          name,
+                        ]}
+                        labelFormatter={(label) => {
+                          const emp = chartData.find((d) => d.name === label);
+                          return emp ? `${emp.fullName} (${emp.name})` : label;
+                        }}
+                      />
+                      <Legend
+                        wrapperStyle={{ paddingTop: '12px' }}
+                        formatter={(value) => (
+                          <span className="text-xs font-semibold text-text-primary px-1">
+                            {value}
+                          </span>
+                        )}
+                      />
+                      <Bar dataKey="morning" name={isRtl ? 'Day (نهاري)' : 'Day'} stackId={stackMode === 'stacked' ? 'a' : undefined} fill={chartFill('morning')} />
+                      <Bar dataKey="evening" name={isRtl ? 'Late (متأخر)' : 'Late'} stackId={stackMode === 'stacked' ? 'a' : undefined} fill={chartFill('evening')} />
+                      <Bar
+                        dataKey="night"
+                        name={isRtl ? 'Evening (ليلي)' : 'Evening'}
+                        stackId={stackMode === 'stacked' ? 'a' : undefined}
+                        fill={chartFill('night')}
+                      />
+                      <Bar
+                        dataKey="onCallDay"
+                        name={isRtl ? 'On-call Day' : 'On-call Day'}
+                        stackId={stackMode === 'stacked' ? 'a' : undefined}
+                        fill={chartFill('onCallDay')}
+                      />
+                      <Bar
+                        dataKey="onCallNight"
+                        name={isRtl ? 'On-call Night' : 'On-call Night'}
+                        stackId={stackMode === 'stacked' ? 'a' : undefined}
+                        fill={chartFill('onCallNight')}
+                      />
+                      <Bar
+                        dataKey="ot"
+                        name={isRtl ? 'OT (إضافي)' : 'OT'}
+                        stackId={stackMode === 'stacked' ? 'a' : undefined}
+                        fill={chartFill('ot')}
+                      />
+                      <Bar
+                        dataKey="vacation"
+                        name={isRtl ? 'إجازة' : 'Vacation'}
+                        stackId={stackMode === 'stacked' ? 'a' : undefined}
+                        fill={chartFill('vacation')}
+                        radius={stackMode === 'stacked' ? [4, 4, 0, 0] : undefined}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            )}
           </Card>
 
           {/* Distribution side panel — Shifts + Vacations separated */}
@@ -570,7 +900,13 @@ export default function ReportsPage() {
                         <span className="font-medium text-text-primary">{item.name}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-text-secondary">
-                        <span>{t('reports:charts.shiftCount', { count: formatNumber(item.value) })}</span>
+                        <span>
+                          {item.isHoursBased
+                            ? (isRtl
+                              ? `${formatNumber(item.hours)} ساعة (${formatNumber(item.value)} شفت)`
+                              : `${formatNumber(item.hours)} hrs (${formatNumber(item.value)} shifts)`)
+                            : t('reports:charts.shiftCount', { count: formatNumber(item.value) })}
+                        </span>
                         <span className="font-semibold text-text-primary">{formatNumber(percentage)}%</span>
                       </div>
                     </div>
@@ -664,6 +1000,7 @@ export default function ReportsPage() {
                   <th className="px-3 py-3.5 text-center">{t('reports:analysis.table.matrixOT')}</th>
                   <th className="px-3 py-3.5 text-center">{t('reports:analysis.table.otScheduleShifts')}</th>
                   <th className="px-3 py-3.5 text-center">{t('reports:analysis.table.otScheduleHours')}</th>
+                  <th className="px-3 py-3.5 text-center text-teal-600 dark:text-teal-400 font-bold">{isRtl ? 'إجمالي الساعات' : 'Total Hours'}</th>
                   <th className="px-3 py-3.5 text-center">{t('reports:analysis.table.vacationDays')}</th>
                   <th className="px-3 py-3.5 text-center">{t('reports:analysis.table.source')}</th>
                   <th className="px-3 py-3.5 text-center">{t('reports:analysis.table.totalShifts')}</th>
@@ -672,7 +1009,7 @@ export default function ReportsPage() {
               <tbody className="divide-y divide-border">
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-4 py-8 text-center text-sm text-text-secondary">
+                    <td colSpan={14} className="px-4 py-8 text-center text-sm text-text-secondary">
                       {t('reports:analysis.table.noResults')}
                     </td>
                   </tr>
@@ -701,6 +1038,7 @@ export default function ReportsPage() {
                         <td className="px-3 py-3 text-center text-orange-700 dark:text-orange-300">{formatNumber(row.matrixOTShifts)}</td>
                         <td className="px-3 py-3 text-center" data-testid="ot-schedule-shifts">{formatNumber(row.otScheduleShifts)}</td>
                         <td className="px-3 py-3 text-center" data-testid="ot-schedule-hours">{formatNumber(row.otScheduleHours)}</td>
+                        <td className="px-3 py-3 text-center font-bold text-teal-600 dark:text-teal-400">{formatNumber(row.totalHours)}</td>
                         <td className="px-3 py-3 text-center">{formatNumber(row.vacationDays)}</td>
                         <td className="px-3 py-3 text-center text-xs text-text-secondary" data-testid="analysis-source">
                           {t(`reports:analysis.table.sources.${row.source}`)}

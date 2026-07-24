@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { AuthUser } from '@/types/employee';
+import { isAdminOrSuperAdmin, isUserRole, type AuthUser } from '@/types/employee';
 import {
   EMPLOYEE_PERMISSIONS,
   type EffectiveEmployeeAccess,
@@ -76,8 +76,8 @@ function hasBrowserAdminSession(): boolean {
     if (typeof window === 'undefined') return false;
     const storage = window.sessionStorage.getItem('token') ? window.sessionStorage : window.localStorage;
     if (!storage.getItem('token')) return false;
-    const user = JSON.parse(storage.getItem('user') || 'null') as { role?: string } | null;
-    return user?.role === 'admin';
+    const user = JSON.parse(storage.getItem('user') || 'null') as { role?: unknown } | null;
+    return isUserRole(user?.role) && isAdminOrSuperAdmin({ role: user.role });
   } catch {
     return false;
   }
@@ -339,11 +339,10 @@ export function createEmployeeAccessStore(options: EmployeeAccessStoreOptions = 
 function profilesFromDirectory(): Record<string, EmployeeAccessProfile> {
   return Object.fromEntries(
     useEmployeeDirectoryStore.getState().records
-      .filter((record) => record.role === 'employee')
       .map((record) => [record.accountId, {
         accountId: record.accountId,
         departmentId: record.departmentId,
-        scheduleEmployeeId: record.scheduleEmployeeId,
+        scheduleEmployeeId: record.scheduleEmployeeId || record.accountId,
         templateId: record.access.templateId,
         overrides: { ...record.access.overrides },
         active: record.active,

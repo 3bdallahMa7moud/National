@@ -5,14 +5,18 @@ import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { useUIStore } from '@/stores/uiStore';
 import { resolveEffectiveEmployeeAccess, type EmployeePermission } from '@/types/employeeAccess';
+import { isAdminOrSuperAdmin } from '@/types';
 import {
   LayoutDashboard, Calendar, Users, Building2, BarChart3, FileText,
   RefreshCw, Bell, User, Menu, X, Clock, ArrowLeftRight, FileBarChart2,
+  Palmtree, ExternalLink,
 } from 'lucide-react';
 import HospitalLogo from '@/components/common/HospitalLogo';
 
 interface SidebarLink {
-  to: string;
+  to?: string;
+  href?: string;
+  external?: boolean;
   icon: typeof LayoutDashboard;
   labelKey: string;
   permissions?: EmployeePermission[];
@@ -28,8 +32,9 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/audit-log', icon: FileText, labelKey: 'common:nav.auditLog' },
   { to: '/admin/shift-requests', icon: ArrowLeftRight, labelKey: 'common:nav.shiftRequests' },
   { to: '/admin/employee-justification', icon: FileBarChart2, labelKey: 'common:nav.employeeJustification' },
+  { href: 'http://www.ctgate.cc', external: true, icon: Palmtree, labelKey: 'common:nav.ctGate' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
-] as const;
+];
 
 const employeeLinks: SidebarLink[] = [
   { to: '/employee/dashboard', icon: LayoutDashboard, labelKey: 'common:nav.dashboard' },
@@ -55,9 +60,10 @@ const employeeLinks: SidebarLink[] = [
     to: '/calendar-sync', icon: RefreshCw, labelKey: 'common:nav.calendarSync',
     permissions: ['schedule.calendar.sync'],
   },
+  { href: 'http://www.ctgate.cc', external: true, icon: Palmtree, labelKey: 'common:nav.ctGate' },
   { to: '/notifications', icon: Bell, labelKey: 'common:nav.notifications' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
-] as const;
+];
 
 export default function Sidebar() {
   const { t } = useTranslation(['common']);
@@ -68,7 +74,7 @@ export default function Sidebar() {
   const employeeAccess = user?.role === 'employee'
     ? resolveEffectiveEmployeeAccess(user, accessProfile)
     : null;
-  const links = user?.role === 'admin'
+  const links = isAdminOrSuperAdmin(user)
     ? adminLinks
     : employeeLinks.filter((link) => !link.permissions?.length
       || (employeeAccess?.active && link.permissions.some((permission) => employeeAccess.permissions[permission])));
@@ -112,11 +118,37 @@ export default function Sidebar() {
         {links.map((link) => {
           const Icon = link.icon;
           const label = t(link.labelKey);
+
+          if (link.external && link.href) {
+            return (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setSidebarOpen(false)}
+                className={cn(
+                  'flex items-center gap-3 rounded-btn px-3 py-2.5 text-sm font-medium transition-colors duration-150 text-text-secondary hover:bg-hover hover:text-text-primary',
+                  isCollapsed && 'justify-center px-2'
+                )}
+                title={isCollapsed ? label : undefined}
+              >
+                <Icon className="h-5 w-5 flex-shrink-0" />
+                {!isCollapsed && (
+                  <span className="flex-1 truncate flex items-center justify-between gap-2">
+                    <span className="truncate">{label}</span>
+                    <ExternalLink className="h-3.5 w-3.5 opacity-50 flex-shrink-0 rtl:-scale-x-100" />
+                  </span>
+                )}
+              </a>
+            );
+          }
+
           const isActive = location.pathname === link.to;
           return (
             <NavLink
-              key={link.to}
-              to={link.to}
+              key={link.to!}
+              to={link.to!}
               onClick={() => setSidebarOpen(false)}
               className={cn(
                 'flex items-center gap-3 rounded-btn px-3 py-2.5 text-sm font-medium transition-colors duration-150',

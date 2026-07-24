@@ -14,7 +14,6 @@ export default function EmployeeProfileOverview({ month, week }: Props) {
   const { t } = useTranslation('employees');
   const totals = [
     ['day', month.totals.day],
-    ['late', month.totals.late],
     ['night', month.totals.night],
     ['onCallDay', month.totals.onCallDay],
     ['onCallNight', month.totals.onCallNight],

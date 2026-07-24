@@ -68,14 +68,14 @@ export type TemplatePresetKey = 'KAMC_CT' | 'KAMC_RAD' | 'KASCH_RAD' | 'WHH_RAD'
 /** Default state — official English letterhead format exactly matching standard hospital overtime report */
 export const DEFAULT_JUSTIFICATION_STATE: JustificationReportState = {
   kingdomLabel: 'KINGDOM OF SAUDI ARABIA',
-  ministryName: 'MINISTRY OF NATIONAL GUARD HEALTH AFFAIRS',
+  ministryName: 'HEALTH AFFAIRS & MEDICAL SERVICES',
   departmentName: 'MEDICAL IMAGING DEPARTMENT',
   reportTitle: 'CONFIRMATION OF STAFF AVAILABILITY DURING OVERTIME HOURS',
   section: 'CT Scan',
   month: '',
   year: '',
   numberOfStaff: '0',
-  leftLogo: '/mngha-logo.png',
+  leftLogo: '/ct-logo.png',
   rightLogo: '/ct-logo.png',
   headers: {
     no: '#',
@@ -96,7 +96,7 @@ export const DEFAULT_JUSTIFICATION_STATE: JustificationReportState = {
 export const TEMPLATE_PRESETS: Record<Exclude<TemplatePresetKey, 'CUSTOM'>, Partial<JustificationReportState>> = {
   KAMC_CT: {
     kingdomLabel: 'المملكة العربية السعودية',
-    ministryName: 'وزارة الحرس الوطني – الشؤون الصحية',
+    ministryName: 'إدارة الشؤون الصحية – المركز الطبي التخصصي',
     departmentName: 'قسم الأشعة التشخيصية',
     reportTitle: 'تقرير مبرر العمل الإضافي الشهري',
     section: 'قسم الأشعة المقطعية (CT Scan)',
@@ -105,7 +105,7 @@ export const TEMPLATE_PRESETS: Record<Exclude<TemplatePresetKey, 'CUSTOM'>, Part
   },
   KAMC_RAD: {
     kingdomLabel: 'المملكة العربية السعودية',
-    ministryName: 'وزارة الحرس الوطني – الشؤون الصحية',
+    ministryName: 'إدارة الشؤون الصحية – المركز الطبي التخصصي',
     departmentName: 'قسم الأشعة التشخيصية',
     reportTitle: 'تقرير مبرر العمل الإضافي الشهري',
     section: 'الأشعة العامة (General Radiology)',
@@ -114,7 +114,7 @@ export const TEMPLATE_PRESETS: Record<Exclude<TemplatePresetKey, 'CUSTOM'>, Part
   },
   KASCH_RAD: {
     kingdomLabel: 'المملكة العربية السعودية',
-    ministryName: 'وزارة الحرس الوطني – الشؤون الصحية',
+    ministryName: 'إدارة الشؤون الصحية – المركز الطبي التخصصي',
     departmentName: 'قسم التصوير الطبي للأطفال',
     reportTitle: 'تقرير مبرر العمل الإضافي الشهري',
     section: 'التصوير الطبي للأطفال',
@@ -123,7 +123,7 @@ export const TEMPLATE_PRESETS: Record<Exclude<TemplatePresetKey, 'CUSTOM'>, Part
   },
   WHH_RAD: {
     kingdomLabel: 'المملكة العربية السعودية',
-    ministryName: 'وزارة الحرس الوطني – الشؤون الصحية',
+    ministryName: 'إدارة الشؤون الصحية – المركز الطبي التخصصي',
     departmentName: 'قسم التصوير الطبي والتداخلية',
     reportTitle: 'تقرير مبرر العمل الإضافي الشهري',
     section: 'تصوير صحة المرأة',

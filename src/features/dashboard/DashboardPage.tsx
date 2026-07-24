@@ -26,14 +26,22 @@ export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState(() => localDateValue(new Date()));
   const [selectedCategory, setSelectedCategory] = useState<CoverageCategory | null>(null);
   const matricesByMonth = useScheduleMatrixStore((state) => state.matricesByMonth);
-  const rowsByMonth = useLateScheduleStore((state) => state.publishedRowsByMonth);
+  const publishedOtRowsByMonth = useLateScheduleStore((state) => state.publishedRowsByMonth);
+  const otRowsByMonth = useLateScheduleStore((state) => state.rowsByMonth);
+  const currentOtRows = useLateScheduleStore((state) => state.rows);
   const employees = useEmployeeRosterStore((state) => state.employees);
   const persistedAuditEntries = useOperationalAuditStore((state) => state.entries);
   const monthKey = selectedDate.slice(0, 7);
   const matrix = matricesByMonth[monthKey];
+  const otRows = useMemo(() => {
+    return publishedOtRowsByMonth[monthKey]
+      || otRowsByMonth[monthKey]
+      || (currentOtRows?.length ? currentOtRows : undefined);
+  }, [publishedOtRowsByMonth, otRowsByMonth, currentOtRows, monthKey]);
+
   const snapshot = useMemo(
-    () => buildOperationalSnapshot(selectedDate, matrix, rowsByMonth[monthKey], employees),
-    [employees, matrix, monthKey, rowsByMonth, selectedDate],
+    () => buildOperationalSnapshot(selectedDate, matrix, otRows, employees),
+    [employees, matrix, otRows, selectedDate],
   );
   const auditEntries = useMemo(() => {
     const scheduleEntries = Object.values(matricesByMonth).flatMap((entry) => entry.auditLog);

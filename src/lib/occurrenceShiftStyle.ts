@@ -38,11 +38,5 @@ export function operationalShiftBackgrounds(visuals: OperationalShiftVisual[]): 
 
 export function operationalShiftGradient(visuals: OperationalShiftVisual[]): string {
   const backgrounds = operationalShiftBackgrounds(visuals);
-  if (backgrounds.length <= 1) return backgrounds[0] || 'transparent';
-  const segment = 100 / backgrounds.length;
-  const stops = backgrounds.flatMap((color, index) => [
-    `${color} ${index * segment}%`,
-    `${color} ${(index + 1) * segment}%`,
-  ]);
-  return `linear-gradient(90deg, ${stops.join(', ')})`;
+  return backgrounds[0] || 'transparent';
 }

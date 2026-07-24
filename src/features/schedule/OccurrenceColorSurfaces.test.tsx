@@ -40,7 +40,7 @@ const employeeView: EmployeeScheduleView = {
   nextShift: occurrence,
   occurrences: [occurrence],
   days: [{ date: occurrence.date, occurrences: [occurrence] }],
-  totals: { day: 1, late: 0, night: 0, onCallDay: 0, onCallNight: 0, ot: 0, otHours: 0 },
+  totals: { day: 1, night: 0, onCallDay: 0, onCallNight: 0, ot: 0, otHours: 0 },
   notices: [],
 };
 

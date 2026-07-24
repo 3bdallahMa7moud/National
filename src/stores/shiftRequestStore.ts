@@ -7,7 +7,7 @@ import {
   hasDayShiftOTConflict,
   reloadPublishedAssignmentSnapshots,
 } from '@/lib/shiftAssignmentGateway';
-import type { AuthUser } from '@/types/employee';
+import { isAdminOrSuperAdmin, type AuthUser } from '@/types/employee';
 import {
   EMPLOYEE_PERMISSION_TEMPLATES,
   effectivePermissions,
@@ -82,6 +82,11 @@ export interface ShiftRequestState {
   requests: ShiftRequest[];
   storageError: string | null;
   createRequest(input: CreateShiftRequestInput): ShiftRequestMutationResult;
+  createBatchRequests(inputs: CreateShiftRequestInput[]): {
+    ok: boolean;
+    createdCount: number;
+    results: ShiftRequestMutationResult[];
+  };
   acceptByRecipient(requestId: string, accountId: string, actorName: string): ShiftRequestMutationResult;
   rejectByRecipient(requestId: string, accountId: string, actorName: string): ShiftRequestMutationResult;
   cancelByRequester(requestId: string, accountId: string, actorName: string): ShiftRequestMutationResult;
@@ -235,7 +240,7 @@ function readRequests(storage: ShiftRequestStorage | null, migrateLegacy = false
 
 function defaultIsAdmin(accountId: string): boolean {
   const current = useAuthStore.getState().user;
-  return current?.id === accountId && current.role === 'admin';
+  return current?.id === accountId && isAdminOrSuperAdmin(current);
 }
 
 function defaultAudit(
@@ -275,11 +280,11 @@ function defaultNotify(drafts: TargetedNotificationDraft[]): boolean {
 
 function fallbackProfile(accountId: string): EmployeeAccessProfile | undefined {
   const source = getEmployeeDirectoryRecord(accountId);
-  if (!source || source.role !== 'employee') return undefined;
+  if (!source) return undefined;
   return {
     accountId: source.accountId,
     departmentId: source.departmentId,
-    scheduleEmployeeId: source.scheduleEmployeeId,
+    scheduleEmployeeId: source.scheduleEmployeeId || source.accountId,
     templateId: source.access.templateId,
     overrides: { ...source.access.overrides },
     active: source.active && source.issues.length === 0,
@@ -498,47 +503,62 @@ function makeState(
   return {
     requests: initialRequests,
     storageError: null,
+    createBatchRequests: (inputs) => {
+      const results: ShiftRequestMutationResult[] = [];
+      let createdCount = 0;
+      for (const input of inputs) {
+        const res = get().createRequest(input);
+        results.push(res);
+        if (res.ok) createdCount++;
+      }
+      return {
+        ok: createdCount > 0,
+        createdCount,
+        results,
+      };
+    },
     createRequest: (input) => {
       if (!isCurrentActor(input.requesterAccountId)) return fail('wrong_actor');
       const requesterProfile = currentProfile(input.requesterAccountId);
       const recipientProfile = currentProfile(input.recipientAccountId);
       const requesterDirectory = getEmployeeDirectoryRecord(input.requesterAccountId);
       const recipientDirectory = getEmployeeDirectoryRecord(input.recipientAccountId);
-      if (!requesterProfile?.scheduleEmployeeId) return fail('unlinked_account');
-      if (!requesterProfile.active || (requesterDirectory && requesterDirectory.issues.length > 0)) return fail('inactive_account');
+      const requesterIsAdmin = isAdmin(input.requesterAccountId);
+      const recipientIsAdmin = isAdmin(input.recipientAccountId);
+      if (!requesterIsAdmin && !requesterProfile?.scheduleEmployeeId) return fail('unlinked_account');
+      if (!requesterIsAdmin && (!requesterProfile?.active || (requesterDirectory && requesterDirectory.issues.length > 0))) return fail('inactive_account');
       if (!recipientProfile?.scheduleEmployeeId) return fail('recipient_not_linked');
       if (!recipientProfile.active || (recipientDirectory && recipientDirectory.issues.length > 0)) return fail('inactive_account');
       const requiredPermission: EmployeePermission = input.type === 'exchange'
         ? 'schedule.exchange.create'
         : 'schedule.replace.create';
-      if (!hasPermission(requesterProfile, requiredPermission)) return fail('permission_denied');
-      if (!hasPermission(recipientProfile, 'schedule.requests.respond')) return fail('permission_denied');
-      if (requesterProfile.departmentId !== recipientProfile.departmentId
-        || input.requesterAssignment.departmentId !== requesterProfile.departmentId) return fail('cross_department');
-      if (requesterProfile.scheduleEmployeeId === recipientProfile.scheduleEmployeeId) return fail('same_employee');
-      if (input.requesterAssignment.employeeId !== requesterProfile.scheduleEmployeeId) return fail('wrong_actor');
+      if (!requesterIsAdmin && !hasPermission(requesterProfile, requiredPermission)) return fail('permission_denied');
+      if (!recipientIsAdmin && !hasPermission(recipientProfile, 'schedule.requests.respond')) return fail('permission_denied');
+      if (!requesterIsAdmin && requesterProfile?.scheduleEmployeeId === recipientProfile.scheduleEmployeeId) return fail('same_employee');
+      if (!requesterIsAdmin && input.requesterAssignment.employeeId !== requesterProfile?.scheduleEmployeeId) return fail('wrong_actor');
       if (input.type === 'exchange' && !input.offeredAssignment) return fail('offered_shift_required');
       if (input.type === 'replace' && input.offeredAssignment) return fail('offered_shift_not_allowed');
       if (input.offeredAssignment) {
-        if (input.offeredAssignment.source !== input.requesterAssignment.source) return fail('source_mismatch');
-        if (input.offeredAssignment.departmentId !== requesterProfile.departmentId) return fail('cross_department');
-        if (input.offeredAssignment.employeeId !== recipientProfile.scheduleEmployeeId) return fail('wrong_actor');
+        if (!requesterIsAdmin && input.offeredAssignment.departmentId !== requesterProfile?.departmentId) return fail('cross_department');
+        if (!requesterIsAdmin && input.offeredAssignment.employeeId !== recipientProfile.scheduleEmployeeId) return fail('wrong_actor');
         if (
           input.offeredAssignment.monthKey === input.requesterAssignment.monthKey
           && input.offeredAssignment.rowId === input.requesterAssignment.rowId
           && input.offeredAssignment.day === input.requesterAssignment.day
         ) return fail('same_cell');
       }
-      if (assignmentCellHasEmployee(input.requesterAssignment, recipientProfile.scheduleEmployeeId)) {
+      if (!requesterIsAdmin && recipientProfile?.scheduleEmployeeId && assignmentCellHasEmployee(input.requesterAssignment, recipientProfile.scheduleEmployeeId)) {
         return fail('target_already_assigned');
       }
-      if (input.offeredAssignment && assignmentCellHasEmployee(input.offeredAssignment, requesterProfile.scheduleEmployeeId)) {
+      if (!requesterIsAdmin && requesterProfile?.scheduleEmployeeId && input.offeredAssignment && assignmentCellHasEmployee(input.offeredAssignment, requesterProfile.scheduleEmployeeId)) {
         return fail('target_already_assigned');
       }
 
       const validation = gateway.validate(input.requesterAssignment, now());
       if (!validation.ok) return fail(validation.reason === 'past_shift' ? 'past_shift' : validation.reason);
-      const requesterConflict = hasDayShiftOTConflict(validation.assignment, requesterProfile.scheduleEmployeeId);
+      const requesterConflict = !requesterIsAdmin && requesterProfile?.scheduleEmployeeId
+        ? hasDayShiftOTConflict(validation.assignment, requesterProfile.scheduleEmployeeId)
+        : { conflict: false };
       if (requesterConflict.conflict) {
         return fail('day_shift_ot_conflict', undefined, requesterConflict.message);
       }
@@ -547,7 +567,9 @@ function makeState(
         const offeredValidation = gateway.validate(offered, now());
         if (!offeredValidation.ok) return fail(offeredValidation.reason === 'past_shift' ? 'past_shift' : offeredValidation.reason);
         offered = offeredValidation.assignment;
-        const recipientConflict = hasDayShiftOTConflict(offered, recipientProfile.scheduleEmployeeId);
+        const recipientConflict = !recipientIsAdmin
+          ? hasDayShiftOTConflict(offered, recipientProfile.scheduleEmployeeId)
+          : { conflict: false };
         if (recipientConflict.conflict) {
           return fail('day_shift_ot_conflict', undefined, recipientConflict.message);
         }
@@ -564,18 +586,21 @@ function makeState(
       );
       if (duplicate) return fail('duplicate_request');
       const createdAt = now().toISOString();
-      const requesterName = requesterDirectory?.name.ar || requesterDirectory?.name.en || input.requesterAccountId;
+      const requesterEmpId = validation.assignment.employeeId || requesterProfile?.scheduleEmployeeId || '';
+      const requesterDirRecord = requesterDirectory || getEmployeeDirectoryRecord(requesterEmpId);
+      const requesterName = requesterDirRecord?.name.ar || requesterDirRecord?.name.en || requesterDirectory?.name.ar || requesterDirectory?.name.en || input.requesterAccountId;
       const recipientName = recipientDirectory?.name.ar || recipientDirectory?.name.en || input.recipientAccountId;
       const recipientCode = offered?.employeeCode
         ?? recipientDirectory?.code
         ?? recipientProfile.scheduleEmployeeId;
+      const deptId = requesterProfile?.departmentId || validation.assignment.departmentId;
       const request: ShiftRequest = {
         id: createId(),
         type: input.type,
-        departmentId: requesterProfile.departmentId,
+        departmentId: deptId,
         requester: {
           accountId: input.requesterAccountId,
-          employeeId: requesterProfile.scheduleEmployeeId,
+          employeeId: requesterEmpId,
           employeeCode: validation.assignment.employeeCode,
           name: requesterName,
         },
@@ -867,7 +892,7 @@ function makeState(
       return saved ? staleRequests.length : 0;
     },
     visibleForUser: (user) => {
-      if (user.role === 'admin') return get().requests;
+      if (isAdminOrSuperAdmin(user)) return get().requests;
       const profile = currentProfile(user.id);
       if (!profile) return [];
       if (hasPermission(profile, 'schedule.department.requests.view')) {

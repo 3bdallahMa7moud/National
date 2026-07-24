@@ -23,9 +23,16 @@ import {
   normalizeShiftTypeCategory,
   type CanonicalShiftType,
 } from '@/lib/shiftAssignmentGateway';
-import type { ShiftAssignmentRef, ShiftRequestType, ShiftRequestMutationResult } from '@/types/shiftRequest';
+import type {
+  CreateShiftRequestInput,
+  ShiftAssignmentRef,
+  ShiftRequestMutationResult,
+  ShiftRequestType,
+} from '@/types/shiftRequest';
 import type { EmployeeAccessProfile } from '@/types/employeeAccess';
+import { isAdminOrSuperAdmin, type UserRole } from '@/types';
 import { getEmployeeDirectoryRecord } from '@/stores/employeeDirectoryStore';
+import { useShiftRequestStore } from '@/stores/shiftRequestStore';
 import { localizeRowLabel } from '@/lib/scheduleMatrixLocale';
 
 export interface ShiftRequestCreateWizardProps {
@@ -37,7 +44,7 @@ export interface ShiftRequestCreateWizardProps {
   requesterAssignments: ShiftAssignmentRef[];
   recipients: EmployeeAccessProfile[];
   candidateProfiles: Record<string, EmployeeAccessProfile>;
-  user: { id: string; name: string } | null;
+  user: { id: string; name: string; role?: UserRole } | null;
   initialAssignment: ShiftAssignmentRef | null;
   createRequest: (input: {
     type: ShiftRequestType;
@@ -70,6 +77,7 @@ export function ShiftRequestCreateWizard({
 }: ShiftRequestCreateWizardProps) {
   const { t, i18n } = useTranslation(['shiftRequests', 'common']);
   const isRtl = i18n.language.startsWith('ar');
+  const createBatchRequestsStore = useShiftRequestStore((state) => state.createBatchRequests);
 
   const [type, setType] = useState<ShiftRequestType>(
     canExchange ? 'exchange' : canReplace ? 'replace' : 'exchange',
@@ -77,13 +85,18 @@ export function ShiftRequestCreateWizard({
   const [recipientAccountId, setRecipientAccountId] = useState('');
   const [requesterKey, setRequesterKey] = useState('');
   const [offeredKey, setOfferedKey] = useState('');
+  const [selectionMode, setSelectionMode] = useState<'single' | 'range'>('single');
+  const [selectedRequesterKeys, setSelectedRequesterKeys] = useState<string[]>([]);
+  const [selectedOfferedKeys, setSelectedOfferedKeys] = useState<string[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
 
   const totalSteps = type === 'exchange' ? 4 : 3;
 
   useEffect(() => {
     if (initialAssignment) {
-      setRequesterKey(assignmentRequestKey(initialAssignment));
+      const key = assignmentRequestKey(initialAssignment);
+      setRequesterKey(key);
+      setSelectedRequesterKeys([key]);
     }
   }, [initialAssignment]);
 
@@ -97,13 +110,24 @@ export function ShiftRequestCreateWizard({
       setStepIndex(0);
       setRecipientAccountId('');
       setOfferedKey('');
-      if (!initialAssignment) setRequesterKey('');
+      setSelectedOfferedKeys([]);
+      setSelectionMode('single');
+      if (!initialAssignment) {
+        setRequesterKey('');
+        setSelectedRequesterKeys([]);
+      }
     }
   }, [isOpen, initialAssignment]);
 
-  const requesterAssignment = useMemo(() => {
-    return requesterAssignments.find((a) => assignmentRequestKey(a) === requesterKey) ?? initialAssignment;
-  }, [requesterAssignments, requesterKey, initialAssignment]);
+  const requesterAssignmentsSelected = useMemo(() => {
+    if (selectedRequesterKeys.length > 0) {
+      return requesterAssignments.filter((a) => selectedRequesterKeys.includes(assignmentRequestKey(a)));
+    }
+    const found = requesterAssignments.find((a) => assignmentRequestKey(a) === requesterKey) ?? initialAssignment;
+    return found ? [found] : [];
+  }, [requesterAssignments, selectedRequesterKeys, requesterKey, initialAssignment]);
+
+  const requesterAssignment = requesterAssignmentsSelected[0] ?? null;
 
   const recipientProfile = candidateProfiles[recipientAccountId];
 
@@ -118,38 +142,50 @@ export function ShiftRequestCreateWizard({
       const assignments = listPublishedAssignmentsForEmployee(
         profile.scheduleEmployeeId,
         profile.departmentId,
-        requesterAssignment?.source,
       );
       counts[profile.accountId] = assignments.filter((a) => new Date(a.startsAt).getTime() > nowMs).length;
     }
     return counts;
-  }, [recipients, requesterAssignment?.source]);
+  }, [recipients]);
 
   const offeredAssignments = useMemo(() => {
-    if (!recipientProfile?.scheduleEmployeeId || !requesterAssignment) return [];
+    if (type !== 'exchange' || !recipientProfile?.scheduleEmployeeId) return [];
     return listPublishedAssignmentsForEmployee(
       recipientProfile.scheduleEmployeeId,
       recipientProfile.departmentId,
-      requesterAssignment.source,
     ).filter((assignment) => new Date(assignment.startsAt).getTime() > Date.now());
-  }, [recipientProfile, requesterAssignment]);
+  }, [type, recipientProfile]);
 
-  const offeredAssignment = useMemo(() => {
-    return offeredAssignments.find((a) => assignmentRequestKey(a) === offeredKey);
-  }, [offeredAssignments, offeredKey]);
+  const offeredAssignmentsSelected = useMemo(() => {
+    if (selectedOfferedKeys.length > 0) {
+      return offeredAssignments.filter((a) => selectedOfferedKeys.includes(assignmentRequestKey(a)));
+    }
+    const found = offeredAssignments.find((a) => assignmentRequestKey(a) === offeredKey);
+    return found ? [found] : [];
+  }, [offeredAssignments, selectedOfferedKeys, offeredKey]);
+
+  const offeredAssignment = offeredAssignmentsSelected[0] ?? null;
 
   const requesterConflict = useMemo(() => {
-    if (!requesterAssignment || !user) return { conflict: false };
-    const empId = candidateProfiles[user.id]?.scheduleEmployeeId || requesterAssignment.employeeId || user.id;
-    return hasDayShiftOTConflict(requesterAssignment, empId);
-  }, [requesterAssignment, candidateProfiles, user]);
+    if (requesterAssignmentsSelected.length === 0 || !user) return { conflict: false };
+    for (const assignment of requesterAssignmentsSelected) {
+      const empId = candidateProfiles[user.id]?.scheduleEmployeeId || assignment.employeeId || user.id;
+      const res = hasDayShiftOTConflict(assignment, empId);
+      if (res.conflict) return res;
+    }
+    return { conflict: false };
+  }, [requesterAssignmentsSelected, candidateProfiles, user]);
 
   const recipientConflict = useMemo(() => {
-    if (!offeredAssignment || !recipientProfile?.scheduleEmployeeId) return { conflict: false };
-    return hasDayShiftOTConflict(offeredAssignment, recipientProfile.scheduleEmployeeId);
-  }, [offeredAssignment, recipientProfile]);
+    if (offeredAssignmentsSelected.length === 0 || !recipientProfile?.scheduleEmployeeId) return { conflict: false };
+    for (const assignment of offeredAssignmentsSelected) {
+      const res = hasDayShiftOTConflict(assignment, recipientProfile.scheduleEmployeeId);
+      if (res.conflict) return res;
+    }
+    return { conflict: false };
+  }, [offeredAssignmentsSelected, recipientProfile]);
 
-  const hasConflict = requesterConflict.conflict || recipientConflict.conflict;
+  const hasConflict = Boolean(requesterConflict.conflict || recipientConflict.conflict);
 
   if (!user) return null;
 
@@ -176,10 +212,10 @@ export function ShiftRequestCreateWizard({
       return true;
     }
     if (stepIndex === 1) {
-      return Boolean(requesterAssignment) && !requesterConflict.conflict;
+      return requesterAssignmentsSelected.length > 0 && !requesterConflict?.conflict;
     }
     if (stepIndex === 2 && type === 'exchange') {
-      return Boolean(offeredAssignment) && !recipientConflict.conflict;
+      return offeredAssignmentsSelected.length > 0 && !recipientConflict?.conflict;
     }
     return true;
   };
@@ -198,18 +234,50 @@ export function ShiftRequestCreateWizard({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requesterAssignment || !recipientProfile || hasConflict) return;
-    if (type === 'exchange' && !offeredAssignment) return;
+    if (requesterAssignmentsSelected.length === 0 || !recipientProfile || hasConflict) return;
+    if (type === 'exchange' && offeredAssignmentsSelected.length === 0) return;
 
-    onResult(
-      createRequest({
-        type,
+    let inputs: CreateShiftRequestInput[] = [];
+
+    if (type === 'replace') {
+      inputs = requesterAssignmentsSelected.map((reqAssignment) => ({
+        type: 'replace',
         requesterAccountId: user.id,
         recipientAccountId,
-        requesterAssignment,
-        offeredAssignment: type === 'exchange' ? offeredAssignment : undefined,
-      }),
-    );
+        requesterAssignment: reqAssignment,
+      }));
+    } else {
+      // Pair 1-to-1 up to min count to prevent duplicate offered shift reuse
+      const pairCount = Math.min(requesterAssignmentsSelected.length, offeredAssignmentsSelected.length);
+      for (let i = 0; i < pairCount; i++) {
+        const reqAssignment = requesterAssignmentsSelected[i];
+        const offAssignment = offeredAssignmentsSelected[i];
+        if (reqAssignment && offAssignment) {
+          inputs.push({
+            type: 'exchange',
+            requesterAccountId: user.id,
+            recipientAccountId,
+            requesterAssignment: reqAssignment,
+            offeredAssignment: offAssignment,
+          });
+        }
+      }
+    }
+
+    if (inputs.length === 0) return;
+
+    if (inputs.length === 1 && inputs[0]) {
+      onResult(createRequest(inputs[0]));
+    } else {
+      const batchRes = createBatchRequestsStore(inputs);
+      if (batchRes.ok && batchRes.results.find((r) => r.ok)) {
+        const firstSuccess = batchRes.results.find((r) => r.ok)!;
+        onResult(firstSuccess);
+      } else {
+        const firstFail = batchRes.results.find((r) => !r.ok);
+        onResult(firstFail || { ok: false, reason: 'storage_error' });
+      }
+    }
   };
 
   return (
@@ -294,10 +362,23 @@ export function ShiftRequestCreateWizard({
                 selectedKey={requesterKey}
                 onSelect={(key) => {
                   setRequesterKey(key);
+                  setSelectedRequesterKeys(key ? [key] : []);
                   setOfferedKey('');
+                  setSelectedOfferedKeys([]);
                 }}
+                selectedKeys={selectedRequesterKeys}
+                onSelectKeys={(keys) => {
+                  setSelectedRequesterKeys(keys);
+                  if (keys[0]) setRequesterKey(keys[0]);
+                  setOfferedKey('');
+                  setSelectedOfferedKeys([]);
+                }}
+                selectionMode={selectionMode}
+                onToggleSelectionMode={setSelectionMode}
                 isLocked={Boolean(initialAssignment)}
-                title={t('shiftRequests:wizard.steps.yourShift')}
+                title={isAdminOrSuperAdmin(user) && !initialAssignment
+                  ? (i18n.language.startsWith('ar') ? 'اختر شفت الموظف الأول (طالب التبادل)' : 'Select Requester Shift')
+                  : t('shiftRequests:wizard.steps.yourShift')}
                 t={t}
                 i18n={i18n}
               />
@@ -307,9 +388,23 @@ export function ShiftRequestCreateWizard({
               <StepShiftSelection
                 assignments={offeredAssignments}
                 selectedKey={offeredKey}
-                onSelect={setOfferedKey}
+                onSelect={(key) => {
+                  setOfferedKey(key);
+                  setSelectedOfferedKeys(key ? [key] : []);
+                }}
+                selectedKeys={selectedOfferedKeys}
+                onSelectKeys={(keys) => {
+                  setSelectedOfferedKeys(keys);
+                  if (keys[0]) setOfferedKey(keys[0]);
+                }}
+                selectionMode={selectionMode}
+                onToggleSelectionMode={setSelectionMode}
                 isLocked={false}
-                title={t('shiftRequests:wizard.steps.theirShift')}
+                title={recipientAccountId
+                  ? (i18n.language.startsWith('ar')
+                      ? `اختر شفت الموظف المقابل (${accountName(recipientAccountId, i18n.language)})`
+                      : `Select Recipient Shift (${accountName(recipientAccountId, i18n.language)})`)
+                  : t('shiftRequests:wizard.steps.theirShift')}
                 t={t}
                 i18n={i18n}
               />
@@ -420,15 +515,17 @@ export function ShiftRequestCreateWizard({
                   variant="primary"
                   onClick={handleSubmit}
                   disabled={
-                    !requesterAssignment ||
+                    requesterAssignmentsSelected.length === 0 ||
                     !recipientProfile ||
-                    (type === 'exchange' && !offeredAssignment) ||
+                    (type === 'exchange' && offeredAssignmentsSelected.length === 0) ||
                     hasConflict
                   }
                   className="gap-1.5 bg-success-600 hover:bg-success-700"
                 >
                   <CheckCircle2 className="h-4 w-4" />
-                  {t('shiftRequests:wizard.submit')}
+                  {requesterAssignmentsSelected.length > 1
+                    ? (i18n.language.startsWith('ar') ? `تقديم ${requesterAssignmentsSelected.length} طلبات` : `Submit ${requesterAssignmentsSelected.length} Requests`)
+                    : t('shiftRequests:wizard.submit')}
                 </Button>
               )}
             </div>
@@ -629,7 +726,6 @@ const BASE_SYSTEM_FACILITIES = ['KAMC', 'KASCH', 'WHH'];
 
 const BASE_SYSTEM_SHIFT_TYPES: CanonicalShiftType[] = [
   'Day',
-  'Late',
   'Night',
   'On-call Day',
   'On-call Night',
@@ -639,7 +735,6 @@ const BASE_SYSTEM_SHIFT_TYPES: CanonicalShiftType[] = [
 function getShiftRingColor(shiftType: string): string {
   switch (shiftType) {
     case 'Day': return 'border-teal-500 dark:border-teal-400';
-    case 'Late': return 'border-amber-600 dark:border-amber-400';
     case 'Night': return 'border-blue-500 dark:border-blue-400';
     case 'On-call Day': return 'border-yellow-500 dark:border-yellow-400';
     case 'On-call Night': return 'border-cyan-500 dark:border-cyan-400';
@@ -652,6 +747,10 @@ function StepShiftSelection({
   assignments,
   selectedKey,
   onSelect,
+  selectedKeys,
+  onSelectKeys,
+  selectionMode = 'single',
+  onToggleSelectionMode,
   isLocked,
   title,
   conflictMessage,
@@ -662,6 +761,10 @@ function StepShiftSelection({
   assignments: ShiftAssignmentRef[];
   selectedKey: string;
   onSelect: (key: string) => void;
+  selectedKeys?: string[];
+  onSelectKeys?: (keys: string[]) => void;
+  selectionMode?: 'single' | 'range';
+  onToggleSelectionMode?: (mode: 'single' | 'range') => void;
   isLocked: boolean;
   title: string;
   conflictMessage?: string;
@@ -669,23 +772,70 @@ function StepShiftSelection({
   t: (key: string, opt?: Record<string, unknown>) => string;
   i18n: { language: string };
 }) {
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'schedule' | 'ot'>('all');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<string>('all');
+
+  const distinctEmployees = useMemo(() => {
+    const map = new Map<string, { employeeId: string; name: string; code: string }>();
+    for (const a of assignments) {
+      if (a.employeeId && !map.has(a.employeeId)) {
+        const name = accountName(a.employeeId, i18n.language) || a.employeeCode || a.employeeId;
+        map.set(a.employeeId, { employeeId: a.employeeId, name, code: a.employeeCode });
+      }
+    }
+    return Array.from(map.values());
+  }, [assignments, i18n.language]);
+
+  const activeSelectedKeys = useMemo(() => {
+    if (selectionMode === 'range' && selectedKeys) return selectedKeys;
+    return selectedKey ? [selectedKey] : [];
+  }, [selectionMode, selectedKeys, selectedKey]);
+
+  const filteredAssignments = useMemo(() => {
+    return assignments.filter((item) => {
+      if (sourceFilter !== 'all' && item.source !== sourceFilter) return false;
+      if (selectedEmployeeFilter !== 'all' && item.employeeId !== selectedEmployeeFilter) return false;
+      const dateStr = `${item.monthKey}-${String(item.day).padStart(2, '0')}`;
+      if (fromDate && dateStr < fromDate) return false;
+      if (toDate && dateStr > toDate) return false;
+      return true;
+    });
+  }, [assignments, sourceFilter, selectedEmployeeFilter, fromDate, toDate]);
+
+  // Handle auto-selecting date range when fromDate and toDate are chosen in range mode
+  useEffect(() => {
+    if (selectionMode === 'range' && fromDate && toDate && onSelectKeys) {
+      const rangeKeys = assignments
+        .filter((item) => {
+          const dateStr = `${item.monthKey}-${String(item.day).padStart(2, '0')}`;
+          return dateStr >= fromDate && dateStr <= toDate;
+        })
+        .map(assignmentRequestKey);
+      if (rangeKeys.length > 0) {
+        onSelectKeys(Array.from(new Set(rangeKeys)));
+      }
+    }
+  }, [fromDate, toDate, selectionMode, assignments, onSelectKeys]);
+
   const facilityGroups = useMemo(() => {
     const map = new Map<string, ShiftAssignmentRef[]>();
-    for (const item of assignments) {
+    for (const item of filteredAssignments) {
       const list = map.get(item.facilityLabel) || [];
       list.push(item);
       map.set(item.facilityLabel, list);
     }
     return map;
-  }, [assignments]);
+  }, [filteredAssignments]);
 
   const facilityKeys = useMemo(() => {
     const set = new Set<string>(BASE_SYSTEM_FACILITIES);
-    for (const item of assignments) {
+    for (const item of filteredAssignments) {
       if (item.facilityLabel) set.add(item.facilityLabel);
     }
     return Array.from(set);
-  }, [assignments]);
+  }, [filteredAssignments]);
 
   const [activeFacility, setActiveFacility] = useState<string>(() => {
     if (selectedKey) {
@@ -701,20 +851,32 @@ function StepShiftSelection({
     }
   }, [facilityKeys, activeFacility]);
 
+  const [activeMonthKey, setActiveMonthKey] = useState<string>(() => {
+    if (selectedKey) {
+      const found = assignments.find((a) => assignmentRequestKey(a) === selectedKey);
+      if (found?.monthKey) return found.monthKey;
+    }
+    return filteredAssignments[0]?.monthKey || '2026-07';
+  });
+
   const facilityAssignments = useMemo(() => {
     return facilityGroups.get(activeFacility) || [];
   }, [facilityGroups, activeFacility]);
 
+  const monthFacilityAssignments = useMemo(() => {
+    return facilityAssignments.filter((item) => item.monthKey === activeMonthKey);
+  }, [facilityAssignments, activeMonthKey]);
+
   const shiftTypeGroups = useMemo(() => {
     const map = new Map<string, ShiftAssignmentRef[]>();
-    for (const item of facilityAssignments) {
+    for (const item of monthFacilityAssignments) {
       const category = normalizeShiftTypeCategory(item.shiftLabel, item.unitLabel);
       const list = map.get(category) || [];
       list.push(item);
       map.set(category, list);
     }
     return map;
-  }, [facilityAssignments]);
+  }, [monthFacilityAssignments]);
 
   const shiftTypeKeys = useMemo(() => {
     return BASE_SYSTEM_SHIFT_TYPES;
@@ -738,14 +900,6 @@ function StepShiftSelection({
     return shiftTypeGroups.get(activeShiftType) || [];
   }, [shiftTypeGroups, activeShiftType]);
 
-  const [activeMonthKey, setActiveMonthKey] = useState<string>(() => {
-    if (selectedKey) {
-      const found = assignments.find((a) => assignmentRequestKey(a) === selectedKey);
-      if (found?.monthKey) return found.monthKey;
-    }
-    return matchingAssignments[0]?.monthKey || assignments[0]?.monthKey || '2026-07';
-  });
-
   const navigateMonth = (delta: number) => {
     const [yText, mText] = activeMonthKey.split('-');
     let y = Number(yText) || 2026;
@@ -764,7 +918,17 @@ function StepShiftSelection({
 
   const handleSelectAssignment = (assignment: ShiftAssignmentRef) => {
     const key = assignmentRequestKey(assignment);
-    onSelect(key);
+    if (selectionMode === 'range' && onSelectKeys) {
+      const current = selectedKeys || [];
+      if (current.includes(key)) {
+        onSelectKeys(current.filter((k) => k !== key));
+      } else {
+        onSelectKeys([...current, key]);
+      }
+    } else {
+      onSelect(key);
+      if (onSelectKeys) onSelectKeys([key]);
+    }
     setActiveFacility(assignment.facilityLabel);
     setActiveShiftType(normalizeShiftTypeCategory(assignment.shiftLabel, assignment.unitLabel));
     if (assignment.monthKey !== activeMonthKey) {
@@ -799,16 +963,6 @@ function StepShiftSelection({
     return new Date(yearNum, monthNum - 1, 1).getDay();
   }, [yearNum, monthNum]);
 
-  const assignmentsByDay = useMemo(() => {
-    const map = new Map<number, ShiftAssignmentRef>();
-    for (const item of matchingAssignments) {
-      if (item.monthKey === activeMonthKey) {
-        map.set(item.day, item);
-      }
-    }
-    return map;
-  }, [matchingAssignments, activeMonthKey]);
-
   const activeMonthAssignments = useMemo(() => {
     return matchingAssignments.filter((a) => a.monthKey === activeMonthKey);
   }, [matchingAssignments, activeMonthKey]);
@@ -817,20 +971,83 @@ function StepShiftSelection({
     'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat',
   ];
 
+  const availableMonthsSet = useMemo(() => {
+    const set = new Set<number>();
+    for (const item of assignments) {
+      const [y, m] = item.monthKey.split('-');
+      if (Number(y) === yearNum) {
+        set.add(Number(m));
+      }
+    }
+    return set;
+  }, [assignments, yearNum]);
+
+  const selectedAssignmentsList = useMemo(() => {
+    return assignments.filter((a) => activeSelectedKeys.includes(assignmentRequestKey(a)));
+  }, [assignments, activeSelectedKeys]);
+
   return (
     <div className="space-y-5">
-      {/* Header title */}
-      <div className="flex items-center justify-between">
+      {/* Header title & Range Mode Switch */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
           <CalendarIcon className="h-4 w-4 text-primary" />
           {title}
         </h4>
-        {isLocked && (
-          <span className="rounded-full bg-warning-100 px-2.5 py-0.5 text-[11px] font-semibold text-warning-800">
-            {t('shiftRequests:form.yourShift')}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {onToggleSelectionMode && (
+            <div className="flex items-center gap-1 bg-surface-muted/80 p-1 rounded-full border border-border-subtle text-xs">
+              <button
+                type="button"
+                onClick={() => onToggleSelectionMode('single')}
+                className={`px-3 py-1 font-semibold rounded-full transition-colors ${
+                  selectionMode === 'single' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {i18n.language.startsWith('ar') ? 'شفت واحد' : 'Single Shift'}
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleSelectionMode('range')}
+                className={`px-3 py-1 font-semibold rounded-full transition-colors ${
+                  selectionMode === 'range' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {i18n.language.startsWith('ar') ? 'نطاق أيام / شفتات متعددة' : 'Date Range / Multi-Shift'}
+              </button>
+            </div>
+          )}
+          {isLocked && (
+            <span className="rounded-full bg-warning-100 px-2.5 py-0.5 text-[11px] font-semibold text-warning-800">
+              {t('shiftRequests:form.yourShift')}
+            </span>
+          )}
+        </div>
       </div>
+
+      {/* Employee Filter Bar when multiple employees exist */}
+      {distinctEmployees.length > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-card border border-primary/20 bg-primary/5 p-3 animate-in fade-in duration-200 shadow-sm">
+          <label className="text-xs font-semibold text-primary flex items-center gap-1.5">
+            <User className="h-4 w-4 text-primary" />
+            <span>{i18n.language.startsWith('ar') ? 'تصفية الشفتات بحسب الموظف:' : 'Filter Shifts by Employee:'}</span>
+          </label>
+          <select
+            value={selectedEmployeeFilter}
+            onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
+            className="input-field max-w-xs text-xs font-semibold py-1.5 px-3 bg-surface-card border-primary/30 text-text-primary"
+          >
+            <option value="all">
+              {i18n.language.startsWith('ar') ? `جميع موظفي القسم (${distinctEmployees.length})` : `All Department Employees (${distinctEmployees.length})`}
+            </option>
+            {distinctEmployees.map((emp) => (
+              <option key={emp.employeeId} value={emp.employeeId}>
+                {emp.name} {emp.code ? `(${emp.code})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {hasConflict && conflictMessage && (
         <div className="rounded-card border border-error/30 bg-error/10 p-3.5 text-xs text-error space-y-1 animate-in fade-in duration-200">
@@ -842,42 +1059,165 @@ function StepShiftSelection({
         </div>
       )}
 
-      {isSelectionInAnotherTab && selectedAssignment && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-primary/30 bg-primary/10 p-3 text-xs text-text-primary shadow-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4 text-primary shrink-0" />
-            <span>
-              {t('shiftRequests:wizard.selectedInAnotherTab', {
-                shift: `${selectedAssignment.monthKey}-${String(selectedAssignment.day).padStart(2, '0')}`,
-                branch: selectedAssignment.facilityLabel,
-                type: selectedAssignment.shiftLabel,
-              })}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 ms-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveFacility(selectedAssignment.facilityLabel);
-                setActiveShiftType(normalizeShiftTypeCategory(selectedAssignment.shiftLabel, selectedAssignment.unitLabel));
-                setActiveMonthKey(selectedAssignment.monthKey);
-              }}
-              className="rounded bg-primary px-2.5 py-1 font-semibold text-white hover:bg-primary-hover transition-colors"
-            >
-              {t('shiftRequests:wizard.showSelected')}
-            </button>
-            {!isLocked && (
-              <button
-                type="button"
-                onClick={() => onSelect('')}
-                className="rounded border border-border-strong bg-surface-card px-2.5 py-1 font-semibold text-text-secondary hover:bg-error/10 hover:text-error transition-colors"
-              >
-                {t('shiftRequests:wizard.clearSelection')}
-              </button>
+      {/* Date Range Selection (From Date - To Date) for Range Mode */}
+      {selectionMode === 'range' && (
+        <div className="rounded-card border border-primary/30 bg-primary/5 p-3.5 space-y-2.5 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between text-xs font-semibold text-primary">
+            <span>{i18n.language.startsWith('ar') ? 'تحديد نطاق التاريخ (من - إلى)' : 'Date Range Selection (From - To)'}</span>
+            {activeSelectedKeys.length > 0 && (
+              <span className="rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-bold text-white">
+                {i18n.language.startsWith('ar') ? `${activeSelectedKeys.length} شفتات محدودة` : `${activeSelectedKeys.length} Shifts Selected`}
+              </span>
             )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-[11px] font-medium text-text-muted mb-1">
+                {i18n.language.startsWith('ar') ? 'من تاريخ' : 'From Date'}
+              </label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="input-field w-full text-xs py-1.5 px-2.5"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-text-muted mb-1">
+                {i18n.language.startsWith('ar') ? 'إلى تاريخ' : 'To Date'}
+              </label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="input-field w-full text-xs py-1.5 px-2.5"
+              />
+            </div>
           </div>
         </div>
       )}
+
+      {/* Selected Range Pills Box */}
+      {selectionMode === 'range' && selectedAssignmentsList.length > 0 && (
+        <div className="rounded-card border border-border-subtle bg-surface-card p-3 space-y-2 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center justify-between text-xs font-semibold text-text-primary">
+            <span>{i18n.language.startsWith('ar') ? 'الشفتات المحددة في النطاق:' : 'Selected Range Shifts:'}</span>
+            <button
+              type="button"
+              onClick={() => onSelectKeys && onSelectKeys([])}
+              className="text-[11px] text-error hover:underline font-semibold"
+            >
+              {i18n.language.startsWith('ar') ? 'مسح الكل' : 'Clear All'}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+            {selectedAssignmentsList.map((a) => {
+              const k = assignmentRequestKey(a);
+              return (
+                <span
+                  key={k}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary"
+                >
+                  <span>{a.monthKey}-{String(a.day).padStart(2, '0')} ({a.shiftLabel})</span>
+                  <button
+                    type="button"
+                    onClick={() => onSelectKeys && onSelectKeys(activeSelectedKeys.filter((item) => item !== k))}
+                    className="hover:text-error transition-colors"
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Month Selection Bar (1 - 12) & Source Filter */}
+      <div className="rounded-card border border-border-subtle bg-surface-card p-3.5 space-y-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold text-text-primary">
+              {i18n.language.startsWith('ar') ? 'اختر الشهر (1 - 12)' : 'Select Month (1 - 12)'}
+            </span>
+          </div>
+          <span className="text-xs font-bold text-text-muted">{yearNum}</span>
+        </div>
+
+        {/* 12 Month Buttons */}
+        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-12 gap-1.5">
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+            const isSelected = m === monthNum;
+            const hasShifts = availableMonthsSet.has(m);
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  const nextKey = `${yearNum}-${String(m).padStart(2, '0')}`;
+                  setActiveMonthKey(nextKey);
+                }}
+                className={`relative flex flex-col items-center justify-center py-2 px-1 rounded-btn text-xs font-bold transition-all ${
+                  isSelected
+                    ? 'bg-primary text-white shadow-sm ring-2 ring-primary/30'
+                    : hasShifts
+                      ? 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20'
+                      : 'bg-surface-muted text-text-muted hover:bg-surface-hover hover:text-text-primary'
+                }`}
+              >
+                <span>{m}</span>
+                <span className="text-[10px] font-normal opacity-80">
+                  {new Intl.DateTimeFormat(i18n.language, { month: 'narrow' }).format(new Date(yearNum, m - 1, 1))}
+                </span>
+                {hasShifts && (
+                  <span
+                    className={`absolute top-1 end-1 h-1.5 w-1.5 rounded-full ${
+                      isSelected ? 'bg-white' : 'bg-primary'
+                    }`}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Shift Source Filter */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle pt-2.5 text-xs">
+          <span className="font-medium text-text-muted">
+            {t('shiftRequests:wizard.sourceFilterLabel')}
+          </span>
+          <div className="flex items-center gap-1 bg-surface-muted/60 p-1 rounded-card border border-border-subtle">
+            <button
+              type="button"
+              onClick={() => setSourceFilter('all')}
+              className={`px-3 py-1 text-[11px] font-semibold rounded transition-colors ${
+                sourceFilter === 'all' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t('shiftRequests:wizard.allSources')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSourceFilter('schedule')}
+              className={`px-3 py-1 text-[11px] font-semibold rounded transition-colors ${
+                sourceFilter === 'schedule' ? 'bg-teal-600 text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t('shiftRequests:wizard.scheduleSource')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSourceFilter('ot')}
+              className={`px-3 py-1 text-[11px] font-semibold rounded transition-colors ${
+                sourceFilter === 'ot' ? 'bg-purple-600 text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t('shiftRequests:wizard.otSource')}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Step A: Branch (Facility) Selector */}
       <div className="space-y-2">
@@ -889,7 +1229,7 @@ function StepShiftSelection({
             <span className="text-xs text-text-muted">{t('shiftRequests:wizard.noShiftsInBranch')}</span>
           ) : (
             facilityKeys.map((facility) => {
-              const count = (facilityGroups.get(facility) || []).length;
+              const count = (facilityGroups.get(facility) || []).filter((item) => item.monthKey === activeMonthKey).length;
               const isSelected = activeFacility === facility;
               return (
                 <button
@@ -985,7 +1325,8 @@ function StepShiftSelection({
           </div>
         </div>
 
-        <div className="rounded-card border border-border-subtle bg-surface-card p-3.5 shadow-sm">
+        {/* Calendar Grid Container */}
+        <div className="rounded-card border border-border-subtle bg-surface-card p-3 shadow-sm">
           {/* Weekday headers */}
           <div className="grid grid-cols-7 gap-1 pb-2 text-center text-[11px] font-bold text-text-muted">
             {weekdays.map((day, idx) => (
@@ -1001,7 +1342,7 @@ function StepShiftSelection({
             {Array.from({ length: daysInMonth }).map((_, idx) => {
               const dayNum = idx + 1;
               const matches = matchingAssignments.filter((a) => a.day === dayNum && a.monthKey === activeMonthKey);
-              const isSelectedDay = selectedAssignment?.day === dayNum && selectedAssignment?.monthKey === activeMonthKey;
+              const isSelectedDay = matches.some((a) => activeSelectedKeys.includes(assignmentRequestKey(a)));
               const hasAssignment = matches.length > 0;
 
               return (
@@ -1016,7 +1357,7 @@ function StepShiftSelection({
                   }}
                   className={`relative flex h-11 flex-col items-center justify-center rounded border p-1 text-xs font-medium transition-all ${
                     isSelectedDay
-                      ? 'border-primary bg-primary text-white font-bold shadow-sm'
+                      ? 'border-primary bg-primary text-white font-bold shadow-sm ring-2 ring-primary/40'
                       : hasAssignment
                         ? 'border-border bg-surface hover:border-primary/50 text-text-primary cursor-pointer'
                         : 'border-border-subtle/40 bg-surface-muted/20 text-text-muted opacity-60 cursor-not-allowed'
@@ -1039,7 +1380,7 @@ function StepShiftSelection({
         {/* Detail Cards Section below Calendar */}
         <div className="space-y-2">
           <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider">
-            {t('shiftRequests:wizard.shiftsListLabel')} {activeMonthAssignments.length > 0 && t('shiftRequests:wizard.shiftsCountAvailable', { count: activeMonthAssignments.length })}
+            {t('shiftRequests:wizard.shiftsListLabel')} ({activeMonthAssignments.length})
           </label>
 
           {activeMonthAssignments.length === 0 ? (
@@ -1050,8 +1391,9 @@ function StepShiftSelection({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
               {activeMonthAssignments.map((assignment) => {
                 const key = assignmentRequestKey(assignment);
-                const isSelected = selectedKey === key;
+                const isSelected = activeSelectedKeys.includes(key);
                 const dayName = new Date(assignment.startsAt).toLocaleDateString(i18n.language, { weekday: 'short' });
+                const empName = accountName(assignment.employeeId, i18n.language) || assignment.employeeCode || assignment.employeeId;
 
                 return (
                   <button
@@ -1075,15 +1417,25 @@ function StepShiftSelection({
                         <span className="text-sm leading-tight">{assignment.day}</span>
                       </div>
                       <div>
-                        <div className="text-xs font-semibold text-text-primary">
-                          {localizeRowLabel(assignment.unitLabel, i18n.language as any)} · {localizeRowLabel(assignment.shiftLabel, i18n.language as any)}
+                        <div className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
+                          <span>{localizeRowLabel(assignment.unitLabel, i18n.language as any)} · {localizeRowLabel(assignment.shiftLabel, i18n.language as any)}</span>
+                          <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                            assignment.source === 'ot'
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-300 dark:border-purple-700'
+                              : 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300 border border-teal-300 dark:border-teal-700'
+                          }`}>
+                            {assignment.source === 'ot' ? t('shiftRequests:wizard.otBadge') : t('shiftRequests:wizard.scheduleBadge')}
+                          </span>
                         </div>
-                        <div className="text-[11px] text-text-muted mt-0.5">
-                          {assignment.timeRange} · {assignment.facilityLabel}
+                        <div className="text-[11px] text-text-muted mt-0.5 flex flex-wrap items-center gap-1">
+                          <span>{assignment.timeRange} · {assignment.facilityLabel}</span>
+                          {empName && <span className="font-semibold text-primary/80">· ({empName})</span>}
                         </div>
                       </div>
                     </div>
-                    {isSelected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
+                    {isSelected && (
+                      <Check className="h-4 w-4 text-primary shrink-0" />
+                    )}
                   </button>
                 );
               })}
@@ -1094,6 +1446,7 @@ function StepShiftSelection({
     </div>
   );
 }
+
 
 function StepReviewAndConfirm({
   type,

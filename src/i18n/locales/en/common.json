@@ -1,5 +1,6 @@
 {
   "role": {
+    "superAdmin": "Super Admin",
     "admin": "Administrator",
     "employee": "Employee"
   },
@@ -46,7 +47,8 @@
     "departmentSchedule": "Department Schedule",
     "calendarSync": "Calendar Sync",
     "notifications": "Notifications",
-    "profile": "My Profile"
+    "profile": "My Profile",
+    "ctGate": "Leave Portal (CT Gate)"
   },
   "topbar": {
     "profile": "Profile",
@@ -62,11 +64,11 @@
     "navigation": "Primary navigation"
   },
   "hospital": {
-    "name": "National Guard Hospital",
-    "subtitleDefault": "CT Scan Department - CT Scan",
-    "healthAffairs": "Ministry of National Guard Health Affairs",
-    "location": "King Abdulaziz Medical City - Riyadh / Jeddah",
-    "imageAlt": "National Guard Hospital - King Abdulaziz Medical City"
+    "name": "Specialized Medical Center",
+    "subtitleDefault": "CT Scan Department",
+    "healthAffairs": "Health Affairs & Medical Services",
+    "location": "Main Medical Complex - Specialized Imaging Center",
+    "imageAlt": "Specialized Medical Center"
   },
   "shifts": {
     "morning": "Day Shift",

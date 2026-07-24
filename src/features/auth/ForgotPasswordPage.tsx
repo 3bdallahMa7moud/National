@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Mail, KeyRound, Lock, Eye, EyeOff, CheckCircle2,
   ArrowLeft, RotateCcw, ShieldCheck, Loader2,
-  AlertCircle, ChevronRight,
+  AlertCircle, ChevronRight, Clock, Sparkles,
 } from 'lucide-react';
 import HospitalLogo from '@/components/common/HospitalLogo';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
@@ -55,7 +55,7 @@ function generateOtp(): string {
 
 /* ─── Main Component ─── */
 export default function ForgotPasswordPage() {
-  const { i18n } = useTranslation(['auth', 'common']);
+  const { t, i18n } = useTranslation(['auth', 'common']);
   const isRtl = i18n.language === 'ar';
   const navigate = useNavigate();
 
@@ -276,13 +276,13 @@ export default function ForgotPasswordPage() {
         <div className="absolute inset-0 z-0">
           <img
             src="/saudi-hospital.webp"
-            alt="National Guard Hospital"
+            alt={t('common:hospital.imageAlt')}
             className="h-full w-full object-cover object-center scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#06131b]/96 via-[#083d48]/90 to-[#0b7285]/78 backdrop-blur-[1px]" />
         </div>
         <div className="relative z-10">
-          <HospitalLogo size="lg" variant="white" subtitle="Ministry of National Guard Health Affairs" />
+          <HospitalLogo size="lg" variant="white" subtitle={t('common:hospital.healthAffairs')} />
           <div className="mt-8 max-w-sm space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur-md border border-white/20 shadow-sm">
               <ShieldCheck className="h-3.5 w-3.5 text-accent" />
@@ -300,12 +300,12 @@ export default function ForgotPasswordPage() {
             {/* Security badges */}
             <div className="mt-6 flex flex-col gap-3">
               {[
-                { icon: '🔐', text: isRtl ? 'كود OTP صالح لمدة دقيقتين فقط' : 'OTP valid for 2 minutes only' },
-                { icon: '📧', text: isRtl ? 'يُرسل حصرياً لبريدك المسجل' : 'Sent exclusively to your registered email' },
-                { icon: '🛡️', text: isRtl ? 'بياناتك محمية بالكامل' : 'Your data is fully protected' },
+                { Icon: Clock, text: isRtl ? 'كود OTP صالح لمدة دقيقتين فقط' : 'OTP valid for 2 minutes only' },
+                { Icon: Mail, text: isRtl ? 'يُرسل حصرياً لبريدك المسجل' : 'Sent exclusively to your registered email' },
+                { Icon: ShieldCheck, text: isRtl ? 'بياناتك محمية بالكامل' : 'Your data is fully protected' },
               ].map((item) => (
                 <div key={item.text} className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/8 px-4 py-2.5 backdrop-blur-sm">
-                  <span className="text-base">{item.icon}</span>
+                  <item.Icon className="h-4 w-4 text-cyan-300 shrink-0" />
                   <span className="text-xs text-white/85 font-medium">{item.text}</span>
                 </div>
               ))}
@@ -315,7 +315,7 @@ export default function ForgotPasswordPage() {
 
         {/* Bottom watermark */}
         <p className="relative z-10 text-[11px] text-white/40">
-          © 2025 Ministry of National Guard Health Affairs
+          © 2025 {t('common:hospital.healthAffairs')}
         </p>
       </aside>
 
@@ -432,8 +432,8 @@ export default function ForgotPasswordPage() {
               {/* Hint */}
               <p className="text-center text-[11px] text-text-secondary/70">
                 {isRtl
-                  ? '💡 للتجربة: استخدم admin@hospital.sa أو EMP-001'
-                  : '💡 Demo: use admin@hospital.sa or EMP-001'}
+                  ? 'للتجربة: استخدم admin@hospital.sa أو EMP-001'
+                  : 'Demo: use admin@hospital.sa or EMP-001'}
               </p>
             </div>
           )}
@@ -446,7 +446,7 @@ export default function ForgotPasswordPage() {
                 <div className="flex items-center gap-2 mb-3">
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500 text-white text-[10px] font-bold">G</div>
                   <div>
-                    <p className="text-[11px] font-bold text-text-primary">Gmail — National Guard Hospital</p>
+                    <p className="text-[11px] font-bold text-text-primary">Gmail — {t('common:hospital.name')}</p>
                     <p className="text-[10px] text-text-secondary" dir="ltr">{maskedEmail}</p>
                   </div>
                 </div>
@@ -660,7 +660,7 @@ export default function ForgotPasswordPage() {
 
               <div>
                 <h2 className="text-xl font-bold text-text-primary">
-                  {isRtl ? '🎉 تم تغيير كلمة المرور!' : '🎉 Password Changed!'}
+                  {isRtl ? 'تم تغيير كلمة المرور بنجاح!' : 'Password Changed Successfully!'}
                 </h2>
                 <p className="mt-2 text-sm text-text-secondary leading-6">
                   {isRtl

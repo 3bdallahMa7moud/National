@@ -10,7 +10,7 @@ import type { ShiftCategory } from '../types/schedule';
 
 const LEGEND_ITEMS: ShiftCategory[] = [
   'morning', 'evening', 'night', 'vacation', 'off',
-  'oncall', 'training', 'pending', 'weekend', 'holiday', 'sick', 'overtime',
+  'oncall', 'training', 'pending', 'weekend', 'holiday', 'sick',
 ];
 
 function Legend() {

@@ -379,9 +379,80 @@ describe('Shift Requests Automation & Schedule Synchronization Tests', () => {
       requesterAssignment: requesterAssignment!,
     });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe('day_shift_ot_conflict');
-    }
+    // Day Shift + OT conflict restriction is lifted as requested; creation now succeeds.
+    expect(result.ok).toBe(true);
+  });
+
+  it('8. ADMIN TEAM LEAD Flow: Admin can create shift request from/with employee, employee accepts, admin approves for self', () => {
+    const data = sampleMatrix();
+    const monthKey = '2099-07';
+    useScheduleMatrixStore.setState({
+      data: structuredClone(data),
+      matricesByMonth: { [monthKey]: structuredClone(data) },
+      draftsByMonth: { [monthKey]: structuredClone(data) },
+      snapshot: JSON.stringify(data),
+      undoStack: [],
+      versionsByMonth: {},
+      monthStatuses: { [monthKey]: 'published' },
+      storageError: null,
+    });
+
+    const requesterAssignment = createScheduleAssignmentRef(data, 'row-day', 15, 'emp-ahmed');
+    const offeredAssignment = createScheduleAssignmentRef(data, 'row-night', 16, 'emp-khalid');
+    expect(requesterAssignment).not.toBeNull();
+    expect(offeredAssignment).not.toBeNull();
+
+    const access = (accountId: string, employeeId: string): EmployeeAccessProfile => ({
+      accountId,
+      departmentId: 'dept-1',
+      scheduleEmployeeId: employeeId,
+      templateId: 'standard',
+      overrides: {},
+      active: true,
+      updatedAt: '2026-01-01T00:00:00Z',
+      updatedBy: 'system',
+    });
+    const profiles: Record<string, EmployeeAccessProfile> = {
+      'acc-admin': access('acc-admin', 'emp-ahmed'), // Admin working shift emp-ahmed
+      'acc-khalid': access('acc-khalid', 'emp-khalid'),
+    };
+
+    let currentActor = 'acc-admin';
+    const store = createShiftRequestStore({
+      gateway: browserShiftAssignmentGateway,
+      profiles: () => profiles,
+      isCurrentActor: (id) => id === currentActor,
+      isAdmin: (id) => id === 'acc-admin',
+      now: () => new Date('2099-06-01T10:00:00'),
+      createId: () => 'req-admin-teamlead-1',
+    });
+
+    // Step 1: Admin (acting as team lead) creates an Exchange request with employee Khalid
+    const createRes = store.getState().createRequest({
+      type: 'exchange',
+      requesterAccountId: 'acc-admin',
+      recipientAccountId: 'acc-khalid',
+      requesterAssignment: requesterAssignment!,
+      offeredAssignment: offeredAssignment!,
+    });
+    expect(createRes.ok).toBe(true);
+    expect(createRes.request?.status).toBe('pending_recipient');
+
+    // Step 2: Employee Khalid accepts the request
+    currentActor = 'acc-khalid';
+    const acceptRes = store.getState().acceptByRecipient('req-admin-teamlead-1', 'acc-khalid', 'Khalid');
+    expect(acceptRes.ok).toBe(true);
+    expect(acceptRes.request?.status).toBe('pending_admin');
+
+    // Step 3: Admin approves the request (for self as requester)
+    currentActor = 'acc-admin';
+    const approveRes = store.getState().approveByAdmin('req-admin-teamlead-1', 'acc-admin', 'Dr. Ishraq');
+    expect(approveRes.ok).toBe(true);
+    expect(approveRes.request?.status).toBe('approved');
+
+    // Verify schedule matrix updated automatically
+    const rows = useScheduleMatrixStore.getState().matricesByMonth[monthKey].facilities[0].units[0].rows;
+    expect(rows[0].cellsByDay[15][0].employeeId).toBe('emp-khalid');
+    expect(rows[1].cellsByDay[16][0].employeeId).toBe('emp-ahmed');
   });
 });

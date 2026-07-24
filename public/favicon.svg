@@ -27,7 +27,7 @@
   <!-- خلفية الأيقونة (App Icon Background) -->
   <rect x="2" y="2" width="96" height="96" rx="26" fill="url(#bgGrad)" stroke="rgba(255,255,255,0.2)" stroke-width="3"/>
 
-  <!-- الدرع الخارجي (National Guard Shield Outline) -->
+  <!-- الدرع الخارجي (Shield Outline) -->
   <path
     d="M50 12 C28 12, 15 20, 15 39 C15 69, 38 89, 50 96 C62 89, 85 69, 85 39 C85 20, 72 12, 50 12 Z"
     fill="url(#shieldGrad)"

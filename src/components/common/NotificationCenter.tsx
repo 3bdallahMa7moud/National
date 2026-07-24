@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Bell } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
-import type { AppNotification } from '@/types';
+import { isAdminOrSuperAdmin, type AppNotification } from '@/types';
 import dayjs from '@/lib/dayjs';
 
 interface NotificationCenterProps {
@@ -68,7 +68,7 @@ export default function NotificationCenter({ notifications, onMarkRead, onMarkAl
                         let url = notif.actionUrl;
                         const user = useAuthStore.getState().user;
 
-                        if (user?.role === 'admin') {
+                        if (isAdminOrSuperAdmin(user)) {
                           if (url === '/schedule') url = '/admin/schedule';
                           if (url === '/employees') url = '/admin/employees';
                         } else {

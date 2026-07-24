@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,6 +27,7 @@ const registerSchema = z.object({
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
+  const { t } = useTranslation(['common']);
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const [showPassword, setShowPassword] = useState(false);
@@ -72,8 +74,8 @@ export default function RegisterPage() {
         {/* الصورة في الخلفية بحجم الجزء الأزرق كامل */}
         <div className="absolute inset-0 z-0">
           <img
-            src="/saudi-hospital.png"
-            alt="مستشفى الحرس الوطني - مدينة الملك عبدالعزيز الطبية"
+            src="/saudi-hospital.webp"
+            alt={t('common:hospital.imageAlt')}
             className="h-full w-full object-cover object-center transform scale-105 transition-transform duration-1000"
           />
           {/* غطاء أزرق متدرج (Blue Overlay) بحيث تكون الصورة مدمجة داخل اللون */}
@@ -82,13 +84,13 @@ export default function RegisterPage() {
 
         {/* المحتوى يظهر بوضوح فوق الخلفية المدمجة */}
         <div className="relative z-10">
-          <HospitalLogo size="lg" variant="white" subtitle="الشؤون الصحية بوزارة الحرس الوطني" />
+          <HospitalLogo size="lg" variant="white" subtitle={t('common:hospital.healthAffairs')} />
           <div className="mt-4">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur-md border border-white/20 mb-3 shadow-sm">
               <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
-              <span>مدينة الملك عبدالعزيز الطبية - الرياض / جدة</span>
+              <span>{t('common:hospital.location')}</span>
             </div>
-            <p className="text-sm font-medium text-primary-100">مستشفى الحرس الوطني</p>
+            <p className="text-sm font-medium text-primary-100">{t('common:hospital.name')}</p>
             <h1 className="mt-1 max-w-sm text-2xl font-bold leading-snug text-white drop-shadow-sm">بوابة انضمام الموظفين</h1>
             <p className="mt-2 max-w-sm text-xs leading-5 text-primary-100 font-light">
               إنشاء حساب جديد لممارسي وموظفي قسم الأشعة المقطعية للوصول الفوري لجدول المناوبات والتكليفات الرسمية.

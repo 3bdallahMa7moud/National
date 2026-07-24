@@ -33,6 +33,7 @@ import { useRole } from '@/hooks/useRole';
 import { useAuthStore } from '@/stores/authStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import EmployeeDetailedShiftsModal from './EmployeeDetailedShiftsModal';
+import ConflictPanel from './ConflictPanel';
 import type { MatrixCellRef, Assignment, ShiftColorKey, MatrixReorderCommand, MatrixReorderResult } from '@/types/scheduleMatrix';
 
 export default function AdminSchedulePage() {
@@ -905,8 +906,26 @@ export default function AdminSchedulePage() {
         />
       ) : (
         /* ── Main Schedule Matrix Grid ── */
-        <ScheduleMatrix
-          data={displayData}
+        <div className="space-y-3">
+          <ConflictPanel
+            data={data}
+            onJumpToCell={(facilityId, rowId, day) => {
+              if (facilityId) setFacilityFilter(facilityId);
+              openDrawer({
+                facilityId,
+                unitId: '',
+                rowId,
+                day,
+                facilityName: '',
+                unitName: '',
+                shiftLabel: '',
+                timeRange: '',
+                defaultColorKey: 'morning',
+              });
+            }}
+          />
+          <ScheduleMatrix
+            data={displayData}
           editable={adminMode === 'edit'}
           adminMode={adminMode}
           highlightedEmployeeId={highlightedEmployeeId}
@@ -959,6 +978,7 @@ export default function AdminSchedulePage() {
           onDeleteUnit={handleRequestDeleteUnit}
           onReorder={handleReorder}
         />
+        </div>
       )}
       </ErrorBoundary>
 

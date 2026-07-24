@@ -1,6 +1,6 @@
 import type { OperationalShiftCategory, OperationalShiftVisual } from './operationalSchedule';
 
-export type CoverageCategory = 'day' | 'late' | 'night' | 'onCall' | 'ot';
+export type CoverageCategory = 'day' | 'night' | 'onCallDay' | 'onCallNight' | 'ot' | 'onCall';
 
 export interface CoverageMetric {
   category: CoverageCategory;

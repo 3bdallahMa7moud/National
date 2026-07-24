@@ -17,11 +17,20 @@ const employee: AuthUser = {
   scheduleEmployeeId: 'roster-1',
 };
 
-function renderProtected(requiredPermission: 'schedule.own.view') {
+const superAdmin: AuthUser = {
+  id: 'account-super-admin',
+  name: 'Super Admin',
+  email: '',
+  role: 'super_admin',
+  departmentId: 'dept-1',
+  departmentName: 'CT',
+};
+
+function renderProtected(requiredPermission: 'schedule.own.view', allowedRoles: AuthUser['role'][] = ['employee']) {
   return render(
     <MemoryRouter initialEntries={['/protected']}>
       <Routes>
-        <Route element={<RouteGuard allowedRoles={['employee']} requiredPermission={requiredPermission} />}>
+        <Route element={<RouteGuard allowedRoles={allowedRoles} requiredPermission={requiredPermission} />}>
           <Route path="/protected" element={<p>protected content</p>} />
         </Route>
         <Route path="/403" element={<p>forbidden</p>} />
@@ -51,6 +60,14 @@ describe('RouteGuard employee permissions', () => {
 
   it('allows the direct route when the effective permission is enabled', () => {
     renderProtected('schedule.own.view');
+    expect(screen.getByText('protected content')).toBeInTheDocument();
+  });
+
+  it('allows super admins through admin route guards', () => {
+    useAuthStore.setState({ user: superAdmin, isAuthenticated: true });
+
+    renderProtected('schedule.own.view', ['admin']);
+
     expect(screen.getByText('protected content')).toBeInTheDocument();
   });
 

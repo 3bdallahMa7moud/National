@@ -53,7 +53,7 @@ export interface Assignment {
   /** true if this employee conflicts with another assignment or an approved vacation */
   hasConflict?: boolean;
   conflictReason?: string;
-  conflictType?: 'crossFacility' | 'vacation';
+  conflictType?: 'crossFacility' | 'vacation' | 'timeOverlap';
 }
 
 /** One row in the schedule grid = one Excel-style sub-row within a block */

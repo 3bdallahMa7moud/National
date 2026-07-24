@@ -42,10 +42,11 @@ export const mockShiftTypesSource: MockShiftTypeSource[] = [
 export const mockEmployeesSource: MockEmployeeSource[] = [
   {
     id: 'emp-1',
+    scheduleEmployeeId: 'emp-1',
     name: { ar: 'د. اشراق', en: 'Dr. Ishraq' },
     email: 'admin@hospital.sa',
     phone: '0501234567',
-    role: 'admin',
+    role: 'super_admin',
     departmentId: 'dept-1',
     departmentName: deptCt,
     position: { ar: 'رئيس القسم', en: 'Department Head' },
@@ -516,7 +517,7 @@ function isPersistedEmployee(value: unknown): value is MockEmployeeSource {
     && typeof employee.employeeNumber === 'string'
     && typeof employee.departmentId === 'string'
     && typeof employee.code === 'string'
-    && (employee.role === 'admin' || employee.role === 'employee')
+    && (employee.role === 'super_admin' || employee.role === 'admin' || employee.role === 'employee')
     && typeof employee.isActive === 'boolean'
     && !!employee.name
     && typeof employee.name.ar === 'string'

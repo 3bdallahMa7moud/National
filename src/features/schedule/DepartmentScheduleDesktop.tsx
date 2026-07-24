@@ -9,7 +9,7 @@ interface Props {
   selfEmployeeId?: string;
 }
 
-const CATEGORIES: OperationalShiftCategory[] = ['day', 'late', 'night', 'onCallDay', 'onCallNight', 'ot'];
+const CATEGORIES: OperationalShiftCategory[] = ['day', 'night', 'onCallDay', 'onCallNight', 'ot'];
 
 export default function DepartmentScheduleDesktop({ view, locale, selfEmployeeId }: Props) {
   const { t } = useTranslation('schedule');

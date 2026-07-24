@@ -7,18 +7,15 @@ import {
   Archive,
   ArchiveRestore,
   Clock3,
-  FileDown,
-  FileUp,
   LayoutGrid,
-  Palette,
   Plus,
-  RotateCcw,
   Settings2,
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import Button from '@/components/ui/Button';
+import Time24Select from '@/components/ui/Time24Select';
 import { SHIFT_COLOR_PALETTE } from '@/lib/shiftColorPalette';
 import { useTheme } from '@/hooks/useTheme';
 import type { ScheduleMatrixData, ShiftColorKey, ShiftDefinition, ShiftRow } from '@/types/scheduleMatrix';
@@ -54,7 +51,6 @@ const SHIFT_SYMBOLS = [
 ];
 
 const DEFAULT_SHIFT_FORM = {
-  arabicName: '',
   englishName: '',
   startTime: '08:00',
   endTime: '17:00',
@@ -92,13 +88,12 @@ function ScheduleSettingsPanel({
   const { t } = useTranslation(['schedule', 'common']);
   const { isDark } = useTheme();
   const [facilityId, setFacilityId] = useState(data.facilities[0]?.id || 'kamc');
-  const [activeTab, setActiveTab] = useState<'shifts' | 'units' | 'palette'>('shifts');
+  const [activeTab, setActiveTab] = useState<'shifts' | 'units'>('shifts');
   const [newUnitName, setNewUnitName] = useState('');
   const [shiftArchiveView, setShiftArchiveView] = useState<'active' | 'archived'>('active');
   const [unitArchiveView, setUnitArchiveView] = useState<'active' | 'archived'>('active');
   const [newShift, setNewShift] = useState(DEFAULT_SHIFT_FORM);
   const [rowDrafts, setRowDrafts] = useState<Record<string, { label: string; definitionId: string }>>({});
-  const [paletteImport, setPaletteImport] = useState('');
   const [openIconPickerId, setOpenIconPickerId] = useState<string | null>(null);
 
   const facility = useMemo(
@@ -133,32 +128,7 @@ function ScheduleSettingsPanel({
     }));
   };
 
-  const exportPalette = () => {
-    const payload = settings.shiftDefinitions.map((shift) => ({
-      id: shift.id,
-      englishName: shift.englishName || shift.label,
-      backgroundColor: shift.backgroundColor,
-      textColor: shift.textColor,
-      colorKey: shift.colorKey,
-    }));
-    setPaletteImport(JSON.stringify(payload, null, 2));
-  };
 
-  const importPalette = () => {
-    try {
-      const palette = JSON.parse(paletteImport) as Array<Partial<ShiftDefinition> & { id: string }>;
-      palette.forEach((entry) => {
-        if (!entry.id) return;
-        onUpdateShift(facility.id, entry.id, {
-          backgroundColor: entry.backgroundColor,
-          textColor: entry.textColor,
-          colorKey: entry.colorKey,
-        });
-      });
-    } catch {
-      // Invalid imports are ignored here; callers keep the draft text visible for correction.
-    }
-  };
 
   return (
     <section className="rounded-2xl border border-border bg-surface shadow-soft overflow-hidden transition-all">
@@ -225,20 +195,6 @@ function ScheduleSettingsPanel({
             <LayoutGrid className="h-4 w-4" />
             <span>Units & Rows ({visibleUnits.length})</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('palette')}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all',
-              activeTab === 'palette'
-                ? 'bg-surface text-primary-teal shadow-sm border border-border'
-                : 'text-text-secondary hover:bg-hover/60 hover:text-ink',
-            )}
-          >
-            <Palette className="h-4 w-4" />
-            <span>Color Palette & Tools</span>
-          </button>
         </div>
       </div>
 
@@ -282,16 +238,6 @@ function ScheduleSettingsPanel({
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-text-secondary">Arabic Name</label>
-                    <input
-                      value={newShift.arabicName}
-                      onChange={(event) => setNewShift((current) => ({ ...current, arabicName: event.target.value }))}
-                      placeholder="مثال: صباحي / مسائي"
-                      className="h-9 w-full rounded-xl border border-border bg-surface px-3 text-xs text-ink focus:border-primary-teal focus:outline-none focus:ring-2 focus:ring-primary-teal/15 shadow-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
                     <label className="text-[11px] font-bold text-text-secondary">English Name</label>
                     <input
                       value={newShift.englishName}
@@ -304,20 +250,18 @@ function ScheduleSettingsPanel({
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-text-secondary">Start Time</label>
-                      <input
-                        type="time"
+                      <Time24Select
                         value={newShift.startTime}
-                        onChange={(event) => setNewShift((current) => ({ ...current, startTime: event.target.value }))}
-                        className="h-9 w-full rounded-xl border border-border bg-surface px-2 text-xs text-ink focus:border-primary-teal focus:outline-none shadow-sm"
+                        onChange={(value) => setNewShift((current) => ({ ...current, startTime: value }))}
+                        className="h-9"
                       />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-text-secondary">End Time</label>
-                      <input
-                        type="time"
+                      <Time24Select
                         value={newShift.endTime}
-                        onChange={(event) => setNewShift((current) => ({ ...current, endTime: event.target.value }))}
-                        className="h-9 w-full rounded-xl border border-border bg-surface px-2 text-xs text-ink focus:border-primary-teal focus:outline-none shadow-sm"
+                        onChange={(value) => setNewShift((current) => ({ ...current, endTime: value }))}
+                        className="h-9"
                       />
                     </div>
                   </div>
@@ -401,8 +345,8 @@ function ScheduleSettingsPanel({
                     <button
                       type="button"
                       onClick={() => {
-                        if (!newShift.englishName.trim() && !newShift.arabicName.trim()) return;
-                        const label = newShift.englishName.trim() || newShift.arabicName.trim();
+                        if (!newShift.englishName.trim()) return;
+                        const label = newShift.englishName.trim();
                         const palette = SHIFT_COLOR_PALETTE[newShift.colorKey];
                         const isDefaultBg = newShift.backgroundColor === palette?.light.background
                           || newShift.backgroundColor === palette?.dark.background;
@@ -410,8 +354,7 @@ function ScheduleSettingsPanel({
                           || newShift.textColor === palette?.dark.text;
                         onAddShift(facility.id, {
                           label,
-                          arabicName: newShift.arabicName.trim() || label,
-                          englishName: newShift.englishName.trim() || label,
+                          englishName: label,
                           startTime: newShift.startTime,
                           endTime: newShift.endTime,
                           timeRange: `${newShift.startTime} - ${newShift.endTime}`,
@@ -463,48 +406,34 @@ function ScheduleSettingsPanel({
 
                     {/* Editable Form Inputs */}
                     <div className="space-y-3 flex-1">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-bold text-text-secondary block mb-0.5">Arabic Name</label>
-                          <input
-                            value={shift.arabicName || ''}
-                            disabled={shift.archived}
-                            onChange={(event) => onUpdateShift(facility.id, shift.id, { arabicName: event.target.value })}
-                            placeholder="Arabic"
-                            className="h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2.5 text-xs text-ink focus:border-primary-teal focus:bg-surface focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-text-secondary block mb-0.5">English Name</label>
-                          <input
-                            value={shift.englishName || shift.label}
-                            disabled={shift.archived}
-                            onChange={(event) => onUpdateShift(facility.id, shift.id, { englishName: event.target.value, label: event.target.value })}
-                            placeholder="English"
-                            className="h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2.5 text-xs font-semibold text-ink focus:border-primary-teal focus:bg-surface focus:outline-none"
-                          />
-                        </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-text-secondary block mb-0.5">English Name</label>
+                        <input
+                          value={shift.englishName || shift.label}
+                          disabled={shift.archived}
+                          onChange={(event) => onUpdateShift(facility.id, shift.id, { englishName: event.target.value, label: event.target.value })}
+                          placeholder="English"
+                          className="h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2.5 text-xs font-semibold text-ink focus:border-primary-teal focus:bg-surface focus:outline-none"
+                        />
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[10px] font-bold text-text-secondary block mb-0.5">Start Time</label>
-                          <input
-                            type="time"
+                          <Time24Select
                             value={shift.startTime || shift.timeRange.split(' - ')[0] || ''}
                             disabled={shift.archived}
-                            onChange={(event) => onUpdateShift(facility.id, shift.id, { startTime: event.target.value })}
-                            className="h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2 text-xs text-ink focus:border-primary-teal focus:bg-surface focus:outline-none"
+                            onChange={(value) => onUpdateShift(facility.id, shift.id, { startTime: value })}
+                            className="h-8.5"
                           />
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-text-secondary block mb-0.5">End Time</label>
-                          <input
-                            type="time"
+                          <Time24Select
                             value={shift.endTime || shift.timeRange.split(' - ')[1] || ''}
                             disabled={shift.archived}
-                            onChange={(event) => onUpdateShift(facility.id, shift.id, { endTime: event.target.value })}
-                            className="h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2 text-xs text-ink focus:border-primary-teal focus:bg-surface focus:outline-none"
+                            onChange={(value) => onUpdateShift(facility.id, shift.id, { endTime: value })}
+                            className="h-8.5"
                           />
                         </div>
                       </div>
@@ -895,60 +824,6 @@ function ScheduleSettingsPanel({
                   <p className="text-xs text-text-secondary mt-1">Add a new unit above to organize your facility schedule</p>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================= */}
-        {/* TAB 3: COLOR PALETTE & TOOLS */}
-        {/* ========================================================= */}
-        {activeTab === 'palette' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="rounded-2xl border border-border bg-surface p-5 sm:p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4 mb-4">
-                <div>
-                  <h3 className="text-base font-extrabold text-ink flex items-center gap-2">
-                    <Palette className="h-5 w-5 text-primary-teal" />
-                    <span>Export & Import Color Palettes</span>
-                  </h3>
-                  <p className="text-xs text-text-secondary mt-1">
-                    Backup or transfer customized shift background and text color presets across hospital facilities
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={exportPalette} icon={<FileDown className="h-4 w-4" />}>
-                    Export JSON
-                  </Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={importPalette} icon={<FileUp className="h-4 w-4" />}>
-                    Import JSON
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      settings.shiftDefinitions.forEach((shift) => {
-                        onUpdateShift(facility.id, shift.id, { backgroundColor: undefined, textColor: undefined });
-                      });
-                    }}
-                    icon={<RotateCcw className="h-4 w-4" />}
-                  >
-                    Reset Defaults
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-ink">Palette JSON Data</label>
-                <textarea
-                  value={paletteImport}
-                  onChange={(event) => setPaletteImport(event.target.value)}
-                  rows={8}
-                  placeholder="Click 'Export JSON' to view current palette, or paste an exported palette JSON here and click 'Import JSON' to apply."
-                  className="w-full rounded-xl border border-border bg-surface-muted/40 p-3.5 font-mono text-xs text-ink focus:border-primary-teal focus:bg-surface focus:outline-none shadow-inner"
-                />
-              </div>
             </div>
           </div>
         )}

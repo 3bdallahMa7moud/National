@@ -12,12 +12,12 @@ interface ConflictInfo {
   employeeCode: string;
   employeeName: string;
   day: number;
-  facilityA: string;
-  unitA: string;
-  shiftA: string;
-  facilityB: string;
-  unitB: string;
-  shiftB: string;
+  facilityIdA: string;
+  rowIdA: string;
+  labelA: string;
+  labelB: string;
+  reason: string;
+  type: 'crossFacility' | 'vacation' | 'timeOverlap';
 }
 
 interface ConflictPanelProps {
@@ -35,12 +35,6 @@ function ConflictPanel({ data, onJumpToCell }: ConflictPanelProps) {
     const result: ConflictInfo[] = [];
     const seen = new Set<string>();
 
-    // Index: build employee assignments across facilities
-    const empIndex = new Map<string, Array<{
-      facilityId: string; facilityName: string; unitName: string;
-      shiftLabel: string; rowId: string; day: number; timeRange: string;
-    }>>();
-
     for (const f of data.facilities) {
       for (const u of f.units) {
         for (const r of u.rows) {
@@ -48,60 +42,41 @@ function ConflictPanel({ data, onJumpToCell }: ConflictPanelProps) {
             const day = Number(dayStr);
             for (const a of r.cellsByDay[day]) {
               if (!a.hasConflict) continue;
-              if (!empIndex.has(a.employeeId)) empIndex.set(a.employeeId, []);
-              empIndex.get(a.employeeId)!.push({
-                facilityId: f.id, facilityName: f.name, unitName: u.name,
-                shiftLabel: r.shiftLabel, rowId: r.id, day, timeRange: r.timeRange,
-              });
+
+              const key = `${a.employeeId}-${day}-${a.conflictType}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+
+              const legend = data.legend.find((l) => l.code === a.employeeCode || l.employeeId === a.employeeId);
+              const empName = legend?.fullName || a.employeeCode;
+
+              if (a.conflictType === 'vacation') {
+                result.push({
+                  employeeCode: a.employeeCode,
+                  employeeName: empName,
+                  day,
+                  facilityIdA: f.id,
+                  rowIdA: r.id,
+                  labelA: `${f.name}/${u.name}/${r.shiftLabel}`,
+                  labelB: 'Approved Vacation',
+                  reason: a.conflictReason || 'Approved vacation conflict',
+                  type: 'vacation',
+                });
+              } else {
+                result.push({
+                  employeeCode: a.employeeCode,
+                  employeeName: empName,
+                  day,
+                  facilityIdA: f.id,
+                  rowIdA: r.id,
+                  labelA: `${f.name}/${u.name}/${r.shiftLabel}`,
+                  labelB: a.conflictReason || 'Shift schedule conflict',
+                  reason: a.conflictReason || 'Shift schedule conflict',
+                  type: a.conflictType || 'crossFacility',
+                });
+              }
             }
           }
-        }
-      }
-    }
-
-    // Find pairs
-    for (const [empId, entries] of empIndex) {
-      for (let i = 0; i < entries.length; i++) {
-        for (let j = i + 1; j < entries.length; j++) {
-          const a = entries[i];
-          const b = entries[j];
-          if (a.day !== b.day || a.facilityId === b.facilityId) continue;
-          const key = `${empId}-${a.day}-${a.facilityId}-${b.facilityId}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-
-          const legend = data.legend.find(
-            (l) => data.vacations.find((v) => v.employeeId === empId)?.employeeCode === l.code
-              || entries.some(() => {
-                // Find code from the assignments
-                for (const f of data.facilities) {
-                  for (const u of f.units) {
-                    for (const r of u.rows) {
-                      for (const d of Object.keys(r.cellsByDay)) {
-                        for (const assignment of r.cellsByDay[Number(d)]) {
-                          if (assignment.employeeId === empId) {
-                            return l.code === assignment.employeeCode;
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-                return false;
-              }),
-          );
-
-          result.push({
-            employeeCode: legend?.code || empId,
-            employeeName: legend?.fullName || empId,
-            day: a.day,
-            facilityA: a.facilityName,
-            unitA: a.unitName,
-            shiftA: a.shiftLabel,
-            facilityB: b.facilityName,
-            unitB: b.unitName,
-            shiftB: b.shiftLabel,
-          });
         }
       }
     }
@@ -112,15 +87,16 @@ function ConflictPanel({ data, onJumpToCell }: ConflictPanelProps) {
   if (conflicts.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-alert-coral/30 bg-red-50 shadow-soft overflow-hidden">
+    <div className="rounded-lg border border-alert-coral/30 bg-red-50 shadow-soft overflow-hidden my-2">
       {/* Banner */}
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center gap-2.5 px-4 py-2.5 hover:bg-red-100/50 transition-colors"
       >
         <AlertTriangle className="w-4 h-4 text-alert-coral shrink-0" />
         <span className="text-xs font-bold text-alert-coral">
-          {t('schedule:conflict.panelTitle', { count: conflicts.length })}
+          {t('schedule:conflict.panelTitle', { defaultValue: '{{count}} conflicts this month', count: conflicts.length })}
         </span>
         <ChevronDown className={cn(
           'w-4 h-4 text-alert-coral ms-auto transition-transform duration-200',
@@ -130,32 +106,36 @@ function ConflictPanel({ data, onJumpToCell }: ConflictPanelProps) {
 
       {/* Detail list */}
       {expanded && (
-        <div className="border-t border-alert-coral/20">
+        <div className="border-t border-alert-coral/20 max-h-60 overflow-y-auto">
           {conflicts.map((c, i) => (
             <div
               key={`${c.employeeCode}-${c.day}-${i}`}
               className="flex items-center gap-3 px-4 py-2.5 border-b border-alert-coral/10 last:border-b-0 text-xs"
             >
               <span dir="ltr" className="font-bold text-ink shrink-0" style={{ unicodeBidi: 'isolate' }}>
-                {c.employeeCode}
+                {c.employeeCode} ({c.employeeName})
               </span>
               <span className="text-text-secondary">—</span>
-              <span className="text-ink">{t('schedule:conflict.dayLabel', { day: c.day })}</span>
+              <span className="text-ink font-semibold">
+                {t('schedule:conflict.dayLabel', { defaultValue: 'Day {{day}}', day: c.day })}
+              </span>
               <span className="text-text-secondary">—</span>
               <span dir="ltr" className="text-alert-coral font-medium" style={{ unicodeBidi: 'isolate' }}>
-                {c.facilityA}/{c.unitA}/{c.shiftA}
+                {c.labelA}
               </span>
-              <span className="text-text-secondary">vs</span>
+              <span className="text-text-secondary">←</span>
               <span dir="ltr" className="text-alert-coral font-medium" style={{ unicodeBidi: 'isolate' }}>
-                {c.facilityB}/{c.unitB}/{c.shiftB}
+                {c.labelB}
               </span>
               {onJumpToCell && (
                 <button
-                  onClick={() => onJumpToCell(c.facilityA, '', c.day)}
-                  className="ms-auto text-primary-teal hover:text-ink"
-                  title={t('schedule:conflict.jumpToCell')}
+                  type="button"
+                  onClick={() => onJumpToCell(c.facilityIdA, c.rowIdA, c.day)}
+                  className="ms-auto text-primary-teal hover:text-ink flex items-center gap-1 font-semibold shrink-0"
+                  title={t('schedule:conflict.jumpToCell', { defaultValue: 'Jump to cell' })}
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
+                  <span>{t('schedule:conflict.jumpToCell', { defaultValue: 'Jump to cell' })}</span>
                 </button>
               )}
             </div>
@@ -167,3 +147,4 @@ function ConflictPanel({ data, onJumpToCell }: ConflictPanelProps) {
 }
 
 export default memo(ConflictPanel);
+

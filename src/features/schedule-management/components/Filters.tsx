@@ -24,7 +24,6 @@ const SHIFT_OPTIONS: { value: ShiftCategory; label: string }[] = [
   { value: 'oncall', label: 'On Call' },
   { value: 'training', label: 'Training' },
   { value: 'sick', label: 'Sick Leave' },
-  { value: 'overtime', label: 'Overtime' },
   { value: 'off', label: 'Off' },
 ];
 

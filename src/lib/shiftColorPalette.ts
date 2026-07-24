@@ -21,7 +21,7 @@ export const SHIFT_COLOR_PALETTE: Record<ShiftColorKey, ShiftColorPaletteEntry> 
     dark: { background: '#3A2E12', text: '#FBE39C', border: '#A97821' },
   },
   night: {
-    light: { background: '#C9EAF9', text: '#174A67', border: '#7DABCB' },
+    light: { background: '#E0E7FF', text: '#1E1B4B', border: '#6366F1' },
     dark: { background: '#15384C', text: '#BFE8FB', border: '#5E9BC2' },
   },
   onCall: {

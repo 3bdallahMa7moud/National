@@ -965,6 +965,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
 
     const oldAssignments = context.row.cellsByDay[day] || [];
     setCellAssignments(context.row, day, assignments);
+    recalculateAllConflicts(data);
     addAudit(data, state.locale, {
       action: assignments.length ? 'assign' : 'remove',
       facilityId: context.facility.id,

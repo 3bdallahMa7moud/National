@@ -54,7 +54,7 @@ export type EmployeeDirectoryMutationResult =
   | { ok: true; record: EmployeeDirectoryRecord }
   | {
       ok: false;
-      reason: 'not_found' | 'invalid_record' | 'duplicate_value' | 'storage_error';
+      reason: 'not_found' | 'invalid_record' | 'duplicate_value' | 'storage_error' | 'permission_denied';
       message?: string;
       issues?: EmployeeDirectoryIssue[];
     };

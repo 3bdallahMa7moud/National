@@ -12,7 +12,7 @@
     "hours_zero": "لا توجد ساعات", "hours_one": "ساعة واحدة", "hours_two": "ساعتان", "hours_few": "{{count}} ساعات", "hours_many": "{{count}} ساعة", "hours_other": "{{count}} ساعة",
     "uncovered_zero": "لا توجد تغطية ناقصة", "uncovered_one": "موقع واحد غير مغطى", "uncovered_two": "موقعان غير مغطيين", "uncovered_few": "{{count}} مواقع غير مغطاة", "uncovered_many": "{{count}} موقعًا غير مغطى", "uncovered_other": "{{count}} موقع غير مغطى",
     "fullyCovered": "التغطية مكتملة",
-    "categories": { "day": "الشفت النهاري", "late": "الشفت المتأخر", "night": "الشفت الليلي", "onCall": "تحت الطلب", "ot": "العمل الإضافي" }
+    "categories": { "day": "الشفت النهاري", "night": "الشفت الليلي", "onCallDay": "تحت الطلب نهاري", "onCallNight": "تحت الطلب ليلي", "ot": "العمل الإضافي" }
   },
   "shiftGroups": {
     "title": "شفتات اليوم", "description": "التعيينات ونواقص التغطية مجمعة حسب الشفت التشغيلي.", "summary": "{{assignments}} تعيين · {{issues}} مشكلة", "uncoveredSlot": "موقع غير مغطى", "resolveGap": "معالجة نقص {{shift}}", "openAssignment": "فتح تعيين {{employee}}", "conflict": "تعارض في الجدول", "approvedAbsence": "تعيين أثناء إجازة معتمدة", "unresolvedEmployee": "الموظف يحتاج إلى إعادة تعيين", "empty": "لا توجد تعيينات أو نواقص تغطية في هذا العرض"
@@ -31,11 +31,11 @@
     "greeting": "مرحبًا {{name}}. تظهر أدناه تعيينات جدول المناوبات وOT المنشورة.",
     "unlinked": { "title": "ملف جدولك غير مرتبط", "description": "اطلب من المسؤول ربط حسابك بسجل الموظف الرسمي قبل عرض الجداول." },
     "missing": { "title": "لا يوجد جدول منشور لهذه الفترة", "description": "لا توجد سجلات منشورة في جدول المناوبات أو OT للفترة الحالية." },
-    "links": { "mySchedule": "جدولي", "departmentSchedule": "جدول القسم" },
+    "links": { "mySchedule": "جدولي", "departmentSchedule": "جدول القسم", "ctGateTitle": "بوابة الإجازات (CT Gate)", "ctGateSub": "تسجيل الدخول وتقديم طلب الإجازات" },
     "nextShift": { "title": "الشفت القادم", "empty": "لا يوجد شفت قادم منشور ضمن البيانات المتاحة." },
     "week": { "title": "هذا الأسبوع", "description": "من الأحد إلى السبت، شاملاً جدول المناوبات وOT.", "off": "لا يوجد تعيين" },
     "source": { "schedule": "جدول المناوبات", "ot": "OT" },
-    "categories": { "day": "الشفت النهاري", "late": "الشفت المتأخر", "night": "الشفت الليلي", "onCallDay": "تحت الطلب نهاري", "onCallNight": "تحت الطلب ليلي", "ot": "العمل الإضافي" },
+    "categories": { "day": "الشفت النهاري", "night": "الشفت الليلي", "onCallDay": "تحت الطلب نهاري", "onCallNight": "تحت الطلب ليلي", "ot": "العمل الإضافي" },
     "notices": { "title": "تنبيهات الجدول" },
     "summary": { "title": "إجماليات الشهر الحالي", "description": "محسوبة من البيانات المنشورة المتاحة فقط.", "otHours_zero": "لا توجد ساعات OT", "otHours_one": "ساعة OT واحدة", "otHours_two": "ساعتا OT", "otHours_few": "{{count}} ساعات OT", "otHours_many": "{{count}} ساعة OT", "otHours_other": "{{count}} ساعة OT", "hoursLabel": "ساعات OT" }
   }

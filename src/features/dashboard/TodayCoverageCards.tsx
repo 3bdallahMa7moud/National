@@ -2,6 +2,7 @@ import { CalendarDays, Clock3, Moon, PhoneCall, TimerReset } from 'lucide-react'
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { operationalShiftGradient, operationalShiftStyle } from '@/lib/occurrenceShiftStyle';
+import { defaultOperationalShiftVisual } from '@/lib/operationalShiftVisuals';
 import type { CoverageCategory, CoverageMetric } from '@/types/operationalDashboard';
 
 interface TodayCoverageCardsProps {
@@ -11,7 +12,14 @@ interface TodayCoverageCardsProps {
   onSelect: (category: CoverageCategory) => void;
 }
 
-const coverageIcons = { day: CalendarDays, late: Clock3, night: Moon, onCall: PhoneCall, ot: TimerReset };
+const coverageIcons = {
+  day: CalendarDays,
+  night: Moon,
+  onCallDay: PhoneCall,
+  onCallNight: Moon,
+  onCall: PhoneCall,
+  ot: TimerReset,
+};
 
 export default function TodayCoverageCards({ metrics, hasPublishedSchedule, selectedCategory, onSelect }: TodayCoverageCardsProps) {
   const { t } = useTranslation('dashboard');
@@ -21,14 +29,17 @@ export default function TodayCoverageCards({ metrics, hasPublishedSchedule, sele
         <h2 id="today-coverage-title" className="text-base font-semibold text-text-primary sm:text-lg">{t('coverage.title')}</h2>
         <p className="mt-1 text-sm text-text-secondary">{t('coverage.description')}</p>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {metrics.map((metric) => {
           const Icon = coverageIcons[metric.category];
           const label = t(`coverage.categories.${metric.category}`);
           const isSelected = selectedCategory === metric.category;
           const noPublishedData = metric.category !== 'ot' && !hasPublishedSchedule;
-          const shiftColors = metric.shiftColors ?? [];
-          const primaryShiftColor = shiftColors[0];
+          const shiftColor = (metric.shiftColors && metric.shiftColors.length > 0)
+            ? metric.shiftColors[0]
+            : defaultOperationalShiftVisual(metric.category);
+          const style = operationalShiftStyle(shiftColor);
+          const topAccentColor = shiftColor.backgroundColor || style.borderColor || style.backgroundColor;
           return (
             <button
               key={metric.category}
@@ -41,15 +52,13 @@ export default function TodayCoverageCards({ metrics, hasPublishedSchedule, sele
                 isSelected ? 'border-primary ring-1 ring-primary/20' : 'border-border hover:border-primary/40 hover:bg-hover',
               )}
             >
-              {shiftColors.length > 0 && (
-                <span
-                  className="absolute inset-x-0 top-0 h-1"
-                  style={{ background: operationalShiftGradient(shiftColors) }}
-                  data-coverage-shift-color={metric.category}
-                  aria-hidden="true"
-                />
-              )}
-              <div className="flex items-start justify-between gap-3">
+              <span
+                className="absolute inset-x-0 top-0 h-1.5"
+                style={{ background: topAccentColor }}
+                data-coverage-shift-color={metric.category}
+                aria-hidden="true"
+              />
+              <div className="flex items-start justify-between gap-3 pt-1">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-text-primary">{label}</p>
                   {noPublishedData ? (
@@ -60,20 +69,12 @@ export default function TodayCoverageCards({ metrics, hasPublishedSchedule, sele
                       <p className="mt-1 text-xs font-medium text-text-secondary">{t('coverage.hours', { count: metric.hours ?? 0 })}</p>
                     </>
                   ) : (
-                    <>
-                      <p className="mt-3 text-2xl font-semibold text-text-primary">{metric.coveredSlots ?? 0} / {metric.expectedSlots ?? 0}</p>
-                      <p className={cn('mt-1 text-xs font-medium', (metric.uncoveredSlots ?? 0) > 0 ? 'text-danger' : 'text-success')}>
-                        {(metric.uncoveredSlots ?? 0) > 0 ? t('coverage.uncovered', { count: metric.uncoveredSlots }) : t('coverage.fullyCovered')}
-                      </p>
-                    </>
+                    <p className="mt-3 text-2xl font-semibold text-text-primary">{t('coverage.assignments', { count: metric.assignments })}</p>
                   )}
                 </div>
                 <span
-                  className={cn(
-                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-btn border',
-                    !primaryShiftColor && 'border-primary/10 bg-primary-50 text-primary',
-                  )}
-                  style={primaryShiftColor ? operationalShiftStyle(primaryShiftColor) : undefined}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn border"
+                  style={style}
                 >
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>

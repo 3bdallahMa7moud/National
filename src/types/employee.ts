@@ -1,4 +1,18 @@
-export type UserRole = 'admin' | 'employee';
+export const USER_ROLES = ['super_admin', 'admin', 'employee'] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
+
+export function isUserRole(value: unknown): value is UserRole {
+  return USER_ROLES.includes(value as UserRole);
+}
+
+export function isSuperAdmin(user?: { role?: UserRole } | null): boolean {
+  return user?.role === 'super_admin';
+}
+
+export function isAdminOrSuperAdmin(user?: { role?: UserRole } | null): boolean {
+  return user?.role === 'admin' || user?.role === 'super_admin';
+}
 
 export interface JobTitleOption {
   id: string;

@@ -12,10 +12,13 @@ export interface EmployeeWorkloadRow extends EmployeeAnalysisRow {
   night: number;
   weekend: number;
   oncall: number;
+  onCallDay: number;
+  onCallNight: number;
   overtimeHours: number;
   otShifts: number;
   vacationDays: number;
   totalShifts: number;
+  totalHours: number;
   workloadStatus: 'balanced' | 'high' | 'under';
 }
 
@@ -30,13 +33,13 @@ export function buildEmployeeAnalysisExportRows(rows: EmployeeWorkloadRow[]): Ar
     row.name,
     row.code,
     row.day,
-    row.late,
     row.night,
     row.onCallDay,
     row.onCallNight,
     row.matrixOTShifts,
     row.otScheduleShifts,
     row.otScheduleHours,
+    row.totalHours,
     row.vacationDays,
     row.totalScheduledAssignments,
     row.source,
@@ -69,7 +72,7 @@ export function buildEmployeeAnalysisWorkbook(
     views: [{ activeCell: 'A4', rightToLeft: context.isRtl }],
   });
 
-  worksheet.mergeCells('A1:M1');
+  worksheet.mergeCells('A1:N1');
   const titleCell = worksheet.getCell('A1');
   titleCell.value = `CT SCAN DEPARTMENT — Employee Analytics & Workload (${context.period.label})`;
   titleCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -77,7 +80,7 @@ export function buildEmployeeAnalysisWorkbook(
   titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
   worksheet.getRow(1).height = 34;
 
-  worksheet.mergeCells('A2:M2');
+  worksheet.mergeCells('A2:N2');
   const subtitleCell = worksheet.getCell('A2');
   subtitleCell.value = `${coverageText(context)} · ${context.period.startDate} — ${context.period.endDate}`;
   subtitleCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF475569' } };
@@ -89,13 +92,13 @@ export function buildEmployeeAnalysisWorkbook(
     'Employee Name',
     'Abbreviation',
     'Day',
-    'Late',
     'Night',
     'On-call Day',
     'On-call Night',
     'Matrix OT',
     'OT Schedule Shifts',
     'OT Hours',
+    'Total Hours',
     'Vacation Days',
     'Total Assignments',
     'Source',
@@ -128,8 +131,8 @@ export function buildEmployeeAnalysisWorkbook(
 
   worksheet.getColumn(1).width = 28;
   worksheet.getColumn(2).width = 12;
-  for (let column = 3; column <= 13; column += 1) {
-    worksheet.getColumn(column).width = column === 13 ? 14 : 15;
+  for (let column = 3; column <= 14; column += 1) {
+    worksheet.getColumn(column).width = column === 14 ? 14 : 15;
   }
   worksheet.pageSetup = {
     ...worksheet.pageSetup,
@@ -183,8 +186,8 @@ export function buildEmployeeAnalysisPdfHtml(
   const title = context.isRtl ? 'تحليل الموظفين وتوزيع الأحمال' : 'Employee Analytics & Workload';
   const suggestedFilename = buildEmployeeAnalysisExportFilename(context.period, 'pdf').replace(/\.pdf$/, '');
   const headers = context.isRtl
-    ? ['الموظف', 'الاختصار', 'الشفت النهاري', 'المتأخر', 'الليلي', 'استدعاء نهاري', 'استدعاء ليلي', 'OT في الجدول', 'شفتات جدول OT', 'ساعات OT', 'أيام الإجازة', 'إجمالي التعيينات', 'المصدر']
-    : ['Employee', 'Abbreviation', 'Day', 'Late', 'Night', 'On-call Day', 'On-call Night', 'Matrix OT', 'OT Schedule Shifts', 'OT Hours', 'Vacation Days', 'Total Assignments', 'Source'];
+    ? ['الموظف', 'الاختصار', 'الشفت النهاري', 'الليلي', 'استدعاء نهاري', 'استدعاء ليلي', 'OT في الجدول', 'شفتات OT', 'ساعات OT', 'إجمالي الساعات', 'أيام الإجازة', 'إجمالي التعيينات', 'المصدر']
+    : ['Employee', 'Abbreviation', 'Day', 'Night', 'On-call Day', 'On-call Night', 'Matrix OT', 'OT Shifts', 'OT Hours', 'Total Hours', 'Vacation Days', 'Total Assignments', 'Source'];
 
   return `<!DOCTYPE html>
     <html dir="${dir}" lang="${context.isRtl ? 'ar' : 'en'}">
@@ -223,6 +226,7 @@ export function buildEmployeeAnalysisPdfHtml(
               <td>${row.matrixOTShifts}</td>
               <td>${row.otScheduleShifts}</td>
               <td>${row.otScheduleHours}</td>
+              <td><strong>${row.totalHours}</strong></td>
               <td>${row.vacationDays}</td>
               <td><strong>${row.totalScheduledAssignments}</strong></td>
               <td>${escapeHtml(row.source)}</td>

@@ -21,7 +21,7 @@
     "uncovered_one": "{{count}} uncovered",
     "uncovered_other": "{{count}} uncovered",
     "fullyCovered": "Fully covered",
-    "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCall": "On-call", "ot": "OT" }
+    "categories": { "day": "Day Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" }
   },
   "shiftGroups": {
     "title": "Today's shift groups",
@@ -58,11 +58,11 @@
     "greeting": "Welcome {{name}}. Your published Schedule and OT assignments are shown below.",
     "unlinked": { "title": "Your schedule profile is not linked", "description": "Ask an administrator to link your account to your official employee roster record before viewing schedules." },
     "missing": { "title": "No published schedule is available for this period", "description": "There are no published Schedule or OT records for the current period." },
-    "links": { "mySchedule": "My Schedule", "departmentSchedule": "Department Schedule" },
+    "links": { "mySchedule": "My Schedule", "departmentSchedule": "Department Schedule", "ctGateTitle": "Leave Portal (CT Gate)", "ctGateSub": "Log in & request official leave" },
     "nextShift": { "title": "Next shift", "empty": "No upcoming published shift in the available schedule." },
     "week": { "title": "This week", "description": "Sunday through Saturday, including Schedule and OT.", "off": "No assignment" },
     "source": { "schedule": "Schedule", "ot": "OT" },
-    "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" },
+    "categories": { "day": "Day Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" },
     "notices": { "title": "Schedule notices" },
     "summary": { "title": "Current month totals", "description": "Computed only from available published data.", "otHours_one": "{{count}} OT hour", "otHours_other": "{{count}} OT hours", "hoursLabel": "OT hours" }
   }

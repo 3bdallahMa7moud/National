@@ -3,6 +3,7 @@ import ErrorState from './ErrorState';
 import NotFoundPage from '@/features/auth/NotFoundPage';
 import ForbiddenPage from '@/features/auth/ForbiddenPage';
 import { useAuthStore } from '@/stores/authStore';
+import { isAdminOrSuperAdmin } from '@/types';
 
 export default function RouteErrorFallback() {
   const error = useRouteError();
@@ -19,7 +20,7 @@ export default function RouteErrorFallback() {
   }
 
   const handleHome = () => {
-    if (user?.role === 'admin') {
+    if (isAdminOrSuperAdmin(user)) {
       navigate('/admin/dashboard');
     } else if (user?.role === 'employee') {
       navigate('/employee/dashboard');

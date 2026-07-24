@@ -4,7 +4,7 @@
 
 import { memo, useState, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Clock3, Moon, SunMedium } from 'lucide-react';
+import { AlertTriangle, Bell, Clock3, Moon, SunMedium } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { getShiftChipStyle } from './getShiftChipClasses';
@@ -114,6 +114,11 @@ function EmployeeChip({
         }}
         aria-label={ariaLabel}
       >
+        {assignment.hasConflict && (
+          <span title={assignment.conflictReason}>
+            <AlertTriangle className="h-3 w-3 shrink-0 text-alert-coral animate-pulse" />
+          </span>
+        )}
         {colorblindMode && (
           <span className="shrink-0" aria-hidden="true">
             {markerIcons[resolveAssignmentColorKey(assignment, rowColorKey)]}
@@ -145,6 +150,12 @@ function EmployeeChip({
               </span>
             )}
           </div>
+
+          {assignment.hasConflict && (
+            <div className="mt-2.5 rounded-md bg-red-50 border border-alert-coral/30 p-2 text-[11px] font-semibold text-alert-coral">
+              ⚠️ {assignment.conflictReason || 'Shift schedule or vacation conflict'}
+            </div>
+          )}
 
           {!readOnly && lastHistory.length > 0 && (
             <div className="mt-3 border-t border-border pt-2">

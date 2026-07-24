@@ -9,6 +9,13 @@ import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useTranslation } from 'react-i18next';
+import type { UserRole } from '@/types';
+
+function roleLabelKey(role?: UserRole): string {
+  if (role === 'super_admin') return 'common:role.superAdmin';
+  if (role === 'admin') return 'common:role.admin';
+  return 'common:role.employee';
+}
 
 export default function Topbar() {
   const { t } = useTranslation(['common']);
@@ -74,7 +81,7 @@ export default function Topbar() {
               <div className="hidden sm:block text-start">
                 <p className="text-sm font-medium text-text-primary leading-tight">{user?.name}</p>
                 <p className="text-[10px] text-text-secondary">
-                  {user?.role === 'admin' ? t('common:role.admin') : t('common:role.employee')}
+                  {t(roleLabelKey(user?.role), { defaultValue: user?.role === 'super_admin' ? 'Super Admin' : 'Employee' })}
                 </p>
               </div>
             </button>

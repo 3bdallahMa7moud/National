@@ -8,7 +8,7 @@ import Card from '@/components/ui/Card';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { getStoredLanguage } from '@/i18n/constants';
-import { listPublishedAssignmentsForEmployee } from '@/lib/shiftAssignmentGateway';
+import { listPublishedAssignmentsForDepartment, listPublishedAssignmentsForEmployee } from '@/lib/shiftAssignmentGateway';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
@@ -16,6 +16,7 @@ import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore
 import { getEmployeeDirectoryRecord, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import { ShiftRequestCreateWizard } from './components/ShiftRequestCreateWizard';
 import { effectivePermissions, resolveEffectiveEmployeeAccess, type EmployeeAccessProfile } from '@/types/employeeAccess';
+import { isAdminOrSuperAdmin } from '@/types';
 import type {
   ShiftAssignmentRef,
   ShiftRequest,
@@ -134,9 +135,9 @@ export default function ShiftRequestsPage() {
 
   if (!user) return null;
   const currentAccess = resolveEffectiveEmployeeAccess(user, accessProfile);
-  const canCreate = user.role === 'employee'
-    && currentAccess.linked
-    && (currentAccess.permissions['schedule.exchange.create'] || currentAccess.permissions['schedule.replace.create']);
+  const isAdmin = isAdminOrSuperAdmin(user);
+  const canCreate = (user.role === 'employee' || isAdmin)
+    && (isAdmin || (currentAccess.linked && (currentAccess.permissions['schedule.exchange.create'] || currentAccess.permissions['schedule.replace.create'])));
   const statusCounts = {
     total: visibleForAccount.length,
     pending_recipient: visibleForAccount.filter((request) => request.status === 'pending_recipient').length,
@@ -178,7 +179,7 @@ export default function ShiftRequestsPage() {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-text-primary sm:text-2xl">
-            {t(user.role === 'admin' ? 'shiftRequests:adminTitle' : 'shiftRequests:title')}
+            {t(isAdmin ? 'shiftRequests:adminTitle' : 'shiftRequests:title')}
           </h1>
           <p className="mt-1 text-sm text-text-secondary">{t('shiftRequests:subtitle')}</p>
         </div>
@@ -278,7 +279,7 @@ function RequestCard({
 
   const isRecipient = request.recipient.accountId === user.id;
   const isRequester = request.requester.accountId === user.id;
-  const admin = user.role === 'admin';
+  const admin = isAdminOrSuperAdmin(user);
   const canRespond = user.role === 'employee'
     && resolveEffectiveEmployeeAccess(user, accessProfile).permissions['schedule.requests.respond'];
   const canCancel = user.role === 'employee'
@@ -499,30 +500,37 @@ export function ShiftRequestCreateModal({
   const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
   const createRequest = useShiftRequestStore((state) => state.createRequest);
 
+  const isAdmin = isAdminOrSuperAdmin(user);
   const currentAccess = user ? resolveEffectiveEmployeeAccess(user, profiles[user.id]) : null;
-  const requesterAssignments = currentAccess?.scheduleEmployeeId
-    ? listPublishedAssignmentsForEmployee(currentAccess.scheduleEmployeeId, currentAccess.departmentId)
+  const requesterEmployeeId = currentAccess?.scheduleEmployeeId || user?.scheduleEmployeeId || user?.id;
+  const requesterDepartmentId = currentAccess?.departmentId || user?.departmentId || 'dept-1';
+  let requesterAssignments = requesterEmployeeId
+    ? listPublishedAssignmentsForEmployee(requesterEmployeeId, requesterDepartmentId)
       .filter((assignment) => new Date(assignment.startsAt).getTime() > Date.now())
     : [];
+  if (isAdmin && requesterAssignments.length === 0) {
+    requesterAssignments = listPublishedAssignmentsForDepartment(requesterDepartmentId)
+      .filter((assignment) => new Date(assignment.startsAt).getTime() > Date.now());
+  }
   const candidateProfiles = useMemo(() => {
     return Object.fromEntries(Object.entries(profiles).filter(([accountId]) => {
       const record = directoryRecords.find((candidate) => candidate.accountId === accountId);
       return !record || record.issues.length === 0;
     })) as Record<string, EmployeeAccessProfile>;
   }, [directoryRecords, profiles]);
-  const canExchange = currentAccess?.permissions['schedule.exchange.create'] === true;
-  const canReplace = currentAccess?.permissions['schedule.replace.create'] === true;
+  const canExchange = isAdmin || currentAccess?.permissions['schedule.exchange.create'] === true;
+  const canReplace = isAdmin || currentAccess?.permissions['schedule.replace.create'] === true;
   const recipients = useMemo(() => Object.values(candidateProfiles).filter((profile) =>
     profile.active
-    && profile.departmentId === currentAccess?.departmentId
+    && profile.departmentId === requesterDepartmentId
     && Boolean(profile.scheduleEmployeeId)
     && profile.accountId !== user?.id
-    && effectivePermissions(profile.templateId, profile.overrides)['schedule.requests.respond'],
-  ), [candidateProfiles, currentAccess?.departmentId, user?.id]);
+    && (isAdmin || effectivePermissions(profile.templateId, profile.overrides)['schedule.requests.respond'] || isAdminOrSuperAdmin(getEmployeeDirectoryRecord(profile.accountId))),
+  ), [candidateProfiles, requesterDepartmentId, user?.id, isAdmin]);
 
   if (!user) return null;
 
-  if (!currentAccess?.linked) {
+  if (!currentAccess?.linked && !isAdmin && !user?.scheduleEmployeeId) {
     return (
       <Modal isOpen={isOpen} onClose={onClose} title={t('shiftRequests:newRequest')} size="lg">
         <p className="rounded-card border border-warning/30 bg-warning-50 p-4 text-sm text-text-primary">{t('shiftRequests:form.unlinked')}</p>

@@ -7,7 +7,7 @@
     "subtitle": "Published department coverage from Schedule and OT, read-only.",
     "facilityFilter": "Facility filter", "shiftFilter": "Shift filter", "allFacilities": "All facilities", "allShifts": "All shifts",
     "date": "Date", "you": "You", "missing": "No published department schedule is available for this period", "noResults": "No assignments match these filters",
-    "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" }
+    "categories": { "day": "Day Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" }
   },
   "personal": {
     "title": "My Personal Schedule",
@@ -20,7 +20,7 @@
     "week": "Week", "month": "Month", "weekView": "Week view", "monthView": "Month view", "previous": "Previous period", "next": "Next period",
     "noAssignment": "No assignment", "missing": "No published schedule is available for this period", "details": "Shift details", "openDetails": "Open {{shift}} details",
     "scheduleSource": "Schedule", "hours_one": "{{count}} hour", "hours_other": "{{count}} hours",
-    "categories": { "day": "Day Shift", "late": "Late Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" }
+    "categories": { "day": "Day Shift", "night": "Night Shift", "onCallDay": "On-call Day", "onCallNight": "On-call Night", "ot": "OT" }
   },
   "publishedTables": {
     "tabsLabel": "Published schedule type",
@@ -447,7 +447,7 @@
     },
     "printableSection": {
       "headerTitle": "Official Hospital Header:",
-      "headerDefault": "Ministry of National Guard Health Affairs - King Abdulaziz Medical City",
+      "headerDefault": "Health Affairs & Medical Services - Specialized Medical Center",
       "deptTitle": "Department & Section:",
       "deptDefault": "Medical Imaging Department - CT Scan Section",
       "options": "Print Report Options:",
@@ -518,7 +518,7 @@
       "finalApproval": "Final approval: Clinical Services Director"
     },
     "export": {
-      "title": "Shift schedule for {{month}} {{year}} - King Abdulaziz Medical City",
+      "title": "Shift schedule for {{month}} {{year}} - Specialized Medical Center",
       "facilityCol": "Facility & Role",
       "unitCol": "Department & Unit",
       "shiftCol": "Shift & Time",

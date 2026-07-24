@@ -26,14 +26,12 @@ export function formatDateShort(date: string): string {
 }
 
 export function formatTime(time: string): string {
+  if (!time) return '';
   const [hours, minutes] = time.split(':');
-  const h = parseInt(hours);
-  const isAr = i18n.language === 'ar';
-  const period = h >= 12
-    ? (isAr ? 'م' : 'PM')
-    : (isAr ? 'ص' : 'AM');
-  const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
-  return `${displayHour}:${minutes} ${period}`;
+  if (hours === undefined || minutes === undefined) return time;
+  const h = parseInt(hours, 10);
+  if (isNaN(h)) return time;
+  return `${String(h).padStart(2, '0')}:${minutes.padStart(2, '0')}`;
 }
 
 export function getDaysInMonth(year: number, month: number): Date[] {

@@ -21,6 +21,7 @@ import OTAssignmentPanel from './OTAssignmentPanel';
 import OTShiftFormModal from './OTShiftFormModal';
 import OTStructureControl from './OTStructureControl';
 import OTBulkActions from './OTBulkActions';
+import { isAdminOrSuperAdmin } from '@/types';
 
 interface ActiveCell {
   rowId: string;
@@ -32,7 +33,7 @@ export default function LateSchedulePage() {
   const isRtl = i18n.language === 'ar';
   const locale = isRtl ? 'ar-SA-u-ca-gregory' : 'en-US';
   const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isAdminOrSuperAdmin(user);
   const { addToast } = useToast();
   const year = useLateScheduleStore((state) => state.year);
   const month = useLateScheduleStore((state) => state.month);

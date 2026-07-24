@@ -18,7 +18,7 @@ import {
   Hash, KeyRound, Mail, RotateCcw, ShieldCheck,
 } from 'lucide-react';
 import { setEmployeePassword } from '@/mocks/mockPasswordStore';
-import { JOB_TITLE_OPTIONS, findJobTitleOption, type Employee } from '@/types';
+import { JOB_TITLE_OPTIONS, findJobTitleOption, type Employee, type UserRole } from '@/types';
 import EmployeePermissionsPanel from './EmployeePermissionsPanel';
 import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
@@ -63,7 +63,13 @@ export default function EmployeesPage() {
   const { language } = useLanguage();
   const { employees: allEmployees } = useMockData();
   const { addToast } = useToast();
-  const actor = useAuthStore((state) => state.user);
+  const user = useAuthStore((state) => state.user);
+  const actor = user;
+  const roleLabels: Record<UserRole, string> = {
+    super_admin: t('common:role.superAdmin', 'Super Admin'),
+    admin: t('common:role.admin', 'Admin'),
+    employee: t('common:role.employee', 'Employee'),
+  };
   const accessProfiles = useEmployeeAccessStore((state) => state.profiles);
   const addDirectoryEmployee = useEmployeeDirectoryStore((state) => state.addEmployee);
   const updateDirectoryEmployee = useEmployeeDirectoryStore((state) => state.updateEmployee);
@@ -235,49 +241,102 @@ export default function EmployeesPage() {
     {
       key: 'role',
       header: t('employees:management.columns.role'),
-      render: (emp: Employee) => (
-        <Badge variant={emp.role === 'admin' ? 'info' : 'default'}>
-          {emp.role === 'admin' ? t('common:role.admin') : t('common:role.employee')}
-        </Badge>
-      ),
+      render: (emp: Employee) => {
+        const record = getEmployeeDirectoryRecord(emp.id);
+        const role = record?.role || emp.role;
+        if (role === 'super_admin') {
+          return (
+            <Badge variant="warning" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700 font-bold">
+              👑 {t('common:role.superAdmin', 'Super Admin')}
+            </Badge>
+          );
+        }
+        if (role === 'admin') {
+          return (
+            <Badge variant="info" className="bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-700 font-bold">
+              🛡️ {t('common:role.admin', 'Admin')}
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="default">
+            👤 {t('common:role.employee', 'Employee')}
+          </Badge>
+        );
+      },
     },
     {
       key: 'actions',
       header: t('employees:management.columns.actions'),
-      className: 'w-40',
-      render: (emp: Employee) => (
-        <div className="flex justify-end gap-1.5">
-          {emp.role === 'employee' && (
+      className: 'w-56',
+      render: (emp: Employee) => {
+        const record = getEmployeeDirectoryRecord(emp.id);
+        const currentRole = record?.role || emp.role;
+        return (
+          <div className="flex items-center justify-end gap-1.5">
+            {user?.role === 'super_admin' && (
+              <select
+                value={currentRole}
+                onChange={(e) => {
+                  const newRole = e.target.value as UserRole;
+                  const res = useEmployeeDirectoryStore.getState().setRole(emp.id, newRole, user.name);
+                  if (res.ok) {
+                    addToast({
+                      type: 'success',
+                      title: t('common:toast.updated', 'Updated'),
+                      message: t('employees:management.roleUpdated', {
+                        name: emp.name,
+                        role: roleLabels[newRole],
+                      }),
+                    });
+                  } else {
+                    addToast({
+                      type: 'error',
+                      title: t('common:toast.error'),
+                      message: res.message || res.reason,
+                    });
+                  }
+                }}
+                className="input-field text-xs font-semibold py-1 px-2 h-9 bg-surface-card border-border-subtle hover:border-primary/50 text-text-primary rounded-btn cursor-pointer"
+                title={t('employees:management.changeRole', 'Change user role')}
+              >
+                <option value="employee">👤 {roleLabels.employee}</option>
+                <option value="admin">🛡️ {roleLabels.admin}</option>
+                <option value="super_admin">👑 {roleLabels.super_admin}</option>
+              </select>
+            )}
+            {currentRole !== 'super_admin' && (
+              <button
+                type="button"
+                onClick={() => setPermissionsEmployee(emp)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-primary transition-colors hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                aria-label={t('access:permissions.title')}
+                title={t('access:permissions.title')}
+              >
+                <ShieldCheck className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setPermissionsEmployee(emp)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-primary transition-colors hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary/30"
-              aria-label={t('access:permissions.title')}
-              title={t('access:permissions.title')}
+              onClick={() => handleEdit(emp)}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
+              aria-label={t('employees:management.editEmployeeAria', { name: emp.name })}
+              title={t('employees:management.editEmployeeAria', { name: emp.name })}
             >
-              <ShieldCheck className="h-4 w-4" />
+              <Edit2 className="w-4 h-4" />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => handleEdit(emp)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
-            aria-label={t('employees:management.editEmployeeAria', { name: emp.name })}
-            title={t('employees:management.editEmployeeAria', { name: emp.name })}
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setDeleteDialog(emp.id)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-danger transition-colors hover:bg-danger-50 focus:outline-none focus:ring-2 focus:ring-danger/30"
-            aria-label={t('employees:management.deleteEmployeeAria', { name: emp.name })}
-            title={t('employees:management.deleteEmployeeAria', { name: emp.name })}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      ),
+            <button
+              type="button"
+              onClick={() => setDeleteDialog(emp.id)}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-danger transition-colors hover:bg-danger-50 focus:outline-none focus:ring-2 focus:ring-danger/30"
+              aria-label={t('employees:management.deleteEmployeeAria', { name: emp.name })}
+              title={t('employees:management.deleteEmployeeAria', { name: emp.name })}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      },
     },
   ];
 

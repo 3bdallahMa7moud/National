@@ -228,11 +228,11 @@ async function buildLetterhead(
   isEng: boolean,
 ): Promise<(Paragraph | Table)[]> {
   const leftSrc = isEng
-    ? state.leftLogo || '/mngha-logo.png'
+    ? state.leftLogo || '/ct-logo.png'
     : state.rightLogo || '/ct-logo.png';
   const rightSrc = isEng
     ? state.rightLogo || '/ct-logo.png'
-    : state.leftLogo || '/mngha-logo.png';
+    : state.leftLogo || '/ct-logo.png';
 
   const leftImg = await toImageRun(leftSrc, 65, 65);
   const rightImg = await toImageRun(rightSrc, 65, 65);
@@ -770,7 +770,7 @@ export async function createDocument(state: JustificationReportState): Promise<D
   ];
 
   return new Document({
-    creator: 'National Guard Hospital Scheduling System',
+    creator: 'CT Scan Scheduling System',
     title: state.reportTitle,
     description: `OT Justification Report – ${state.month} ${state.year}`,
     sections: [

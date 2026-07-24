@@ -8,7 +8,7 @@ interface SecondaryOperationalMetricsProps { secondary: OperationalSnapshot['sec
 export default function SecondaryOperationalMetrics({ secondary, availableMonths }: SecondaryOperationalMetricsProps) {
   const { t } = useTranslation('dashboard');
   const metrics = [
-    { label: t('secondary.scheduledEmployees'), value: `${secondary.scheduledEmployees} / ${secondary.activeEmployees}`, icon: UsersRound },
+    { label: t('secondary.scheduledEmployees'), value: secondary.scheduledEmployees, icon: UsersRound },
     { label: t('secondary.standardAssignments'), value: secondary.standardAssignments, icon: CalendarRange },
     { label: t('secondary.otHours'), value: t('coverage.hours', { count: secondary.otHours }), icon: TimerReset },
     { label: t('secondary.approvedVacations'), value: secondary.vacationEmployees, icon: Palmtree },

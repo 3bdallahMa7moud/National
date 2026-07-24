@@ -68,6 +68,6 @@ describe('published operational shift visuals', () => {
     expect(operationalShiftGradient([
       { colorKey: 'morning', backgroundColor: '#111111' },
       { colorKey: 'morning', backgroundColor: '#222222' },
-    ])).toContain('linear-gradient');
+    ])).toBe('#111111');
   });
 });

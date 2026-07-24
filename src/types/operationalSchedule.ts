@@ -2,7 +2,6 @@ import type { ShiftColorKey } from './scheduleMatrix';
 
 export type OperationalShiftCategory =
   | 'day'
-  | 'late'
   | 'night'
   | 'onCallDay'
   | 'onCallNight'
