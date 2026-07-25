@@ -38,6 +38,7 @@ import type {
 } from '@/types/scheduleMatrix';
 import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
 import { recalculateAllConflicts, validateAssignmentsForCell } from '@/lib/validateAssignment';
+import { generateConflictFreeScheduleMonth } from '@/lib/conflictFreeScheduleGenerator';
 import { getOfficialEmployeeRoster, useEmployeeRosterStore } from './employeeRosterStore';
 import { useOperationalAuditStore } from './operationalAuditStore';
 
@@ -168,6 +169,7 @@ interface ScheduleMatrixState {
   copyCurrentTable: (actorName?: string) => ScheduleAdminMutationResult;
   pasteCopiedTable: (actorName?: string) => ScheduleAdminMutationResult;
   resetCurrentMonth: (actorName?: string) => ScheduleAdminMutationResult;
+  generateConflictFreeMonth: (actorName?: string) => ScheduleAdminMutationResult;
   currentMonthStatus: () => ScheduleMonthStatus;
 
   expandedCellsView: boolean;
@@ -2140,6 +2142,67 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     if (get().storageError) return { ok: false, reason: 'storage_error', message: get().storageError! };
     recordScheduleAdminAudit(actorName, 'update', state, 'Reset schedule to default layout', key, 'Default layout');
     return { ok: true };
+  },
+
+  generateConflictFreeMonth: (actorName) => {
+    const state = get();
+    if (!state.data) return { ok: false, reason: 'not_found', message: 'The target schedule month is unavailable.' };
+
+    const key = matrixMonthKey(state.data);
+    const beforeAssignmentCount = countMatrixAssignments(state.data);
+    const generation = generateConflictFreeScheduleMonth(state.data);
+
+    if (generation.conflictCount > 0) {
+      return {
+        ok: false,
+        reason: 'invalid_state',
+        message: 'The generated schedule still has conflicts. No changes were saved.',
+      };
+    }
+
+    addAudit(generation.data, state.locale, {
+      actorName,
+      action: 'generate',
+      oldValue: `${beforeAssignmentCount} assignments`,
+      newValue: `${generation.assignedCount} assignments | ${generation.vacationDaysGenerated} vacation days | ${generation.skippedCount} cells left empty`,
+    });
+
+    const versionsByMonth = addMonthVersion(state.versionsByMonth, key, state.data, actorName, 'generate');
+    const deletedMonths = state.deletedMonths.filter((item) => item !== key);
+
+    set({
+      data: generation.data,
+      draftCellKeys: [`month-generate|${key}|${Date.now()}`],
+      undoStack: pushUndo(state),
+      selectedCells: [],
+      brushEmployeeCodes: [],
+      versionsByMonth,
+      deletedMonths,
+      monthStatuses: { ...state.monthStatuses, [key]: 'draft' },
+    });
+
+    if (get().storageError) {
+      return { ok: false, reason: 'storage_error', message: get().storageError! };
+    }
+
+    recordScheduleAdminAudit(
+      actorName,
+      'update',
+      state,
+      'Generate conflict-free schedule',
+      `${beforeAssignmentCount} assignments`,
+      `${generation.assignedCount} assignments; ${generation.vacationDaysGenerated} vacation days; ${generation.skippedCount} cells left empty`,
+    );
+
+    return {
+      ok: true,
+      affected: generation.assignedCount,
+      skipped: generation.skippedCount,
+      vacations: generation.vacationDaysGenerated,
+      message: generation.skippedCount > 0
+        ? `Generated ${generation.assignedCount} assignments and ${generation.vacationDaysGenerated} vacation days with ${generation.skippedCount} cells left empty.`
+        : `Generated ${generation.assignedCount} assignments and ${generation.vacationDaysGenerated} vacation days with no conflicts.`,
+    };
   },
 
 

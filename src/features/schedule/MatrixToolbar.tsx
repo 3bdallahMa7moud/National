@@ -20,6 +20,7 @@ import {
   Printer,
   Search,
   Settings2,
+  Sparkles,
   TimerReset,
   Undo2,
   X,
@@ -78,6 +79,7 @@ interface MatrixToolbarProps {
   canUndo?: boolean;
   onExportExcel?: () => void;
   onExportPDF?: () => void;
+  onGenerateSchedule?: () => void;
   onClearAllAssignments?: () => void;
 }
 
@@ -124,6 +126,7 @@ function MatrixToolbar({
   canUndo = false,
   onExportExcel,
   onExportPDF,
+  onGenerateSchedule,
   onClearAllAssignments,
 }: MatrixToolbarProps) {
   const { t, i18n } = useTranslation(['schedule', 'common']);
@@ -243,6 +246,18 @@ function MatrixToolbar({
             </button>
           </div>
 
+          {onGenerateSchedule && (
+            <button
+              onClick={onGenerateSchedule}
+              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-primary-teal bg-primary-teal/10 px-3 py-1.5 text-xs font-bold text-primary-teal hover:bg-primary-teal hover:text-white transition-all shadow-sm"
+              title={t('schedule:toolbar.generateSchedule')}
+              aria-label={t('schedule:toolbar.generateSchedule')}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden lg:inline">{t('schedule:toolbar.generateSchedule')}</span>
+            </button>
+          )}
+
           {onExportExcel && (
             <button
               onClick={onExportExcel}
@@ -316,6 +331,11 @@ function MatrixToolbar({
             {onExportPDF && (
               <button type="button" onClick={onExportPDF} className="min-h-11 rounded-btn border border-border px-3 text-xs font-semibold text-text-primary hover:bg-hover">
                 {t('schedule:toolbar.exportPDF')}
+              </button>
+            )}
+            {onGenerateSchedule && (
+              <button type="button" onClick={onGenerateSchedule} className="col-span-2 min-h-11 rounded-btn border border-primary-teal px-3 text-xs font-semibold text-primary-teal">
+                {t('schedule:toolbar.generateSchedule')}
               </button>
             )}
             {onClearAllAssignments && (

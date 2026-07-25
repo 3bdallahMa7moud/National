@@ -101,6 +101,7 @@ export default function AdminSchedulePage() {
     copyCurrentTable,
     pasteCopiedTable,
     resetCurrentMonth,
+    generateConflictFreeMonth,
     currentMonthStatus,
     storageError,
   } = store;
@@ -444,6 +445,28 @@ export default function AdminSchedulePage() {
     }
   }, [publishDrafts, addToast, t]);
 
+  const handleGenerateSchedule = useCallback(() => {
+    const result = generateConflictFreeMonth(user?.name);
+    if (result.ok) {
+      addToast({
+        type: 'success',
+        title: t('schedule:toast.generateSuccessTitle'),
+        message: t('schedule:toast.generateSuccessMsg', {
+          assigned: result.affected ?? 0,
+          vacations: result.vacations ?? 0,
+          skipped: result.skipped ?? 0,
+        }),
+      });
+      return;
+    }
+
+    addToast({
+      type: 'error',
+      title: t('schedule:toast.generateFailTitle'),
+      message: result.message || t('schedule:toast.generateFailMsg'),
+    });
+  }, [addToast, generateConflictFreeMonth, t, user?.name]);
+
   const handleLegendEmployeeClick = useCallback(
     (empId: string) => {
       if (adminMode === 'brush') {
@@ -730,6 +753,7 @@ export default function AdminSchedulePage() {
         onOpenFullscreen={() => setIsFullscreenModalOpen(true)}
         onExportExcel={handleExportMatrix}
         onExportPDF={handleExportMatrixPdf}
+        onGenerateSchedule={handleGenerateSchedule}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         searchMatchCount={searchMatches.length}

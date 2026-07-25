@@ -230,6 +230,70 @@ describe('scheduleMatrixStore administration', () => {
     expect(useScheduleMatrixStore.getState().matricesByMonth['2026-07']).toBeTruthy();
   });
 
+  it('generates a conflict-free draft month with vacations and a recovery version', () => {
+    const result = useScheduleMatrixStore.getState().generateConflictFreeMonth('Admin');
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.ok && result.affected).toBeGreaterThan(0);
+    expect(result.ok && result.vacations).toBeGreaterThan(0);
+    expect(useScheduleMatrixStore.getState().currentMonthStatus()).toBe('draft');
+    expect(useScheduleMatrixStore.getState().versionsByMonth['2026-07'][0].reason).toBe('generate');
+    expect(useScheduleMatrixStore.getState().conflictCount()).toBe(0);
+  });
+
+  it('preserves schedule structure, styles, roster, settings, and existing vacations while generating', () => {
+    const before = JSON.parse(JSON.stringify(useScheduleMatrixStore.getState().data));
+    const targetRow = before.facilities[0].units[0].rows[0];
+    const existingVacationEmployeeId = before.vacations[0].employeeId;
+    const existingVacationDays = [...before.vacations[0].daysOff];
+    targetRow.rowLabel = 'Custom Generator Row';
+    targetRow.backgroundColor = '#123456';
+    targetRow.textColor = '#F8FAFC';
+    useScheduleMatrixStore.setState({ data: before });
+
+    const result = useScheduleMatrixStore.getState().generateConflictFreeMonth('Admin');
+
+    expect(result.ok).toBe(true);
+    const after = useScheduleMatrixStore.getState().data!;
+    const generatedRow = after.facilities[0].units[0].rows[0];
+    expect(generatedRow).toMatchObject({
+      id: targetRow.id,
+      rowLabel: 'Custom Generator Row',
+      backgroundColor: '#123456',
+      textColor: '#F8FAFC',
+    });
+    expect(after.legend).toEqual(before.legend);
+    expect(after.settings).toEqual(before.settings);
+    expect(after.vacations.find((vacation) => vacation.employeeId === existingVacationEmployeeId)?.daysOff)
+      .toEqual(existingVacationDays);
+    expect(after.vacations.reduce((total, vacation) => total + vacation.daysOff.length, 0))
+      .toBeGreaterThan(before.vacations.reduce((total: number, vacation: { daysOff: number[] }) => total + vacation.daysOff.length, 0));
+  });
+
+  it('rolls back a generated month and returns storage_error when persistence fails', () => {
+    const before = {
+      data: JSON.parse(JSON.stringify(useScheduleMatrixStore.getState().data)),
+      draftCellKeys: [...useScheduleMatrixStore.getState().draftCellKeys],
+      monthStatuses: { ...useScheduleMatrixStore.getState().monthStatuses },
+      versionsByMonth: JSON.parse(JSON.stringify(useScheduleMatrixStore.getState().versionsByMonth)),
+      deletedMonths: [...useScheduleMatrixStore.getState().deletedMonths],
+    };
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+
+    const result = useScheduleMatrixStore.getState().generateConflictFreeMonth('Admin');
+    setItem.mockRestore();
+
+    expect(result).toMatchObject({ ok: false, reason: 'storage_error' });
+    expect(useScheduleMatrixStore.getState().data).toEqual(before.data);
+    expect(useScheduleMatrixStore.getState().draftCellKeys).toEqual(before.draftCellKeys);
+    expect(useScheduleMatrixStore.getState().monthStatuses).toEqual(before.monthStatuses);
+    expect(useScheduleMatrixStore.getState().versionsByMonth).toEqual(before.versionsByMonth);
+    expect(useScheduleMatrixStore.getState().deletedMonths).toEqual(before.deletedMonths);
+    expect(useScheduleMatrixStore.getState().storageError).toBeTruthy();
+  });
+
 
   it('copies a schedule snapshot into another month with assignments, colors and manual order intact', () => {
     const state = useScheduleMatrixStore.getState();

@@ -33,7 +33,7 @@ export type VacationType = 'annual' | 'sick' | 'emergency';
 export type ScheduleMonthStatus = 'draft' | 'published';
 
 export type ScheduleAdminMutationResult =
-  | { ok: true; affected?: number; message?: string }
+  | { ok: true; affected?: number; skipped?: number; vacations?: number; message?: string }
   | { ok: false; reason: 'not_found' | 'invalid_state' | 'storage_error'; message?: string };
 
 export interface LegendEmployee {
@@ -180,6 +180,7 @@ export interface AuditEntry {
     | 'reset'
     | 'copy'
     | 'paste'
+    | 'generate'
     | 'lock'
     | 'unlock'
     | 'clone'
@@ -213,7 +214,7 @@ export interface ScheduleMatrixVersion {
   id: string;
   createdAt: string;
   actorName: string;
-  reason: 'publish' | 'clear' | 'reset' | 'delete' | 'restore' | 'paste' | 'shift_request';
+  reason: 'publish' | 'clear' | 'reset' | 'delete' | 'restore' | 'paste' | 'generate' | 'shift_request';
   data: ScheduleMatrixData;
 }
 
