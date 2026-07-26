@@ -108,8 +108,8 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
         </div>
       </div>
 
-      <div className="overflow-x-auto pb-1">
-        <div className="grid min-w-[350px] grid-cols-7 gap-1">
+      <div className="min-w-0 pb-1">
+        <div className="grid min-w-0 grid-cols-7 gap-1">
           {weekDays.map((day) => {
             const date = new Date(data.year, data.month, day);
             const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date);
@@ -120,14 +120,14 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
                 type="button"
                 onClick={() => setSelectedDay(day)}
                 className={cn(
-                  'flex min-h-14 flex-col items-center justify-center rounded-lg border px-1 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30',
+                  'flex min-h-14 min-w-0 flex-col items-center justify-center overflow-hidden rounded-lg border px-0.5 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30',
                   active
                     ? 'border-primary bg-primary text-white'
                     : 'border-border bg-surface-muted text-text-secondary hover:bg-hover hover:text-text-primary',
                 )}
                 aria-pressed={active}
               >
-                <span className="text-[10px] font-semibold">{weekday}</span>
+                <span className="block max-w-full truncate text-[9px] font-semibold sm:text-[10px]">{weekday}</span>
                 <span className="mt-0.5 text-sm font-bold">{new Intl.NumberFormat(locale).format(day)}</span>
               </button>
             );

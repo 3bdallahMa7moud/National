@@ -8,16 +8,16 @@ export default function AppShell() {
   const { sidebarCollapsed } = useUIStore();
 
   return (
-    <div className="min-h-screen bg-background print:bg-white print:min-h-0 print:!p-0 print:!m-0">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-background print:bg-white print:min-h-0 print:!p-0 print:!m-0">
       <Sidebar />
       <div
         className={cn(
-          'min-w-0 transition-all duration-300 print:!ms-0 print:!m-0 print:!p-0 print:!w-full print:!block',
+          'min-w-0 max-w-full transition-all duration-300 print:!ms-0 print:!m-0 print:!p-0 print:!w-full print:!block',
           sidebarCollapsed ? 'lg:ms-[72px]' : 'lg:ms-64'
         )}
       >
         <Topbar />
-        <main className="min-w-0 overflow-x-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-7 print:!p-0 print:!m-0 print:!overflow-visible print:!w-full print:!block">
+        <main className="min-w-0 max-w-full overflow-x-clip px-3 py-4 sm:px-6 lg:px-8 lg:py-7 print:!p-0 print:!m-0 print:!overflow-visible print:!w-full print:!block">
           <Outlet />
         </main>
       </div>

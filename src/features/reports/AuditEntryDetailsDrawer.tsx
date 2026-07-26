@@ -63,10 +63,10 @@ export default function AuditEntryDetailsDrawer({ entry, onClose }: AuditEntryDe
         </div>
         <div className="space-y-5 py-5">
           <div><p className="text-xs font-medium text-text-secondary">{t('audit.details.entity')}</p><p className="mt-1 font-semibold text-text-primary">{entityLabel}</p><p className="mt-1 font-mono text-xs text-text-secondary">{entry.entityId}</p></div>
-          <dl className="grid grid-cols-2 gap-4 rounded-card bg-surface-muted p-4 text-sm">
+          <dl className="grid grid-cols-1 gap-4 rounded-card bg-surface-muted p-4 text-sm sm:grid-cols-2">
             <div><dt className="text-xs text-text-secondary">{t('audit.details.actor')}</dt><dd className="mt-1 font-medium text-text-primary">{entry.actorName}</dd></div>
             <div><dt className="text-xs text-text-secondary">{t('audit.details.action')}</dt><dd className="mt-1 font-medium text-text-primary">{t(`audit.actions.${entry.action}`)}</dd></div>
-            <div className="col-span-2"><dt className="text-xs text-text-secondary">{t('audit.details.timestamp')}</dt><dd className="mt-1 text-text-primary">{new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(entry.timestamp))}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-xs text-text-secondary">{t('audit.details.timestamp')}</dt><dd className="mt-1 text-text-primary">{new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(entry.timestamp))}</dd></div>
           </dl>
           {(entry.before !== undefined || entry.after !== undefined) && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

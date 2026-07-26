@@ -353,11 +353,11 @@ function MatrixToolbar({
       </div>
 
       {isDirty && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 shadow-soft">
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 shadow-soft sm:flex-row sm:flex-wrap sm:items-center">
           <Undo2 className="h-4 w-4 shrink-0" />
           <span className="font-bold">{t('schedule:toolbar.unpublishedDrafts')}</span>
           <span>{t('schedule:toolbar.draftChanges', { count: pendingDraftCount })}</span>
-          <div className="ms-auto flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:ms-auto sm:flex-row sm:items-center">
             <Button size="sm" variant="primary" onClick={onPublish} className="bg-primary-teal text-white border-0 hover:bg-primary-teal/90">
               <CheckCircle2 className="me-1 h-3.5 w-3.5" />
               {t('schedule:toolbar.publishUpdates')}
@@ -480,16 +480,16 @@ function MatrixToolbar({
       </div>
 
       {highlightedEmployeeId && (
-        <div className="flex items-center gap-2 rounded-lg bg-signal-cyan/10 border border-signal-cyan/20 px-3 py-2 text-xs font-medium text-primary-teal">
+        <div className="flex flex-col gap-2 rounded-lg border border-signal-cyan/20 bg-signal-cyan/10 px-3 py-2 text-xs font-medium text-primary-teal sm:flex-row sm:items-center">
           <span>{t('schedule:matrix.highlightActive')}</span>
-          <button onClick={onClearHighlight} className="ms-auto flex items-center gap-1 text-[11px] hover:text-ink">
+          <button onClick={onClearHighlight} className="flex min-h-11 items-center gap-1 text-[11px] hover:text-ink sm:ms-auto">
             <X className="h-3 w-3" /> {t('schedule:matrix.cancelHighlight')}
           </button>
         </div>
       )}
 
       {adminMode === 'brush' && (
-        <div className="flex items-center gap-2 rounded-lg bg-violet-50 border border-violet-200 px-3 py-2 text-xs font-medium text-violet-700">
+        <div className="flex flex-col gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700 sm:flex-row sm:items-center">
           <Paintbrush className="h-3.5 w-3.5" />
           <span>{t('schedule:matrix.brushSelectionCount', { count: brushEmployeeCodes.length })}</span>
           {brushEmployeeCodes.length > 0 && (
@@ -498,7 +498,7 @@ function MatrixToolbar({
             </span>
           )}
           {brushEmployeeCodes.length > 0 && (
-            <button onClick={onClearBrush} className="ms-auto flex items-center gap-1 text-[11px] hover:text-ink">
+            <button onClick={onClearBrush} className="flex min-h-11 items-center gap-1 text-[11px] hover:text-ink sm:ms-auto">
               <X className="h-3 w-3" /> {t('schedule:matrix.cancelBrush')}
             </button>
           )}
@@ -506,7 +506,7 @@ function MatrixToolbar({
       )}
 
       {selectedCellCount > 0 && (
-        <div className="flex items-center gap-3 rounded-lg bg-primary-teal/10 border border-primary-teal/20 px-3 py-2 text-xs font-medium text-primary-teal">
+        <div className="flex flex-col gap-2 rounded-lg border border-primary-teal/20 bg-primary-teal/10 px-3 py-2 text-xs font-medium text-primary-teal sm:flex-row sm:items-center sm:gap-3">
           <span>{t('schedule:matrix.cellsSelected', { count: selectedCellCount })}</span>
           <Button size="sm" variant="primary" onClick={onBulkAssign} className="bg-primary-teal hover:bg-primary-teal/90 border-0 text-white text-[11px] px-2.5 py-1">
             {t('schedule:matrix.assignEmployee')}
@@ -514,7 +514,7 @@ function MatrixToolbar({
           <Button size="sm" variant="ghost" onClick={onBulkClear} className="text-[11px] px-2.5 py-1 text-text-secondary hover:text-ink hover:bg-hover">
             {t('schedule:matrix.clearCells')}
           </Button>
-          <button onClick={onClearSelection} className="ms-auto flex items-center gap-1 text-[11px] hover:text-ink">
+          <button onClick={onClearSelection} className="flex min-h-11 items-center gap-1 text-[11px] hover:text-ink sm:ms-auto">
             <X className="h-3 w-3" /> {t('schedule:matrix.cancelSelection')}
           </button>
         </div>

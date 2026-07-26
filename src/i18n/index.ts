@@ -2,33 +2,59 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import {
   applyDocumentDirection,
+  CRITICAL_NAMESPACES,
   DEFAULT_LANGUAGE,
   getStoredLanguage,
   NAMESPACES,
   type Language,
   type Namespace,
 } from './constants';
+import { importNamespaceResources } from './resourceLoader';
 
 export { useTranslation, Trans } from 'react-i18next';
 export * from './constants';
 
-async function loadNamespaceResources(lng: Language, ns: Namespace): Promise<Record<string, unknown>> {
-  const mod = await import(`./locales/${lng}/${ns}.json`);
-  return mod.default as Record<string, unknown>;
-}
+const namespaceLoadPromises = new Map<string, Promise<void>>();
+let initializationPromise: Promise<typeof i18n> | null = null;
 
 export async function loadNamespace(ns: Namespace, lng?: Language): Promise<void> {
   const language = lng ?? (i18n.language as Language);
   if (i18n.hasResourceBundle(language, ns)) return;
-  const resources = await loadNamespaceResources(language, ns);
-  i18n.addResourceBundle(language, ns, resources, true, true);
+
+  const key = `${language}:${ns}`;
+  const existing = namespaceLoadPromises.get(key);
+  if (existing) return existing;
+
+  const request = importNamespaceResources(language, ns)
+    .then((resources) => {
+      i18n.addResourceBundle(language, ns, resources, true, true);
+    })
+    .finally(() => {
+      namespaceLoadPromises.delete(key);
+    });
+
+  namespaceLoadPromises.set(key, request);
+  return request;
+}
+
+export async function loadNamespaces(
+  namespaces: readonly Namespace[],
+  lng?: Language,
+): Promise<void> {
+  await Promise.all([...new Set(namespaces)].map((namespace) => loadNamespace(namespace, lng)));
 }
 
 export async function changeLanguage(lng: Language): Promise<void> {
   localStorage.setItem('app-language', lng);
   applyDocumentDirection(lng);
 
-  await Promise.all(NAMESPACES.map((ns) => loadNamespace(ns, lng)));
+  const currentLanguage = (i18n.resolvedLanguage || i18n.language || DEFAULT_LANGUAGE) as Language;
+  const namespacesToLoad = NAMESPACES.filter(
+    (namespace) =>
+      CRITICAL_NAMESPACES.includes(namespace as (typeof CRITICAL_NAMESPACES)[number]) ||
+      i18n.hasResourceBundle(currentLanguage, namespace),
+  );
+  await loadNamespaces(namespacesToLoad, lng);
 
   await i18n.changeLanguage(lng);
 
@@ -39,13 +65,13 @@ export async function changeLanguage(lng: Language): Promise<void> {
   dayjs.locale(lng === 'ar' ? 'ar' : 'en');
 }
 
-export async function initI18n(): Promise<typeof i18n> {
+async function initializeI18n(): Promise<typeof i18n> {
   const lng = getStoredLanguage();
   applyDocumentDirection(lng);
 
   const bundles = await Promise.all(
-    NAMESPACES.map(async (ns) => {
-      const resources = await loadNamespaceResources(lng, ns);
+    CRITICAL_NAMESPACES.map(async (ns) => {
+      const resources = await importNamespaceResources(lng, ns);
       return [ns, resources] as const;
     })
   );
@@ -58,16 +84,28 @@ export async function initI18n(): Promise<typeof i18n> {
     resources,
     lng,
     fallbackLng: DEFAULT_LANGUAGE,
-    ns: [...NAMESPACES],
+    ns: [...CRITICAL_NAMESPACES],
+    supportedLngs: ['en', 'ar'],
     defaultNS: 'common',
     interpolation: { escapeValue: false },
     react: { useSuspense: false },
   });
 
-  const dayjs = (await import('@/lib/dayjs')).default;
-  dayjs.locale(lng === 'ar' ? 'ar' : 'en');
+  void import('@/lib/dayjs').then(({ default: dayjs }) => {
+    dayjs.locale(lng === 'ar' ? 'ar' : 'en');
+  });
 
   return i18n;
+}
+
+export function initI18n(): Promise<typeof i18n> {
+  if (!initializationPromise) {
+    initializationPromise = initializeI18n().catch((error: unknown) => {
+      initializationPromise = null;
+      throw error;
+    });
+  }
+  return initializationPromise;
 }
 
 export default i18n;

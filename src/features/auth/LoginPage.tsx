@@ -60,15 +60,11 @@ export default function LoginPage() {
   return (
     <AuthSplitLayout>
       <aside className={AUTH_HERO_COLUMN_CLASS}>
-        <div className="absolute inset-0 z-0">
-          <img
-            src="/saudi-hospital.webp"
-            alt={t('common:hospital.imageAlt')}
-            loading="eager"
-            decoding="async"
-            fetchPriority="high"
-            className="h-full w-full object-cover object-center transform scale-105 transition-transform duration-1000"
-          />
+        <div
+          className="absolute inset-0 z-0 bg-[url('/saudi-hospital-1024.webp')] bg-cover bg-center"
+          role="img"
+          aria-label={t('common:hospital.imageAlt')}
+        >
           <div className="absolute inset-0 bg-gradient-to-t from-[#06131b]/95 via-[#083d48]/88 to-[#0b7285]/76 backdrop-blur-[1px]" />
         </div>
 
@@ -76,7 +72,7 @@ export default function LoginPage() {
           <HospitalLogo size="lg" variant="white" subtitle={t('common:hospital.healthAffairs')} />
           <div className="mt-4">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur-md border border-white/20 mb-3 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
+              <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_rgba(34,197,94,0.75)]" />
               <span>{t('auth:login.heroBadge')}</span>
             </div>
             <p className="text-sm font-medium text-white/90 drop-shadow-sm">{t('common:hospital.name')}</p>
@@ -197,49 +193,43 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => handleFillDemo('EMP-001')}
-                  className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-500/10 p-2 flex items-center justify-between w-full text-start hover:bg-amber-500/20 transition-all cursor-pointer"
+                  className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-500/10 p-2 text-start transition-all hover:bg-amber-500/20 dark:border-amber-700"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <span className="font-bold text-amber-600 dark:text-amber-400">👑 {t('common:role.superAdmin', 'Super Admin')}</span>
                     <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-001</span>
                   </div>
-                  <span className="text-text-secondary font-mono text-[10px] bg-background px-2 py-0.5 rounded border border-border font-semibold" dir="ltr">123456</span>
+                  <span className="shrink-0 rounded border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-semibold text-text-secondary" dir="ltr">123456</span>
                 </button>
                 {/* Admin demo */}
                 <button
                   type="button"
                   onClick={() => handleFillDemo('EMP-003')}
-                  className="rounded-lg border border-border bg-surface-muted/80 p-2 flex items-center justify-between w-full text-start hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
+                  className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted/80 p-2 text-start transition-all hover:border-primary/50 hover:bg-primary/5"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <span className="font-bold text-teal-600 dark:text-teal-400">🛡️ {t('common:role.admin', 'Admin')}</span>
                     <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-003</span>
                   </div>
-                  <span className="text-text-secondary font-mono text-[10px] bg-background px-2 py-0.5 rounded border border-border font-semibold" dir="ltr">123456</span>
+                  <span className="shrink-0 rounded border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-semibold text-text-secondary" dir="ltr">123456</span>
                 </button>
                 {/* Employee demo */}
                 <button
                   type="button"
                   onClick={() => handleFillDemo('EMP-002')}
-                  className="rounded-lg border border-border bg-surface-muted/80 p-2 flex items-center justify-between w-full text-start hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
+                  className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted/80 p-2 text-start transition-all hover:border-primary/50 hover:bg-primary/5"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <span className="font-bold text-text-primary">👤 {t('common:role.employee', 'Employee')}</span>
                     <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-002</span>
                   </div>
-                  <span className="text-text-secondary font-mono text-[10px] bg-background px-2 py-0.5 rounded border border-border font-semibold" dir="ltr">123456</span>
+                  <span className="shrink-0 rounded border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-semibold text-text-secondary" dir="ltr">123456</span>
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="absolute bottom-4 w-full text-center px-4">
-          <p className="text-[11px] leading-relaxed text-text-secondary/70 font-medium">
-            Created by Eshraq Alruhaimi<br />
-            Technical Development by Abdallah Mahmoud
-          </p>
-        </div>
       </main>
     </AuthSplitLayout>
   );

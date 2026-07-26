@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, UsersRound } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock3, MapPin, UsersRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { OTShiftRow, OTUnit } from '@/types/lateSchedule';
 import type { UnifiedEmployee } from '@/lib/unifiedEmployeeRoster';

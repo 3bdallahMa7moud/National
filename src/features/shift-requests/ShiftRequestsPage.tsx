@@ -24,7 +24,6 @@ import type {
   ShiftRequestMutationReason,
   ShiftRequestMutationResult,
   ShiftRequestStatus,
-  ShiftRequestType,
 } from '@/types/shiftRequest';
 
 type RequestFilter = 'all' | 'incoming' | 'outgoing';
@@ -34,8 +33,6 @@ const ACTIVE_STATUSES: ShiftRequestStatus[] = ['pending_recipient', 'pending_adm
 const CLOSED_STATUSES: ShiftRequestStatus[] = [
   'recipient_rejected', 'admin_rejected', 'cancelled', 'expired', 'stale',
 ];
-const closedStatuses = CLOSED_STATUSES;
-
 const rejectionReasons: ShiftRequestAdminRejectionReason[] = [
   'staff_shortage', 'skill_mismatch', 'approved_leave', 'operational_need', 'other',
 ];
@@ -184,7 +181,7 @@ export default function ShiftRequestsPage() {
           <p className="mt-1 text-sm text-text-secondary">{t('shiftRequests:subtitle')}</p>
         </div>
         {canCreate && (
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
+          <Button className="w-full sm:w-auto" icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
             {t('shiftRequests:newRequest')}
           </Button>
         )}
@@ -406,7 +403,7 @@ function RequestCard({
             )}
             <select
               aria-label={t('shiftRequests:adminReason')}
-              className="input-field min-w-[12rem]"
+              className="input-field w-full min-w-0 sm:w-auto sm:min-w-[12rem]"
               value={reason}
               onChange={(event) => {
                 const nextReason = event.target.value as ShiftRequestAdminRejectionReason;
@@ -418,7 +415,7 @@ function RequestCard({
             </select>
             {reason === 'other' && (
               <input
-                className="input-field min-w-[12rem] flex-1"
+                className="input-field w-full min-w-0 flex-1 sm:min-w-[12rem]"
                 aria-label={t('shiftRequests:adminNote')}
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
@@ -437,7 +434,7 @@ function RequestCard({
             </Button>
           </>
         )}
-        <Button className="ms-auto" size="sm" variant="ghost" onClick={() => setShowTimeline((value) => !value)}>
+        <Button className="w-full sm:ms-auto sm:w-auto" size="sm" variant="ghost" onClick={() => setShowTimeline((value) => !value)}>
           {t('shiftRequests:timeline')}
         </Button>
       </div>
@@ -553,8 +550,4 @@ export function ShiftRequestCreateModal({
       createRequest={createRequest}
     />
   );
-}
-
-function assignmentRequestKey(assignment: ShiftAssignmentRef): string {
-  return `${assignment.source}|${assignment.monthKey}|${assignment.rowId}|${assignment.day}|${assignment.employeeId}`;
 }

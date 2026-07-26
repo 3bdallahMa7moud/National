@@ -1,4 +1,4 @@
-import { BarChart3, ChevronLeft, ChevronRight, FileSpreadsheet, LayoutGrid, LayoutList, Plus, Printer, Search, Smartphone, Timer } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileSpreadsheet, LayoutGrid, LayoutList, Plus, Printer, Smartphone, Timer } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Button from '@/components/ui/Button';
 
@@ -6,15 +6,11 @@ export type OTViewMode = 'auto' | 'grid' | 'week';
 
 interface LateScheduleToolbarProps {
   monthLabel: string;
-  search: string;
   canEdit: boolean;
-  showStats: boolean;
   viewMode: OTViewMode;
   onViewModeChange(mode: OTViewMode): void;
-  onSearch(value: string): void;
   onPreviousMonth(): void;
   onNextMonth(): void;
-  onToggleStats(): void;
   onExportExcel(): void;
   onExportPdf(): void;
   onAddShift(): void;
@@ -89,36 +85,19 @@ export default function LateScheduleToolbar(props: LateScheduleToolbarProps) {
         </div>
       </div>
 
-      {/* Bottom row: Search + Actions */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative min-w-0 flex-1 sm:max-w-md">
-          <Search aria-hidden="true" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
-          <input
-            type="search"
-            value={props.search}
-            onChange={(event) => props.onSearch(event.target.value)}
-            placeholder={isRtl ? 'بحث في شفتات أو موظفين...' : 'Search shifts or employees...'}
-            aria-label={isRtl ? 'بحث في شفتات أو موظفين' : 'Search shifts or employees'}
-            className="input-field min-h-11 ps-10 w-full"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<BarChart3 className="h-4 w-4" />} onClick={props.onToggleStats}>
-            <span className="text-xs sm:text-sm">{props.showStats ? (isRtl ? 'إخفاء الإحصائيات' : 'Hide stats') : (isRtl ? 'عرض الإحصائيات' : 'Show stats')}</span>
+      {/* Bottom row: Export and Add actions */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<FileSpreadsheet className="h-4 w-4 text-emerald-600" />} onClick={props.onExportExcel}>
+          <span className="text-xs sm:text-sm">{isRtl ? 'Excel' : 'Excel'}</span>
+        </Button>
+        <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<Printer className="h-4 w-4" />} onClick={props.onExportPdf}>
+          <span className="text-xs sm:text-sm">PDF</span>
+        </Button>
+        {props.canEdit && (
+          <Button className="min-h-11 w-full sm:w-auto" icon={<Plus className="h-4 w-4" />} onClick={props.onAddShift}>
+            <span className="text-xs sm:text-sm font-bold">{isRtl ? 'إضافة شفت OT' : 'Add OT shift'}</span>
           </Button>
-          <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<FileSpreadsheet className="h-4 w-4 text-emerald-600" />} onClick={props.onExportExcel}>
-            <span className="text-xs sm:text-sm">{isRtl ? 'Excel' : 'Excel'}</span>
-          </Button>
-          <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<Printer className="h-4 w-4" />} onClick={props.onExportPdf}>
-            <span className="text-xs sm:text-sm">PDF</span>
-          </Button>
-          {props.canEdit && (
-            <Button className="min-h-11 w-full sm:w-auto" icon={<Plus className="h-4 w-4" />} onClick={props.onAddShift}>
-              <span className="text-xs sm:text-sm font-bold">{isRtl ? 'إضافة شفت OT' : 'Add OT shift'}</span>
-            </Button>
-          )}
-        </div>
+        )}
       </div>
     </header>
   );

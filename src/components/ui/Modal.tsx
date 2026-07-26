@@ -1,4 +1,5 @@
-import React, { useEffect, useCallback, useId, useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +11,10 @@ interface ModalProps {
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   showClose?: boolean;
+  ariaLabel?: string;
+  descriptionId?: string;
+  closeOnEscape?: boolean;
+  closeOnOverlay?: boolean;
 }
 
 const sizeClasses = {
@@ -17,13 +22,43 @@ const sizeClasses = {
   md: 'max-w-lg',
   lg: 'max-w-2xl',
   xl: 'max-w-4xl',
-  full: 'max-w-[90vw]',
+  full: 'max-w-[calc(100vw-1rem)] sm:max-w-[90vw]',
 };
 
-export default function Modal({ isOpen, onClose, title, children, size = 'md', showClose = true }: ModalProps) {
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[contenteditable="true"]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+const modalStack: HTMLElement[] = [];
+
+function getFocusableElements(dialog: HTMLElement): HTMLElement[] {
+  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (element) => !element.closest('[hidden], [aria-hidden="true"], [inert]'),
+  );
+}
+
+export default function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  size = 'md',
+  showClose = true,
+  ariaLabel,
+  descriptionId,
+  closeOnEscape = true,
+  closeOnOverlay = true,
+}: ModalProps) {
   const { t } = useTranslation(['common']);
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   
   useEffect(() => {
@@ -31,41 +66,102 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
   }, [onClose]);
 
   useEffect(() => {
-    if (isOpen) {
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onCloseRef.current();
-      };
+    if (!isOpen) return;
 
-      const previouslyFocused = document.activeElement as HTMLElement | null;
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-      
-      window.requestAnimationFrame(() => {
-        const preferredFocus = dialogRef.current?.querySelector<HTMLElement>(
-          '[data-modal-autofocus], [autofocus]',
-        );
-        const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        (preferredFocus ?? firstFocusable)?.focus();
+    const dialog = dialogRef.current;
+    const portal = portalRef.current;
+    if (!dialog || !portal) return;
+
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    const backgroundElements = Array.from(document.body.children)
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== portal)
+      .map((element) => ({ element, inert: element.inert }));
+
+    modalStack.push(dialog);
+    backgroundElements.forEach(({ element }) => {
+      element.inert = true;
+    });
+    document.body.style.overflow = 'hidden';
+
+    const focusInsideDialog = (preferLast = false) => {
+      const focusable = getFocusableElements(dialog);
+      const target = preferLast ? focusable[focusable.length - 1] : focusable[0];
+      (target ?? dialog).focus();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (modalStack[modalStack.length - 1] !== dialog) return;
+
+      if (event.key === 'Escape' && closeOnEscape) {
+        event.preventDefault();
+        event.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const focusable = getFocusableElements(dialog);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const activeElement = document.activeElement;
+      if (!dialog.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (modalStack[modalStack.length - 1] !== dialog || dialog.contains(event.target as Node)) return;
+      focusInsideDialog();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('focusin', handleFocusIn);
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      const preferredFocus = dialog.querySelector<HTMLElement>(
+        '[data-modal-autofocus], [autofocus]',
+      );
+      (preferredFocus ?? getFocusableElements(dialog)[0] ?? dialog).focus();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('focusin', handleFocusIn);
+      const stackIndex = modalStack.lastIndexOf(dialog);
+      if (stackIndex >= 0) modalStack.splice(stackIndex, 1);
+      backgroundElements.forEach(({ element, inert }) => {
+        element.inert = inert;
       });
-      
-      return () => {
-        document.removeEventListener('keydown', handleEscape);
-        document.body.style.overflow = '';
-        previouslyFocused?.focus();
-      };
-    }
-  }, [isOpen]);
+      document.body.style.overflow = previousBodyOverflow;
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [closeOnEscape, isOpen]);
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+  return createPortal(
+    <div ref={portalRef} className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden p-2 sm:p-4">
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[2px] animate-fadeIn"
-        onClick={onClose}
+        onClick={closeOnOverlay ? onClose : undefined}
         aria-hidden="true"
       />
       {/* Content */}
@@ -74,29 +170,32 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
-        aria-label={title ? undefined : t('common:actions.close')}
+        aria-label={title ? undefined : ariaLabel ?? t('common:dialog', { defaultValue: 'Dialog' })}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
         className={cn(
-          'relative mx-3 flex max-h-[90vh] w-full flex-col rounded-card border border-border bg-surface shadow-dropdown animate-slideUp sm:mx-4',
+          'relative flex max-h-[calc(100vh-1rem)] w-full max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-dropdown animate-slideUp sm:max-h-[90vh]',
           sizeClasses[size]
         )}
       >
         {/* Header */}
         {(title || showClose) && (
-          <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-3 sm:px-6">
-            {title && <h2 id={titleId} className="text-lg sm:text-xl font-semibold text-text-primary">{title}</h2>}
+          <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
+            {title && <h2 id={titleId} className="min-w-0 text-base font-semibold text-text-primary sm:text-xl">{title}</h2>}
             {showClose && (
               <button
+                type="button"
                 onClick={onClose}
                 className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
                 aria-label={t('common:actions.close')}
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             )}
           </div>
         )}
         {/* Body */}
-        <div className="max-h-[75vh] overflow-y-auto p-4 sm:p-6">{children}</div>
+        <div className="max-h-[calc(100vh-6rem)] min-w-0 overflow-x-hidden overflow-y-auto p-4 sm:max-h-[75vh] sm:p-6">{children}</div>
       </div>
 
       <style>{`
@@ -105,6 +204,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', s
         .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
         .animate-slideUp { animation: slideUp 0.3s ease-out; }
       `}</style>
-    </div>
+    </div>,
+    document.body,
   );
 }

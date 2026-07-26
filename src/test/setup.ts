@@ -1,8 +1,9 @@
 import '@testing-library/jest-dom/vitest';
-import { initI18n } from '@/i18n';
+import { initI18n, loadNamespaces, NAMESPACES } from '@/i18n';
 
 localStorage.setItem('app-language', 'en');
 await initI18n();
+await loadNamespaces(NAMESPACES, 'en');
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

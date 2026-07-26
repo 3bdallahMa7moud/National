@@ -117,7 +117,14 @@ describe('ShiftRequestCreateWizard', () => {
       storageError: null,
     });
     useAuthStore.setState({
-      user: { id: 'user-1', name: 'User One', role: 'admin', departmentId: 'dept-1' } as any,
+      user: {
+        id: 'user-1',
+        name: 'User One',
+        email: '',
+        role: 'admin',
+        departmentId: 'dept-1',
+        departmentName: 'CT',
+      },
     });
     useEmployeeAccessStore.setState({
       profiles: {
@@ -135,6 +142,7 @@ describe('ShiftRequestCreateWizard', () => {
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
   const user = { id: 'user-1', name: 'User One', role: 'admin' as const };
   const getMockAssignments = () => [
@@ -283,5 +291,57 @@ describe('ShiftRequestCreateWizard', () => {
 
     // Verify onResult was called
     expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
+  });
+
+  it('safely handles null, valid, changed valid, and null user transitions', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const props = {
+      isOpen: true,
+      onClose: vi.fn(),
+      onResult: vi.fn(),
+      canExchange: true,
+      canReplace: true,
+      requesterAssignments: getMockAssignments(),
+      recipients: mockRecipients,
+      candidateProfiles,
+      initialAssignment: null,
+      createRequest: vi.fn(),
+    };
+    const changedUser = {
+      id: 'user-2',
+      name: 'User Two',
+      role: 'admin' as const,
+    };
+
+    const { container, rerender } = render(
+      <ShiftRequestCreateWizard {...props} user={null} />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+
+    expect(() => {
+      rerender(<ShiftRequestCreateWizard {...props} user={user} />);
+    }).not.toThrow();
+    expect(screen.getAllByText(/Recipient One|rec-1/)[0]).toBeInTheDocument();
+
+    expect(() => {
+      rerender(<ShiftRequestCreateWizard {...props} user={changedUser} />);
+    }).not.toThrow();
+    expect(screen.getAllByText(/Recipient One|rec-1/)[0]).toBeInTheDocument();
+
+    expect(() => {
+      rerender(<ShiftRequestCreateWizard {...props} user={null} />);
+    }).not.toThrow();
+    expect(container).toBeEmptyDOMElement();
+
+    const hookDiagnostic =
+      /Rendered more hooks|Rendered fewer hooks|change in the order of Hooks/i;
+    const diagnostics = [...errorSpy.mock.calls, ...warnSpy.mock.calls]
+      .flat()
+      .map(String)
+      .filter((message) => hookDiagnostic.test(message));
+
+    expect(diagnostics).toEqual([]);
   });
 });

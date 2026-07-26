@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /employee/
+Disallow: /schedule/
+Disallow: /late-schedule
+Disallow: /calendar-sync
+Disallow: /shift-requests
+Disallow: /notifications
+Disallow: /profile

@@ -1,5 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import * as gateway from '@/lib/shiftAssignmentGateway';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { browserShiftAssignmentGateway, createScheduleAssignmentRef } from '@/lib/shiftAssignmentGateway';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import { useLateScheduleStore } from '@/stores/lateScheduleStore';
@@ -257,7 +256,7 @@ describe('Shift Requests Automation & Schedule Synchronization Tests', () => {
       'emp-m-9': access('emp-m-9', 'emp-khalid'), // Eshraq
     };
 
-    let currentActor = 'emp-m-3';
+    const currentActor = 'emp-m-3';
     let nextId = 1;
     const store = createShiftRequestStore({
       gateway: browserShiftAssignmentGateway,

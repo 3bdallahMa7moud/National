@@ -41,6 +41,29 @@ import { recalculateAllConflicts, validateAssignmentsForCell } from '@/lib/valid
 import { generateConflictFreeScheduleMonth } from '@/lib/conflictFreeScheduleGenerator';
 import { getOfficialEmployeeRoster, useEmployeeRosterStore } from './employeeRosterStore';
 import { useOperationalAuditStore } from './operationalAuditStore';
+import {
+  addMonthVersion,
+  clearScheduleContent,
+  cloneScheduleMatrix as cloneData,
+  countMatrixAssignments,
+  deletedMonthShell,
+  matrixMonthKey,
+  pasteMatrixIntoMonth,
+  structureOnly,
+} from './scheduleMatrixMonthOperations';
+import {
+  normalizeScheduleMonthStatuses,
+  persistMonthlyState,
+  readAdminControl,
+  readMonthlyState,
+  readStoredMatrices,
+} from './scheduleMatrixPersistence';
+
+export {
+  SCHEDULE_ADMIN_CONTROL_STORAGE_KEY,
+  SCHEDULE_MATRIX_HISTORY_STORAGE_KEY,
+  SCHEDULE_MONTHLY_STORAGE_KEY,
+} from './scheduleMatrixPersistence';
 
 type DrawerCell = MatrixCellRef & {
   facilityName: string;
@@ -73,9 +96,9 @@ interface ScheduleTableClipboard {
 export type EmployeeIdentityUpdateResult =
   | { ok: true; fullName: string; code: string }
   | {
-      ok: false;
-      reason: 'name_required' | 'code_required' | 'duplicate_code' | 'employee_not_found';
-    };
+    ok: false;
+    reason: 'name_required' | 'code_required' | 'duplicate_code' | 'employee_not_found';
+  };
 
 interface ScheduleMatrixState {
   data: ScheduleMatrixData | null;
@@ -180,171 +203,6 @@ interface ScheduleMatrixState {
   conflictCount: () => number;
 }
 
-function cloneData(data: ScheduleMatrixData): ScheduleMatrixData {
-  return JSON.parse(JSON.stringify(data));
-}
-
-function compactMatrixForStorage(data: ScheduleMatrixData): ScheduleMatrixData {
-  const compacted = cloneData(data);
-  compacted.auditLog = [];
-  compacted.legend = [];
-  for (const facility of compacted.facilities) {
-    for (const unit of facility.units) {
-      for (const row of unit.rows) {
-        row.cellsByDay = Object.fromEntries(
-          Object.entries(row.cellsByDay).filter(([, assignments]) => assignments.length > 0),
-        ) as Record<number, Assignment[]>;
-      }
-    }
-  }
-  return compacted;
-}
-
-function hydrateMatrixFromStorage(data: ScheduleMatrixData): ScheduleMatrixData {
-  const hydrated = cloneData(data);
-  hydrated.departmentId = hydrated.departmentId || 'dept-1';
-  const daysInMonth = new Date(hydrated.year, hydrated.month + 1, 0).getDate();
-  hydrated.auditLog = Array.isArray(hydrated.auditLog) ? hydrated.auditLog : [];
-  for (const facility of hydrated.facilities) {
-    for (const unit of facility.units) {
-      for (const row of unit.rows) {
-        for (let day = 1; day <= daysInMonth; day += 1) {
-          if (!Array.isArray(row.cellsByDay[day])) row.cellsByDay[day] = [];
-        }
-      }
-    }
-  }
-  linkShiftDefinitionIds(hydrated);
-  synchronizeRowsWithShiftDefinitions(hydrated);
-  synchronizeMatrixRoster(hydrated);
-  return hydrated;
-}
-
-function clearScheduleContent(data: ScheduleMatrixData, clearVacations = false): number {
-  let affected = 0;
-  for (const facility of data.facilities) {
-    for (const unit of facility.units) {
-      for (const row of unit.rows) {
-        for (const day of Object.keys(row.cellsByDay)) {
-          affected += row.cellsByDay[Number(day)]?.length || 0;
-          row.cellsByDay[Number(day)] = [];
-        }
-      }
-    }
-  }
-  if (clearVacations) data.vacations = [];
-  return affected;
-}
-
-function structureOnly(data: ScheduleMatrixData, year = data.year, month = data.month): ScheduleMatrixData {
-  const copy = cloneData(data);
-  copy.year = year;
-  copy.month = month;
-  clearScheduleContent(copy, true);
-  copy.auditLog = [];
-  return copy;
-}
-
-function countMatrixAssignments(data: ScheduleMatrixData): number {
-  return data.facilities.reduce((facilityTotal, facility) => facilityTotal + facility.units.reduce(
-    (unitTotal, unit) => unitTotal + unit.rows.reduce(
-      (rowTotal, row) => rowTotal + Object.values(row.cellsByDay)
-        .reduce((cellTotal, assignments) => cellTotal + assignments.length, 0),
-      0,
-    ),
-    0,
-  ), 0);
-}
-
-function pasteMatrixIntoMonth(
-  source: ScheduleMatrixData,
-  year: number,
-  month: number,
-): { data: ScheduleMatrixData; omittedAssignments: number } {
-  const data = cloneData(source);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  let omittedAssignments = 0;
-  data.year = year;
-  data.month = month;
-  data.auditLog = [];
-
-  for (const facility of data.facilities) {
-    for (const unit of facility.units) {
-      for (const row of unit.rows) {
-        const cellsByDay: Record<number, Assignment[]> = {};
-        for (const [dayText, assignments] of Object.entries(row.cellsByDay)) {
-          if (Number(dayText) > daysInMonth) omittedAssignments += assignments.length;
-        }
-        for (let day = 1; day <= daysInMonth; day += 1) {
-          cellsByDay[day] = (row.cellsByDay[day] || []).map((assignment) => ({
-            ...assignment,
-            status: 'draft',
-            hasConflict: false,
-            conflictReason: undefined,
-            conflictType: undefined,
-          }));
-        }
-        row.cellsByDay = cellsByDay;
-      }
-    }
-  }
-
-  data.vacations = data.vacations.map((vacation) => ({
-    ...vacation,
-    daysOff: vacation.daysOff.filter((day) => day >= 1 && day <= daysInMonth),
-    ranges: vacation.ranges
-      ?.filter((range) => range.startDay <= daysInMonth && range.endDay >= 1)
-      .map((range) => ({
-        ...range,
-        startDay: Math.max(1, range.startDay),
-        endDay: Math.min(daysInMonth, range.endDay),
-        status: 'draft',
-      })),
-  }));
-  data.holidays = data.holidays
-    .filter((holiday) => holiday.startDay <= daysInMonth && holiday.endDay >= 1)
-    .map((holiday) => ({
-      ...holiday,
-      startDay: Math.max(1, holiday.startDay),
-      endDay: Math.min(daysInMonth, holiday.endDay),
-    }));
-
-  linkShiftDefinitionIds(data);
-  synchronizeRowsWithShiftDefinitions(data);
-  synchronizeMatrixRoster(data);
-  recalculateAllConflicts(data);
-  return { data, omittedAssignments };
-}
-
-function deletedMonthShell(year: number, month: number): ScheduleMatrixData {
-  const generated = generateScheduleMatrixMock(year, month);
-  return {
-    ...generated,
-    facilities: [],
-    settings: [],
-    vacations: [],
-    holidays: [],
-    auditLog: [],
-  };
-}
-
-function addMonthVersion(
-  versionsByMonth: Record<string, ScheduleMatrixVersion[]>,
-  key: string,
-  data: ScheduleMatrixData,
-  actorName: string | undefined,
-  reason: ScheduleMatrixVersion['reason'],
-): Record<string, ScheduleMatrixVersion[]> {
-  const version: ScheduleMatrixVersion = {
-    id: `schedule-version-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    createdAt: new Date().toISOString(),
-    actorName: actorName?.trim() || 'Administrator',
-    reason,
-    data: cloneData(data),
-  };
-  return { ...versionsByMonth, [key]: [version, ...(versionsByMonth[key] || [])].slice(0, 5) };
-}
-
 function recordScheduleAdminAudit(
   actorName: string | undefined,
   action: 'delete' | 'clear' | 'restore' | 'publish' | 'update',
@@ -363,177 +221,6 @@ function recordScheduleAdminAudit(
     after,
     context: { year: state.year, month: state.month, route: '/admin/schedule' },
   });
-}
-
-// v2 stores published snapshots only. The previous key auto-saved generated and draft months,
-// so reading it would reintroduce invented annual-analysis coverage.
-export const SCHEDULE_MATRIX_HISTORY_STORAGE_KEY = 'ngh_schedule_matrix_months_v2';
-export const SCHEDULE_ADMIN_CONTROL_STORAGE_KEY = 'ngh_schedule_admin_control_v1';
-export const SCHEDULE_MONTHLY_STORAGE_KEY = 'ngh_schedule_monthly_admin_v3';
-
-interface PersistedScheduleAdminControl {
-  version: 1;
-  monthStatuses: Record<string, ScheduleMonthStatus>;
-  versionsByMonth: Record<string, ScheduleMatrixVersion[]>;
-  deletedMonths: string[];
-}
-
-interface PersistedScheduleMonthlyState {
-  version: 3;
-  matricesByMonth: Record<string, ScheduleMatrixData>;
-  draftsByMonth: Record<string, ScheduleMatrixData>;
-  monthStatuses: Record<string, ScheduleMonthStatus>;
-  versionsByMonth: Record<string, ScheduleMatrixVersion[]>;
-  deletedMonths: string[];
-}
-
-function matrixMonthKey(data: Pick<ScheduleMatrixData, 'year' | 'month'>): string {
-  return `${data.year}-${String(data.month + 1).padStart(2, '0')}`;
-}
-
-function browserStorage(): Storage | null {
-  try {
-    return typeof window === 'undefined' ? null : window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeScheduleMonthStatuses(value: unknown): Record<string, ScheduleMonthStatus> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const normalized: Record<string, ScheduleMonthStatus> = {};
-  for (const [key, status] of Object.entries(value)) {
-    if (status === 'published' || status === 'locked') normalized[key] = 'published';
-    else if (status === 'draft') normalized[key] = 'draft';
-  }
-  return normalized;
-}
-
-function readStoredMatrices(): Record<string, ScheduleMatrixData> {
-  const storage = browserStorage();
-  const defaultMatrices = () => {
-    const july = generateScheduleMatrixMock(2026, 6);
-    const august = generateScheduleMatrixMock(2026, 7);
-    linkShiftDefinitionIds(july);
-    synchronizeRowsWithShiftDefinitions(july);
-    linkShiftDefinitionIds(august);
-    synchronizeRowsWithShiftDefinitions(august);
-    return {
-      '2026-07': july,
-      '2026-08': august,
-    };
-  };
-  if (!storage) return defaultMatrices();
-  try {
-    const value = JSON.parse(storage.getItem(SCHEDULE_MATRIX_HISTORY_STORAGE_KEY) || '{}');
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return defaultMatrices();
-    const matrices = Object.fromEntries(
-      Object.entries(value).filter(([, matrix]) => {
-        if (!matrix || typeof matrix !== 'object') return false;
-        const candidate = matrix as Partial<ScheduleMatrixData>;
-        return Number.isInteger(candidate.year)
-          && Number.isInteger(candidate.month)
-          && Array.isArray(candidate.facilities)
-          && Array.isArray(candidate.vacations);
-      }),
-    ) as Record<string, ScheduleMatrixData>;
-    if (Object.keys(matrices).length === 0) return defaultMatrices();
-    for (const matrix of Object.values(matrices)) {
-      linkShiftDefinitionIds(matrix);
-      synchronizeRowsWithShiftDefinitions(matrix);
-    }
-    return matrices;
-  } catch {
-    return defaultMatrices();
-  }
-}
-
-function readAdminControl(): Omit<PersistedScheduleAdminControl, 'version'> {
-  const fallback = {
-    monthStatuses: { '2026-07': 'published' as const, '2026-08': 'published' as const },
-    versionsByMonth: {},
-    deletedMonths: [],
-  };
-  try {
-    const parsed = JSON.parse(browserStorage()?.getItem(SCHEDULE_ADMIN_CONTROL_STORAGE_KEY) || 'null') as Partial<PersistedScheduleAdminControl> | null;
-    if (!parsed || parsed.version !== 1) return fallback;
-    return {
-      monthStatuses: {
-        '2026-07': 'published' as const,
-        '2026-08': 'published' as const,
-        ...normalizeScheduleMonthStatuses(parsed.monthStatuses),
-      },
-      versionsByMonth: parsed.versionsByMonth && typeof parsed.versionsByMonth === 'object' ? parsed.versionsByMonth : {},
-      deletedMonths: Array.isArray(parsed.deletedMonths) ? parsed.deletedMonths : [],
-    };
-  } catch {
-    return fallback;
-  }
-}
-
-function readMonthlyState(): PersistedScheduleMonthlyState | null {
-  try {
-    const parsed = JSON.parse(browserStorage()?.getItem(SCHEDULE_MONTHLY_STORAGE_KEY) || 'null') as Partial<PersistedScheduleMonthlyState> | null;
-    if (!parsed || parsed.version !== 3) return null;
-    const storedMatrices = parsed.matricesByMonth && typeof parsed.matricesByMonth === 'object' ? parsed.matricesByMonth : {};
-    const storedDrafts = parsed.draftsByMonth && typeof parsed.draftsByMonth === 'object' ? parsed.draftsByMonth : {};
-    const storedVersions = parsed.versionsByMonth && typeof parsed.versionsByMonth === 'object' ? parsed.versionsByMonth : {};
-    const matricesByMonth = Object.fromEntries(
-      Object.entries(storedMatrices).map(([key, matrix]) => [key, hydrateMatrixFromStorage(matrix)]),
-    );
-    const draftsByMonth = Object.fromEntries(
-      Object.entries(storedDrafts).map(([key, matrix]) => [key, hydrateMatrixFromStorage(matrix)]),
-    );
-    const versionsByMonth = Object.fromEntries(
-      Object.entries(storedVersions).map(([key, versions]) => [
-        key,
-        versions.map((version) => ({ ...version, data: hydrateMatrixFromStorage(version.data) })),
-      ]),
-    );
-    return {
-      version: 3,
-      matricesByMonth,
-      draftsByMonth,
-      monthStatuses: normalizeScheduleMonthStatuses(parsed.monthStatuses),
-      versionsByMonth,
-      deletedMonths: Array.isArray(parsed.deletedMonths) ? parsed.deletedMonths : [],
-    };
-  } catch {
-    return null;
-  }
-}
-
-function persistMonthlyState(
-  state: Pick<ScheduleMatrixState, 'matricesByMonth' | 'monthStatuses' | 'versionsByMonth' | 'deletedMonths'>,
-  draftsByMonth: Record<string, ScheduleMatrixData>,
-): boolean {
-  const storage = browserStorage();
-  if (!storage) return true;
-  try {
-    const compactMatrices = Object.fromEntries(
-      Object.entries(state.matricesByMonth).map(([key, matrix]) => [key, compactMatrixForStorage(matrix)]),
-    );
-    const compactDrafts = Object.fromEntries(
-      Object.entries(draftsByMonth).map(([key, matrix]) => [key, compactMatrixForStorage(matrix)]),
-    );
-    const compactVersions = Object.fromEntries(
-      Object.entries(state.versionsByMonth).map(([key, versions]) => [
-        key,
-        versions.map((version) => ({ ...version, data: compactMatrixForStorage(version.data) })),
-      ]),
-    );
-    storage.setItem(SCHEDULE_MONTHLY_STORAGE_KEY, JSON.stringify({
-      version: 3,
-      matricesByMonth: compactMatrices,
-      draftsByMonth: compactDrafts,
-      monthStatuses: normalizeScheduleMonthStatuses(state.monthStatuses),
-      versionsByMonth: compactVersions,
-      deletedMonths: state.deletedMonths,
-    } satisfies PersistedScheduleMonthlyState));
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function cellKey(rowId: string, day: number) {
@@ -709,6 +396,16 @@ function synchronizeRowsWithShiftDefinitions(data: ScheduleMatrixData): void {
   }
 }
 
+function prepareLegacyStoredMatrix(data: ScheduleMatrixData): void {
+  linkShiftDefinitionIds(data);
+  synchronizeRowsWithShiftDefinitions(data);
+}
+
+function normalizeStoredMatrix(data: ScheduleMatrixData): void {
+  prepareLegacyStoredMatrix(data);
+  synchronizeMatrixRoster(data);
+}
+
 function makeShiftRowFromDefinition(
   facilityId: string,
   unit: Unit,
@@ -762,12 +459,13 @@ function pushUndo(state: ScheduleMatrixState): UndoSnapshot[] {
 }
 
 const now = new Date();
-const initialMonthlyState = readMonthlyState();
+const initialMonthlyState = readMonthlyState(normalizeStoredMatrix);
 const initialAdminControl = initialMonthlyState ?? readAdminControl();
 
 export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => ({
   data: null,
-  matricesByMonth: initialMonthlyState?.matricesByMonth ?? readStoredMatrices(),
+  matricesByMonth: initialMonthlyState?.matricesByMonth
+    ?? readStoredMatrices(prepareLegacyStoredMatrix),
   draftsByMonth: initialMonthlyState?.draftsByMonth ?? {},
   snapshot: '',
   draftCellKeys: [],
@@ -2070,6 +1768,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       state.tableClipboard.data,
       state.year,
       state.month,
+      normalizeStoredMatrix,
     );
     const affected = countMatrixAssignments(data);
     addAudit(data, state.locale, {
@@ -2150,7 +1849,10 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
 
     const key = matrixMonthKey(state.data);
     const beforeAssignmentCount = countMatrixAssignments(state.data);
-    const generation = generateConflictFreeScheduleMonth(state.data);
+    const generation = generateConflictFreeScheduleMonth(state.data, {
+      rotationSeed: Date.now(),
+      maxAssignmentsPerCell: 2,
+    });
 
     if (generation.conflictCount > 0) {
       return {
@@ -2261,13 +1963,19 @@ useScheduleMatrixStore.subscribe((state, previousState) => {
     }
   }
 
-  if (persistMonthlyState(state, nextDrafts)) {
-    if (nextDrafts !== state.draftsByMonth) {
+  const persistence = persistMonthlyState(state, nextDrafts);
+  if (persistence.ok) {
+    const draftsChanged = nextDrafts !== state.draftsByMonth;
+    const versionsChanged = persistence.versionsByMonth !== state.versionsByMonth;
+    if (draftsChanged || versionsChanged || state.storageError) {
       isSchedulePersistenceRollback = true;
-      useScheduleMatrixStore.setState({ draftsByMonth: nextDrafts });
+      useScheduleMatrixStore.setState({
+        ...(draftsChanged ? { draftsByMonth: nextDrafts } : {}),
+        ...(versionsChanged ? { versionsByMonth: persistence.versionsByMonth } : {}),
+        ...(state.storageError ? { storageError: null } : {}),
+      });
       isSchedulePersistenceRollback = false;
     }
-    if (state.storageError) useScheduleMatrixStore.setState({ storageError: null });
     return;
   }
 

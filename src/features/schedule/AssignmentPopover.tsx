@@ -117,7 +117,7 @@ function AssignmentPopover({
 
   const hasCurrentAssignments = currentAssignments.length > 0;
   const top = anchorRect ? Math.min(anchorRect.bottom + 8, window.innerHeight - 420) : 120;
-  const left = anchorRect ? Math.max(16, Math.min(anchorRect.left, window.innerWidth - 340)) : 24;
+  const left = anchorRect ? Math.max(16, Math.min(anchorRect.left, window.innerWidth - 336)) : 16;
 
   function toggleEmployee(code: string) {
     setSelectedCodes((current) => {
@@ -138,7 +138,7 @@ function AssignmentPopover({
         type="button"
       />
       <div
-        className="fixed z-[230] w-[320px] rounded-lg border border-border bg-surface p-3 text-start shadow-2xl"
+        className="fixed z-[230] w-[min(320px,calc(100vw-32px))] rounded-lg border border-border bg-surface p-3 text-start shadow-2xl"
         style={{ top, left }}
         role="dialog"
         aria-label={t('schedule:assignment.editAssignment')}
@@ -240,7 +240,7 @@ function AssignmentPopover({
           )}
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+        <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 sm:flex sm:flex-wrap">
           <button
             onClick={handleSave}
             disabled={!validation.ok}

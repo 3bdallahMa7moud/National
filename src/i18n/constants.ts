@@ -23,6 +23,13 @@ export const NAMESPACES = [
 
 export type Namespace = (typeof NAMESPACES)[number];
 
+export const CRITICAL_NAMESPACES = [
+  'common',
+  'auth',
+  'forms',
+  'errors',
+] as const satisfies readonly Namespace[];
+
 export const LANGUAGE_LABELS: Record<Language, string> = {
   en: 'English',
   ar: 'العربية',

@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Calendar as CalendarIcon,
   Building2,
-  Clock,
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
@@ -34,6 +33,7 @@ import { isAdminOrSuperAdmin, type UserRole } from '@/types';
 import { getEmployeeDirectoryRecord } from '@/stores/employeeDirectoryStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
 import { localizeRowLabel } from '@/lib/scheduleMatrixLocale';
+import type { Language } from '@/i18n/constants';
 
 export interface ShiftRequestCreateWizardProps {
   isOpen: boolean;
@@ -62,7 +62,24 @@ function accountName(accountId: string, language: string): string {
   return record.name[locale];
 }
 
+function toSupportedLanguage(language: string): Language {
+  return language === 'ar' ? 'ar' : 'en';
+}
+
 export function ShiftRequestCreateWizard({
+  user,
+  ...props
+}: ShiftRequestCreateWizardProps) {
+  if (!user) return null;
+
+  return <ShiftRequestCreateWizardContent {...props} user={user} />;
+}
+
+type ShiftRequestCreateWizardContentProps = Omit<ShiftRequestCreateWizardProps, 'user'> & {
+  user: NonNullable<ShiftRequestCreateWizardProps['user']>;
+};
+
+function ShiftRequestCreateWizardContent({
   isOpen,
   onClose,
   onResult,
@@ -74,7 +91,7 @@ export function ShiftRequestCreateWizard({
   user,
   initialAssignment,
   createRequest,
-}: ShiftRequestCreateWizardProps) {
+}: ShiftRequestCreateWizardContentProps) {
   const { t, i18n } = useTranslation(['shiftRequests', 'common']);
   const isRtl = i18n.language.startsWith('ar');
   const createBatchRequestsStore = useShiftRequestStore((state) => state.createBatchRequests);
@@ -186,8 +203,6 @@ export function ShiftRequestCreateWizard({
   }, [offeredAssignmentsSelected, recipientProfile]);
 
   const hasConflict = Boolean(requesterConflict.conflict || recipientConflict.conflict);
-
-  if (!user) return null;
 
   const stepsList = useMemo(() => {
     if (type === 'replace') {
@@ -448,7 +463,7 @@ export function ShiftRequestCreateWizard({
                 <span className="font-medium text-text-secondary">
                   {t('shiftRequests:wizard.preview.yourShift')}:{' '}
                   <strong className="text-text-primary">
-                    {requesterAssignment ? `${requesterAssignment.monthKey}-${String(requesterAssignment.day).padStart(2, '0')} (${requesterAssignment.facilityLabel} · ${localizeRowLabel(requesterAssignment.shiftLabel, i18n.language as any)})` : t('shiftRequests:wizard.preview.notSelected')}
+                    {requesterAssignment ? `${requesterAssignment.monthKey}-${String(requesterAssignment.day).padStart(2, '0')} (${requesterAssignment.facilityLabel} · ${localizeRowLabel(requesterAssignment.shiftLabel, toSupportedLanguage(i18n.language))})` : t('shiftRequests:wizard.preview.notSelected')}
                   </strong>
                   {requesterAssignment && !initialAssignment && (
                     <button
@@ -470,7 +485,7 @@ export function ShiftRequestCreateWizard({
                     <span className="font-medium text-text-secondary">
                       {t('shiftRequests:wizard.preview.theirShift')}:{' '}
                       <strong className="text-text-primary">
-                        {offeredAssignment ? `${offeredAssignment.monthKey}-${String(offeredAssignment.day).padStart(2, '0')} (${offeredAssignment.facilityLabel} · ${localizeRowLabel(offeredAssignment.shiftLabel, i18n.language as any)})` : t('shiftRequests:wizard.preview.notSelected')}
+                        {offeredAssignment ? `${offeredAssignment.monthKey}-${String(offeredAssignment.day).padStart(2, '0')} (${offeredAssignment.facilityLabel} · ${localizeRowLabel(offeredAssignment.shiftLabel, toSupportedLanguage(i18n.language))})` : t('shiftRequests:wizard.preview.notSelected')}
                       </strong>
                       {offeredAssignment && (
                         <button
@@ -936,20 +951,6 @@ function StepShiftSelection({
     }
   };
 
-  const selectedAssignment = useMemo(() => {
-    if (!selectedKey) return null;
-    return assignments.find((a) => assignmentRequestKey(a) === selectedKey) || null;
-  }, [assignments, selectedKey]);
-
-  const isSelectionInAnotherTab = useMemo(() => {
-    if (!selectedAssignment) return false;
-    return (
-      selectedAssignment.facilityLabel !== activeFacility ||
-      normalizeShiftTypeCategory(selectedAssignment.shiftLabel, selectedAssignment.unitLabel) !== activeShiftType ||
-      selectedAssignment.monthKey !== activeMonthKey
-    );
-  }, [selectedAssignment, activeFacility, activeShiftType, activeMonthKey]);
-
   // Calendar setup for matching assignments
   const [yearText, monthText] = activeMonthKey.split('-');
   const yearNum = Number(yearText) || 2026;
@@ -1289,7 +1290,7 @@ function StepShiftSelection({
                     }`}
                   >
                     <span className={`inline-block h-2.5 w-2.5 rounded-full border-2 ${getShiftRingColor(shiftType)} shrink-0`} />
-                    <span>{localizeRowLabel(shiftType, i18n.language as any)}</span>
+                    <span>{localizeRowLabel(shiftType, toSupportedLanguage(i18n.language))}</span>
                     <span className="text-[10px] opacity-75">({count})</span>
                   </button>
                 );
@@ -1418,7 +1419,7 @@ function StepShiftSelection({
                       </div>
                       <div>
                         <div className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
-                          <span>{localizeRowLabel(assignment.unitLabel, i18n.language as any)} · {localizeRowLabel(assignment.shiftLabel, i18n.language as any)}</span>
+                          <span>{localizeRowLabel(assignment.unitLabel, toSupportedLanguage(i18n.language))} · {localizeRowLabel(assignment.shiftLabel, toSupportedLanguage(i18n.language))}</span>
                           <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
                             assignment.source === 'ot'
                               ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-300 dark:border-purple-700'
@@ -1511,10 +1512,10 @@ function StepReviewAndConfirm({
                 {requesterAssignment.monthKey}-{String(requesterAssignment.day).padStart(2, '0')}
               </div>
               <div className="text-text-secondary">
-                <strong>{t('shiftRequests:wizard.branchLabel')}:</strong> {requesterAssignment.facilityLabel} / {localizeRowLabel(requesterAssignment.unitLabel, i18n.language as any)}
+                <strong>{t('shiftRequests:wizard.branchLabel')}:</strong> {requesterAssignment.facilityLabel} / {localizeRowLabel(requesterAssignment.unitLabel, toSupportedLanguage(i18n.language))}
               </div>
               <div className="text-text-secondary">
-                <strong>{t('shiftRequests:wizard.shiftTypeLabel')}:</strong> {localizeRowLabel(requesterAssignment.shiftLabel, i18n.language as any)} ({requesterAssignment.timeRange})
+                <strong>{t('shiftRequests:wizard.shiftTypeLabel')}:</strong> {localizeRowLabel(requesterAssignment.shiftLabel, toSupportedLanguage(i18n.language))} ({requesterAssignment.timeRange})
               </div>
             </div>
           ) : (
@@ -1540,10 +1541,10 @@ function StepReviewAndConfirm({
                   {offeredAssignment.monthKey}-{String(offeredAssignment.day).padStart(2, '0')}
                 </div>
                 <div className="text-text-secondary">
-                  <strong>{t('shiftRequests:wizard.branchLabel')}:</strong> {offeredAssignment.facilityLabel} / {localizeRowLabel(offeredAssignment.unitLabel, i18n.language as any)}
+                  <strong>{t('shiftRequests:wizard.branchLabel')}:</strong> {offeredAssignment.facilityLabel} / {localizeRowLabel(offeredAssignment.unitLabel, toSupportedLanguage(i18n.language))}
                 </div>
                 <div className="text-text-secondary">
-                  <strong>{t('shiftRequests:wizard.shiftTypeLabel')}:</strong> {localizeRowLabel(offeredAssignment.shiftLabel, i18n.language as any)} ({offeredAssignment.timeRange})
+                  <strong>{t('shiftRequests:wizard.shiftTypeLabel')}:</strong> {localizeRowLabel(offeredAssignment.shiftLabel, toSupportedLanguage(i18n.language))} ({offeredAssignment.timeRange})
                 </div>
               </div>
             ) : (

@@ -4,7 +4,6 @@ import {
   ClipboardPaste,
   Copy,
   FilePlus2,
-  Trash2,
   UsersRound,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -109,7 +108,7 @@ export default function AdminMonthControl(props: AdminMonthControlProps) {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:w-auto xl:flex-wrap xl:items-center">
           <Button
             size="sm"
             variant="secondary"
@@ -165,19 +164,24 @@ export default function AdminMonthControl(props: AdminMonthControlProps) {
               {props.monthLabel} · {props.assignmentCount.toLocaleString()}
             </p>
           )}
-          <label className="block text-xs font-semibold text-text-secondary">
+          <label
+            htmlFor="confirm-action-input"
+            className="block text-xs font-semibold text-text-secondary"
+          >
             {isRtl ? `اكتب ${confirmedAction} للتأكيد` : `Type ${confirmedAction} to confirm`}
-            <input
-              className="input-field mt-2 min-h-11 font-mono"
-              value={confirmText}
-              onChange={(event) => setConfirmText(event.target.value.toUpperCase())}
-              autoFocus
-              data-modal-autofocus
-            />
           </label>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={closeConfirmation}>{isRtl ? 'إلغاء' : 'Cancel'}</Button>
-            <Button variant="danger" disabled={confirmText !== confirmedAction} icon={<FilePlus2 className="h-4 w-4" />} onClick={confirmAction}>
+          <input
+            id="confirm-action-input"
+            className="input-field mt-2 min-h-11 font-mono"
+            value={confirmText}
+            onChange={(event) => setConfirmText(event.target.value.toUpperCase())}
+            onKeyDown={(e) => { if (e.key === 'Enter') confirmAction(); }}
+            autoFocus
+            data-modal-autofocus
+          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="secondary" onClick={closeConfirmation}>{isRtl ? 'إلغاء' : 'Cancel'}</Button>
+            <Button type="button" variant="danger" disabled={confirmText !== confirmedAction} icon={<FilePlus2 className="h-4 w-4" />} onClick={confirmAction}>
               {isRtl ? 'تنفيذ' : 'Confirm'}
             </Button>
           </div>

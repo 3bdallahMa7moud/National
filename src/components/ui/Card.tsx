@@ -9,7 +9,7 @@ interface CardProps {
 
 export default function Card({ children, className, padding = true }: CardProps) {
   return (
-    <div className={cn('bg-surface rounded-card shadow-card border border-border', padding && 'p-5 sm:p-6', className)}>
+    <div className={cn('min-w-0 max-w-full bg-surface rounded-card shadow-card border border-border', padding && 'p-4 sm:p-6', className)}>
       {children}
     </div>
   );

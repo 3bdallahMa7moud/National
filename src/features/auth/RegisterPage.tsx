@@ -68,16 +68,25 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[minmax(0,1fr)_460px] overflow-hidden">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-background lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(380px,460px)]">
       {/* القسم الأزرق الجانبي مع صورة المستشفى الواقعية */}
       <aside className="relative hidden overflow-hidden border-s border-primary-700 bg-primary text-white lg:flex lg:flex-col lg:justify-between lg:p-6 lg:py-8">
         {/* الصورة في الخلفية بحجم الجزء الأزرق كامل */}
         <div className="absolute inset-0 z-0">
-          <img
-            src="/saudi-hospital.webp"
-            alt={t('common:hospital.imageAlt')}
-            className="h-full w-full object-cover object-center transform scale-105 transition-transform duration-1000"
-          />
+          <picture className="block h-full w-full">
+            <source
+              type="image/webp"
+              srcSet="/saudi-hospital-640.webp 640w, /saudi-hospital-1024.webp 1024w"
+              sizes="(min-width: 1024px) 55vw, 100vw"
+            />
+            <img
+              src="/saudi-hospital-1024.webp"
+              alt={t('common:hospital.imageAlt')}
+              width="1024"
+              height="1024"
+              className="h-full w-full object-cover object-center transform scale-105 transition-transform duration-1000"
+            />
+          </picture>
           {/* غطاء أزرق متدرج (Blue Overlay) بحيث تكون الصورة مدمجة داخل اللون */}
           <div className="absolute inset-0 bg-gradient-to-t from-primary-950/95 via-primary-900/80 to-primary-800/75 backdrop-blur-[1px]" />
         </div>
@@ -110,8 +119,8 @@ export default function RegisterPage() {
       </aside>
 
       {/* قسم نموذج إنشاء الحساب */}
-      <main className="flex min-h-screen items-center justify-center p-3 sm:p-6 overflow-hidden">
-        <div className="w-full max-w-[460px] my-auto">
+      <main className="flex min-h-screen min-w-0 items-center justify-center overflow-x-hidden overflow-y-auto p-3 sm:p-6">
+        <div className="my-auto w-full max-w-[460px]">
           {/* Header */}
           <div className="mb-3">
             <HospitalLogo size="md" subtitle="قسم الأشعة المقطعية - CT Scan" className="mb-3 lg:hidden" />
@@ -203,7 +212,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute top-[39px] right-3 text-text-secondary hover:text-text-primary focus:outline-none"
+                      className="absolute top-[30px] end-1.5 inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary hover:bg-hover hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
                       tabIndex={-1}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -223,7 +232,7 @@ export default function RegisterPage() {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute top-[39px] right-3 text-text-secondary hover:text-text-primary focus:outline-none"
+                      className="absolute top-[30px] end-1.5 inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary hover:bg-hover hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
                       tabIndex={-1}
                     >
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

@@ -30,8 +30,8 @@ export default function DataTable<T>({ columns, data, keyExtractor, emptyMessage
   }
 
   return (
-    <div className={cn('-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0', className)}>
-      <table className="w-full text-sm">
+    <div className={cn('-mx-3 max-w-full overflow-x-auto px-3 sm:mx-0 sm:px-0', className)}>
+      <table className="w-max min-w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-surface-muted/70">
             {columns.map((col) => (
@@ -58,7 +58,7 @@ export default function DataTable<T>({ columns, data, keyExtractor, emptyMessage
               onClick={() => onRowClick?.(item)}
             >
               {columns.map((col) => (
-                <td key={col.key} className={cn('px-3 py-3 text-text-primary sm:px-4', col.className)}>
+                <td key={col.key} className={cn('max-w-[18rem] px-3 py-3 align-top text-text-primary sm:px-4', col.className)}>
                   {col.render
                     ? col.render(item)
                     : String((item as Record<string, unknown>)[col.key] ?? '')}

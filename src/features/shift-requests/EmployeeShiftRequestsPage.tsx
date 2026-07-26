@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ArrowLeftRight, Check, Clock3, Plus, X } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
@@ -18,7 +18,6 @@ import {
 import type {
   ShiftAssignmentRef,
   ShiftRequest,
-  ShiftRequestAdminRejectionReason,
   ShiftRequestMutationReason,
   ShiftRequestMutationResult,
   ShiftRequestStatus,
@@ -27,10 +26,6 @@ import type {
 /* -------------------------------------------------------------------------- */
 /*  Constants & Helpers                                                        */
 /* -------------------------------------------------------------------------- */
-const CLOSED_STATUSES: ShiftRequestStatus[] = [
-  'recipient_rejected', 'admin_rejected', 'cancelled', 'expired', 'stale',
-];
-
 const statusVariant: Record<
   ShiftRequestStatus,
   'default' | 'success' | 'warning' | 'danger' | 'info'
@@ -102,16 +97,14 @@ function mutationMessageKey(reason: ShiftRequestMutationReason): string {
 type TabKey = 'my' | 'incoming';
 
 export default function EmployeeShiftRequestsPage() {
-  const { t, i18n } = useTranslation(['shiftRequests']);
+  const { t } = useTranslation(['shiftRequests']);
   const { addToast } = useToast();
   const user = useAuthStore((state) => state.user);
   const accessProfile = useEmployeeAccessStore(
     (state) => (user ? state.profiles[user.id] : undefined),
   );
-  const profiles = useEmployeeAccessStore((state) => state.profiles);
   const visibleForUser = useShiftRequestStore((state) => state.visibleForUser);
   const expirePending = useShiftRequestStore((state) => state.expirePending);
-  const createRequest = useShiftRequestStore((state) => state.createRequest);
 
   const [tab, setTab] = useState<TabKey>('my');
   const [createOpen, setCreateOpen] = useState(false);
@@ -167,9 +160,6 @@ export default function EmployeeShiftRequestsPage() {
     return false;
   }
 
-  const canExchange = currentAccess?.permissions['schedule.exchange.create'] === true;
-  const canReplace = currentAccess?.permissions['schedule.replace.create'] === true;
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -181,7 +171,7 @@ export default function EmployeeShiftRequestsPage() {
           <p className="mt-1 text-sm text-text-secondary">{t('shiftRequests:subtitle')}</p>
         </div>
         {canCreate && (
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
+          <Button className="w-full sm:w-auto" icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
             {t('shiftRequests:newRequest')}
           </Button>
         )}
@@ -215,7 +205,6 @@ export default function EmployeeShiftRequestsPage() {
             user={user}
             report={report}
             emptyMessage={t('shiftRequests:empty')}
-            showRequesterSection
           />
         ) : (
           <RequestList
@@ -282,7 +271,6 @@ function RequestList({
   user,
   report,
   emptyMessage,
-  showRequesterSection = false,
   showIncomingActions = false,
 }: {
   requests: ShiftRequest[];
@@ -300,7 +288,6 @@ function RequestList({
       | 'default',
   ): boolean;
   emptyMessage: string;
-  showRequesterSection?: boolean;
   showIncomingActions?: boolean;
 }) {
   if (requests.length === 0) {

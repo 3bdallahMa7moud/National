@@ -8,7 +8,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Users,
   Sun,
-  Sunset,
   Moon,
   Palmtree,
   PhoneCall,
@@ -183,7 +182,6 @@ function MatrixStatsCards({
 
   const stats = useMemo(() => {
     let morningShifts = 0;
-    let eveningShifts = 0;
     let nightShifts = 0;
     let onCallDay = 0;
     let onCallNight = 0;

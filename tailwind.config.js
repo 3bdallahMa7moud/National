@@ -10,7 +10,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"IBM Plex Sans Arabic"', 'Tajawal', 'Cairo', 'sans-serif'],
+        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Tahoma', 'Arial', 'sans-serif'],
       },
       colors: {
         primary: {

@@ -642,6 +642,7 @@ export const mockNotificationsSource: MockNotificationSource[] = [
     newShiftTypeKey: 'oncall',
     isRead: false,
     isUrgent: true,
+    actionUrl: '/schedule',
     createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
   },
   {

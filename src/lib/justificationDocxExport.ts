@@ -229,9 +229,9 @@ async function buildLetterhead(
 ): Promise<(Paragraph | Table)[]> {
   const leftSrc = isEng
     ? state.leftLogo || '/ct-logo.png'
-    : state.rightLogo || '/ct-logo.png';
+    : state.rightLogo || '/mngha-logo.png';
   const rightSrc = isEng
-    ? state.rightLogo || '/ct-logo.png'
+    ? state.rightLogo || '/mngha-logo.png'
     : state.leftLogo || '/ct-logo.png';
 
   const leftImg = await toImageRun(leftSrc, 65, 65);

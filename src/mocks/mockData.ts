@@ -10,7 +10,6 @@ import {
 import {
   mockDepartmentsSource,
   mockShiftTypesSource,
-  mockEmployeesSource,
   mockNotificationsSource,
   mockAuditLogSource,
   mockShifts,

@@ -63,8 +63,8 @@ function RowEditPopover({ target, onClose, onSave, shiftDefinitions = [], onArch
 
   if (!target) return null;
 
-  const top = Math.min(target.anchorRect.bottom + 8, window.innerHeight - 380);
-  const left = Math.max(16, Math.min(target.anchorRect.left, window.innerWidth - 320));
+  const top = Math.max(8, Math.min(target.anchorRect.bottom + 8, window.innerHeight - 380));
+  const left = Math.max(16, Math.min(target.anchorRect.left, window.innerWidth - 316));
   const selectedDefinition = shiftDefinitions.find((definition) => definition.id === shiftDefinitionId);
 
   return (
@@ -76,7 +76,7 @@ function RowEditPopover({ target, onClose, onSave, shiftDefinitions = [], onArch
         onClick={onClose}
       />
       <div
-        className="fixed z-[250] w-[300px] rounded-lg border border-border bg-surface p-3 shadow-2xl"
+        className="fixed z-[250] w-[min(300px,calc(100vw-32px))] rounded-lg border border-border bg-surface p-3 shadow-2xl"
         style={{ top, left }}
         role="dialog"
         aria-label={t('schedule:rowEdit.title')}
@@ -154,7 +154,7 @@ function RowEditPopover({ target, onClose, onSave, shiftDefinitions = [], onArch
           </label>
         </div>
 
-        <div className="mt-3 flex gap-2 border-t border-border pt-3">
+        <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 sm:flex">
           <button
             type="button"
             onClick={handleSave}

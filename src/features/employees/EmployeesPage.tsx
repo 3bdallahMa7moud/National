@@ -340,6 +340,137 @@ export default function EmployeesPage() {
     },
   ];
 
+  /* ─── Mobile Employee Card ─── */
+  const renderMobileCard = (emp: Employee) => {
+    const record = getEmployeeDirectoryRecord(emp.id);
+    const currentRole = record?.role || emp.role;
+
+    const roleBadge = (() => {
+      if (currentRole === 'super_admin') return (
+        <Badge variant="warning" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700 font-bold text-xs">
+          👑 {t('common:role.superAdmin', 'Super Admin')}
+        </Badge>
+      );
+      if (currentRole === 'admin') return (
+        <Badge variant="info" className="bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/40 dark:text-teal-300 dark:border-teal-700 font-bold text-xs">
+          🛡️ {t('common:role.admin', 'Admin')}
+        </Badge>
+      );
+      return (
+        <Badge variant="default" className="text-xs">
+          👤 {t('common:role.employee', 'Employee')}
+        </Badge>
+      );
+    })();
+
+    return (
+      <div
+        key={emp.id}
+        className="rounded-xl border border-border bg-surface-card p-4 space-y-3 shadow-sm"
+      >
+        {/* Top row: number + role */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-mono text-text-secondary bg-surface-muted px-2 py-0.5 rounded-md shrink-0" dir="ltr">
+              {emp.employeeNumber}
+            </span>
+            {roleBadge}
+          </div>
+          {/* Action buttons */}
+          <div className="flex items-center gap-1 shrink-0">
+            {currentRole !== 'super_admin' && (
+              <button
+                type="button"
+                onClick={() => setPermissionsEmployee(emp)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-btn text-primary transition-colors hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                aria-label={t('access:permissions.title')}
+                title={t('access:permissions.title')}
+              >
+                <ShieldCheck className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handleEdit(emp)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
+              aria-label={t('employees:management.editEmployeeAria', { name: emp.name })}
+              title={t('employees:management.editEmployeeAria', { name: emp.name })}
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteDialog(emp.id)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-btn text-danger transition-colors hover:bg-danger-50 focus:outline-none focus:ring-2 focus:ring-danger/30"
+              aria-label={t('employees:management.deleteEmployeeAria', { name: emp.name })}
+              title={t('employees:management.deleteEmployeeAria', { name: emp.name })}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Name + position + badges */}
+        <div>
+          <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+            <p className="font-semibold text-text-primary">{emp.name}</p>
+            {record && record.issues.length > 0 && (
+              <Badge variant="danger" className="text-xs">{t('employees:management.needsReview', 'Needs review')}</Badge>
+            )}
+            {record?.role === 'employee' && !record.active && (
+              <Badge variant="danger" className="text-xs">{t('employees:management.inactive', 'Inactive')}</Badge>
+            )}
+            {record?.role === 'employee' && !record.scheduleEmployeeId && (
+              <Badge variant="warning" className="text-xs">{t('employees:management.notLinked', 'Not linked')}</Badge>
+            )}
+            {record?.role === 'employee'
+              && accessProfiles[record.accountId]
+              && !effectivePermissions(
+                accessProfiles[record.accountId].templateId,
+                accessProfiles[record.accountId].overrides,
+              )['schedule.requests.respond'] && (
+              <Badge variant="warning" className="text-xs">{t('employees:management.cannotReceiveSwap', 'Cannot receive shift requests')}</Badge>
+            )}
+          </div>
+          <p className="text-xs text-text-secondary">{emp.position}</p>
+        </div>
+
+        {/* Email */}
+        {emp.email ? (
+          <p className="text-xs text-text-secondary" dir="ltr">{emp.email}</p>
+        ) : (
+          <p className="text-xs text-text-secondary/50 italic">{t('common:labels.notSet', '—')}</p>
+        )}
+
+        {/* Role select for super_admin */}
+        {user?.role === 'super_admin' && (
+          <select
+            value={currentRole}
+            onChange={(e) => {
+              const newRole = e.target.value as UserRole;
+              const res = useEmployeeDirectoryStore.getState().setRole(emp.id, newRole, user.name);
+              if (res.ok) {
+                addToast({
+                  type: 'success',
+                  title: t('common:toast.updated', 'Updated'),
+                  message: t('employees:management.roleUpdated', { name: emp.name, role: roleLabels[newRole] }),
+                });
+              } else {
+                addToast({ type: 'error', title: t('common:toast.error'), message: res.message || res.reason });
+              }
+            }}
+            className="input-field text-xs font-semibold py-1 px-2 h-9 bg-surface-card border-border-subtle hover:border-primary/50 text-text-primary rounded-btn cursor-pointer w-full"
+            title={t('employees:management.changeRole', 'Change user role')}
+          >
+            <option value="employee">👤 {roleLabels.employee}</option>
+            <option value="admin">🛡️ {roleLabels.admin}</option>
+            <option value="super_admin">👑 {roleLabels.super_admin}</option>
+          </select>
+        )}
+      </div>
+    );
+  };
+
   /* ─── JSX ─── */
   return (
     <div className="space-y-5">
@@ -351,13 +482,13 @@ export default function EmployeesPage() {
             {t('employees:management.countInDepartment', { count: employees.length })}
           </p>
         </div>
-        <Button icon={<Plus className="w-4 h-4" />} onClick={() => setAddOpen(true)}>
+        <Button className="w-full sm:w-auto" icon={<Plus className="w-4 h-4" />} onClick={() => setAddOpen(true)}>
           {t('employees:management.addEmployee')}
         </Button>
       </div>
 
       {deptIdFilter && (
-        <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-xl px-4 py-3">
+        <div className="flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-sm font-semibold text-primary">
             {t('common:labels.filteringByDepartment') || 'تصفية الموظفين حسب القسم المختار'} ({deptIdFilter.toUpperCase()})
           </span>
@@ -371,7 +502,7 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* Table */}
+      {/* Search + Table/Cards */}
       <Card>
         <div className="relative mb-4">
           <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
@@ -384,8 +515,21 @@ export default function EmployeesPage() {
             className="input-field ps-10"
           />
         </div>
+
         <ErrorBoundary level="section" invalidateQueries>
-          <DataTable columns={columns} data={filtered} keyExtractor={(e) => e.id} />
+          {/* Mobile: card list (hidden on md+) */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {filtered.length === 0 ? (
+              <p className="py-12 text-center text-text-secondary text-sm">{t('common:dataTable.empty')}</p>
+            ) : (
+              filtered.map((emp) => renderMobileCard(emp))
+            )}
+          </div>
+
+          {/* Desktop: data table (hidden below md) */}
+          <div className="hidden md:block">
+            <DataTable columns={columns} data={filtered} keyExtractor={(e) => e.id} />
+          </div>
         </ErrorBoundary>
       </Card>
 
@@ -463,7 +607,7 @@ export default function EmployeesPage() {
             onSubmit={(e) => { e.preventDefault(); handleAdd(); }}
           >
             {/* Name & BN */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 label={t('employees:management.name')}
                 placeholder="محمد السعيد / Mohammed Al-Saeed"
@@ -522,7 +666,7 @@ export default function EmployeesPage() {
               </p>
             </div>
 
-            <div className="flex gap-2 justify-end pt-1">
+            <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:justify-end">
               <Button variant="secondary" type="button" onClick={handleCloseAdd}>
                 {t('common:actions.cancel')}
               </Button>
@@ -564,7 +708,7 @@ export default function EmployeesPage() {
             addToast({ type: 'success', title: t('common:toast.saved') });
           }}
         >
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Input
               label={t('employees:management.name')}
               value={editName}
@@ -604,7 +748,7 @@ export default function EmployeesPage() {
               ))}
             </select>
           </div>
-          <div className="flex gap-3 justify-end pt-2">
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
             <Button variant="secondary" type="button" onClick={() => setEditOpen(false)}>
               {t('common:actions.cancel')}
             </Button>

@@ -292,6 +292,8 @@ function ShiftRowCells({
                     day={day}
                     monthLabel={monthLabel}
                     isHighlighted={highlightedEmployeeId === assignment.employeeId}
+                    colorblindMode={colorblindMode}
+                    shiftIcon={row.icon}
                     historyEntries={historyForCell(day)}
                     readOnly={readOnly}
                     suppressPopover={isBrushMode}
@@ -317,6 +319,8 @@ function ShiftRowCells({
                     day={day}
                     monthLabel={monthLabel}
                     isHighlighted={highlightedEmployeeId === assignment.employeeId}
+                    colorblindMode={colorblindMode}
+                    shiftIcon={row.icon}
                     historyEntries={historyForCell(day)}
                     readOnly={readOnly}
                     suppressPopover={isBrushMode}
@@ -352,6 +356,8 @@ function ShiftRowCells({
                   day={day}
                   monthLabel={monthLabel}
                   isHighlighted={highlightedEmployeeId === assignment.employeeId}
+                  colorblindMode={colorblindMode}
+                  shiftIcon={row.icon}
                   historyEntries={historyForCell(day)}
                   readOnly={readOnly}
                   suppressPopover={isBrushMode}

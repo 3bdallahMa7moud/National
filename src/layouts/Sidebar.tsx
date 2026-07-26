@@ -32,7 +32,7 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/audit-log', icon: FileText, labelKey: 'common:nav.auditLog' },
   { to: '/admin/shift-requests', icon: ArrowLeftRight, labelKey: 'common:nav.shiftRequests' },
   { to: '/admin/employee-justification', icon: FileBarChart2, labelKey: 'common:nav.employeeJustification' },
-  { href: 'http://www.ctgate.cc', external: true, icon: Palmtree, labelKey: 'common:nav.ctGate' },
+  { href: 'https://www.ctgate.cc', external: true, icon: Palmtree, labelKey: 'common:nav.ctGate' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
 ];
 
@@ -60,7 +60,7 @@ const employeeLinks: SidebarLink[] = [
     to: '/calendar-sync', icon: RefreshCw, labelKey: 'common:nav.calendarSync',
     permissions: ['schedule.calendar.sync'],
   },
-  { href: 'http://www.ctgate.cc', external: true, icon: Palmtree, labelKey: 'common:nav.ctGate' },
+  { href: 'https://www.ctgate.cc', external: true, icon: Palmtree, labelKey: 'common:nav.ctGate' },
   { to: '/notifications', icon: Bell, labelKey: 'common:nav.notifications' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
 ];

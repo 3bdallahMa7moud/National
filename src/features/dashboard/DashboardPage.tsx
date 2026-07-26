@@ -62,7 +62,7 @@ export default function DashboardPage() {
             <h1 className="text-xl font-semibold text-text-primary sm:text-2xl">{t('commandCenter.title')}</h1>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-text-secondary">{t('commandCenter.description')}</p>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
             <label className="text-xs font-medium text-text-secondary">
               <span className="mb-1.5 block">{t('operationalDate')}</span>
               <input
@@ -72,11 +72,11 @@ export default function DashboardPage() {
                 className="min-h-11 w-full rounded-btn border border-border bg-background px-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30 sm:w-auto"
               />
             </label>
-            <div className="flex gap-2">
-              <Link to={`/admin/schedule?date=${selectedDate}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-btn bg-primary px-4 text-sm font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary/30">
+            <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
+              <Link to={`/admin/schedule?date=${selectedDate}`} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-btn bg-primary px-4 text-center text-sm font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary/30">
                 <CalendarClock className="h-4 w-4" aria-hidden="true" />{t('actions.openSchedule')}
               </Link>
-              <Link to={`/admin/late-schedule?year=${selectedDate.slice(0, 4)}&month=${Number(selectedDate.slice(5, 7))}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-btn border border-border bg-surface px-4 text-sm font-medium text-text-primary hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <Link to={`/admin/late-schedule?year=${selectedDate.slice(0, 4)}&month=${Number(selectedDate.slice(5, 7))}`} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-btn border border-border bg-surface px-4 text-center text-sm font-medium text-text-primary hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30">
                 <TimerReset className="h-4 w-4" aria-hidden="true" />{t('actions.reviewOt')}
               </Link>
             </div>

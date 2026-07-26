@@ -241,6 +241,40 @@ describe('scheduleMatrixStore administration', () => {
     expect(useScheduleMatrixStore.getState().conflictCount()).toBe(0);
   });
 
+  it('keeps a generated draft when quota pressure requires pruning old recovery versions', () => {
+    for (let index = 0; index < 3; index += 1) {
+      expect(useScheduleMatrixStore.getState().resetCurrentMonth('Admin').ok).toBe(true);
+    }
+    expect(useScheduleMatrixStore.getState().versionsByMonth['2026-07']).toHaveLength(3);
+
+    const originalSetItem = Storage.prototype.setItem;
+    let monthlyWriteAttempts = 0;
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function mockSetItem(
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (key === SCHEDULE_MONTHLY_STORAGE_KEY) {
+        monthlyWriteAttempts += 1;
+        if (monthlyWriteAttempts <= 2) {
+          throw new DOMException('Quota exceeded', 'QuotaExceededError');
+        }
+      }
+      originalSetItem.call(this, key, value);
+    });
+
+    const result = useScheduleMatrixStore.getState().generateConflictFreeMonth('Admin');
+    setItem.mockRestore();
+
+    expect(result).toMatchObject({ ok: true });
+    expect(monthlyWriteAttempts).toBe(3);
+    expect(useScheduleMatrixStore.getState().storageError).toBeNull();
+    expect(useScheduleMatrixStore.getState().versionsByMonth['2026-07']).toHaveLength(1);
+    const persisted = JSON.parse(localStorage.getItem(SCHEDULE_MONTHLY_STORAGE_KEY) || '{}');
+    expect(persisted.draftsByMonth['2026-07']).toBeTruthy();
+    expect(persisted.versionsByMonth['2026-07']).toHaveLength(1);
+  });
+
   it('preserves schedule structure, styles, roster, settings, and existing vacations while generating', () => {
     const before = JSON.parse(JSON.stringify(useScheduleMatrixStore.getState().data));
     const targetRow = before.facilities[0].units[0].rows[0];
@@ -542,6 +576,49 @@ describe('scheduleMatrixStore administration', () => {
     expect(useScheduleMatrixStore.getState().data!.facilities[0].units[0].rows[0].cellsByDay[1]
       .map((assignment) => assignment.employeeId)).toEqual(previousAssignments);
     expect(useScheduleMatrixStore.getState().storageError).toBeTruthy();
+  });
+
+  it('compacts persisted drafts and rehydrates omitted cells and roster data on reload', async () => {
+    const state = useScheduleMatrixStore.getState();
+    const row = state.data!.facilities[0].units[0].rows[0];
+
+    expect(state.clearAllAssignments('Admin')).toBeGreaterThan(0);
+    expect(useScheduleMatrixStore.getState().assignCell(row.id, 1, [{
+      employeeId: 'storage-characterization',
+      employeeCode: 'SC1',
+    }]).ok).toBe(true);
+
+    const persisted = JSON.parse(localStorage.getItem(SCHEDULE_MONTHLY_STORAGE_KEY) || '{}');
+    const persistedDraft = persisted.draftsByMonth['2026-07'];
+    const persistedRow = persistedDraft.facilities
+      .flatMap((facility: { units: Array<{ rows: Array<{ id: string }> }> }) => facility.units)
+      .flatMap((unit: { rows: Array<{ id: string }> }) => unit.rows)
+      .find((candidate: { id: string }) => candidate.id === row.id);
+
+    expect(persistedDraft.legend).toEqual([]);
+    expect(persistedDraft.auditLog).toEqual([]);
+    expect(persistedRow.cellsByDay).toEqual({
+      1: [expect.objectContaining({
+        employeeId: 'storage-characterization',
+        employeeCode: 'SC1',
+      })],
+    });
+
+    vi.resetModules();
+    const reloadedModule = await import('./scheduleMatrixStore');
+    reloadedModule.useScheduleMatrixStore.getState().loadMonth(6, 2026);
+    const reloaded = reloadedModule.useScheduleMatrixStore.getState().data!;
+    const reloadedRow = reloaded.facilities
+      .flatMap((facility) => facility.units)
+      .flatMap((unit) => unit.rows)
+      .find((candidate) => candidate.id === row.id)!;
+
+    expect(reloaded.legend.length).toBeGreaterThan(0);
+    expect(reloadedRow.cellsByDay[1]).toEqual([expect.objectContaining({
+      employeeId: 'storage-characterization',
+      employeeCode: 'SC1',
+    })]);
+    expect(reloadedRow.cellsByDay[2]).toEqual([]);
   });
 
   it('migrates legacy published schedule and admin metadata into the monthly schema', async () => {

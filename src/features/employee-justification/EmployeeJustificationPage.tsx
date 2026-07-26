@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,18 +25,15 @@ import {
   UserPlus,
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import Card from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toast';
 import { useAuthStore } from '@/stores/authStore';
 import { useLateScheduleStore } from '@/stores/lateScheduleStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import type { OfficialEmployee } from '@/data/officialEmployeeRoster';
 import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
-import { exportJustificationToDocx } from '@/lib/justificationDocxExport';
 import { isAdminOrSuperAdmin } from '@/types';
 import {
   DEFAULT_JUSTIFICATION_STATE,
-  type DataSourceKind,
   type JustificationEmployeeRow,
   type JustificationReportState,
 } from '@/types/employeeJustification';
@@ -56,6 +54,13 @@ function hoursFromTimeRange(timeRange: string): number {
 /* -------------------------------------------------------------------------- */
 function generateId(): string {
   return `row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function getEmployeeBranch(employee: OfficialEmployee | undefined): string {
+  if (employee && 'branch' in employee && typeof employee.branch === 'string') {
+    return employee.branch;
+  }
+  return 'General';
 }
 
 const ARABIC_MONTHS = [
@@ -135,13 +140,81 @@ function InlineEditSpan({
 }
 
 /* -------------------------------------------------------------------------- */
+/*  ScalableA4Preview — scales any fixed-width A4 document to fit its container */
+/* -------------------------------------------------------------------------- */
+const A4_WIDTH = 794; // px — standard A4 at 96dpi screen resolution
+
+function ScalableA4Preview({ children }: { children: React.ReactNode }) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [scaledHeight, setScaledHeight] = useState<number | undefined>(undefined);
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const outer = outerRef.current;
+    if (!outer) return;
+
+    const updateScale = () => {
+      const availableWidth = outer.clientWidth;
+      const nextScale = Math.min(1, availableWidth / A4_WIDTH);
+      setScale(nextScale);
+      // Adjust container height so it doesn't collapse
+      if (innerRef.current) {
+        const naturalHeight = innerRef.current.scrollHeight;
+        setScaledHeight(naturalHeight * nextScale);
+      }
+    };
+
+    updateScale();
+    const ro = new ResizeObserver(updateScale);
+    ro.observe(outer);
+    return () => ro.disconnect();
+  }, []);
+
+  // Re-measure height when children change (e.g. rows added)
+  useEffect(() => {
+    if (!innerRef.current || !outerRef.current) return;
+    const naturalHeight = innerRef.current.scrollHeight;
+    setScaledHeight(naturalHeight * scale);
+  }, [children, scale]);
+
+  return (
+    <div
+      ref={outerRef}
+      className="w-full overflow-hidden print:!overflow-visible"
+      style={{ height: scaledHeight !== undefined ? scaledHeight : undefined }}
+    >
+      <div
+        ref={innerRef}
+        style={{
+          width: A4_WIDTH,
+          transformOrigin: 'top left',
+          transform: `scale(${scale})`,
+        }}
+        className="space-y-6 print:space-y-0 print:!transform-none print:!w-full"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Main Page                                                                  */
 /* -------------------------------------------------------------------------- */
 export default function EmployeeJustificationPage() {
+  const user = useAuthStore((state) => state.user);
+
+  /* ---- Guard: Admin only ---- */
+  if (!isAdminOrSuperAdmin(user)) return null;
+
+  return <EmployeeJustificationContent />;
+}
+
+function EmployeeJustificationContent() {
   const officialEmployeeRoster = useEmployeeRosterStore((state) => state.employees);
   const { t, i18n } = useTranslation(['employeeJustification']);
   const { addToast } = useToast();
-  const user = useAuthStore((state) => state.user);
 
   // ── OT Schedule (Late Schedule) data ──────────────────────────────────────
   const publishedRowsByMonth = useLateScheduleStore(
@@ -159,9 +232,9 @@ export default function EmployeeJustificationPage() {
   const [report, setReport] = useState<JustificationReportState>({
     ...DEFAULT_JUSTIFICATION_STATE,
   });
-  const [dataSource, setDataSource] = useState<DataSourceKind>('none');
   const [activeTab, setActiveTab] = useState<TabKey>('general');
   const [isExporting, setIsExporting] = useState(false);
+  const [mobileView, setMobileView] = useState<'editor' | 'preview'>('editor');
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [rosterSearch, setRosterSearch] = useState('');
 
@@ -179,9 +252,6 @@ export default function EmployeeJustificationPage() {
     ).slice(0, 20);
   }, [officialEmployeeRoster, rosterSearch]);
 
-  /* ---- Guard: Admin only ---- */
-  if (!isAdminOrSuperAdmin(user)) return null;
-
   /* ---- Generate/Sync report from OT data ---- */
   function executeGenerateReport(targetMonthKey?: string) {
     const monthKey = typeof targetMonthKey === 'string' && targetMonthKey ? targetMonthKey : selectedMonthKey;
@@ -191,9 +261,6 @@ export default function EmployeeJustificationPage() {
     const publishedRows = publishedRowsByMonth[monthKey] ?? [];
     const draftRows = rowsByMonth[monthKey] ?? [];
     const activeOTRows = publishedRows.length > 0 ? publishedRows : draftRows;
-    const kind: DataSourceKind =
-      publishedRows.length > 0 ? 'published' : draftRows.length > 0 ? 'draft' : 'none';
-
     const [yearStr, monthStr] = monthKey.split('-');
     const monthIdx = parseInt(monthStr, 10) - 1;
     const yearNum = parseInt(yearStr, 10);
@@ -267,7 +334,7 @@ export default function EmployeeJustificationPage() {
         name: rosterEmp
           ? (isEngReport ? rosterEmp.fullNameEn || rosterEmp.fullName : rosterEmp.fullName)
           : empId,
-        branch: (rosterEmp as any)?.branch || 'General',
+        branch: getEmployeeBranch(rosterEmp),
         totalShifts: summary.shifts,
         claimedHours: Math.round(summary.hours),
       });
@@ -282,7 +349,6 @@ export default function EmployeeJustificationPage() {
       numberOfStaff: String(newRows.length),
       rows: newRows,
     }));
-    setDataSource(newRows.length > 0 ? (kind !== 'none' ? kind : 'published') : kind);
   }
 
   /* ---- Auto-init on load ---- */
@@ -375,7 +441,7 @@ export default function EmployeeJustificationPage() {
         id: generateId(),
         bn: employee.code,
         name: isEngReport ? employee.fullNameEn || employee.fullName : employee.fullName,
-        branch: (employee as any).branch || 'General',
+        branch: getEmployeeBranch(employee),
         totalShifts: 1,
         claimedHours: 8,
       };
@@ -393,6 +459,7 @@ export default function EmployeeJustificationPage() {
   async function handleExport() {
     try {
       setIsExporting(true);
+      const { exportJustificationToDocx } = await import('@/lib/justificationDocxExport');
       await exportJustificationToDocx(report);
       addToast({
         type: 'success',
@@ -421,7 +488,7 @@ export default function EmployeeJustificationPage() {
   const totalHours = report.rows.reduce((sum, r) => sum + Number(r.claimedHours || 0), 0);
 
   return (
-    <div className="min-h-screen bg-surface-muted p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-surface-muted p-3 sm:p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Top Header */}
         <header className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-border bg-surface-card p-4 sm:p-6 shadow-sm print:hidden">
@@ -442,7 +509,7 @@ export default function EmployeeJustificationPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
             <Button
               icon={<Download className="h-4 w-4" />}
               variant="outline"
@@ -462,14 +529,14 @@ export default function EmployeeJustificationPage() {
         </header>
 
         {/* Action Bar (Month Selector & Direct Editing Banner) */}
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-card border border-border bg-surface-card p-4 shadow-sm print:hidden">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-4 rounded-card border border-border bg-surface-card p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between print:hidden">
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
               <label className="text-xs font-semibold text-text-secondary">
                 {t('employeeJustification:selectMonth')}:
               </label>
               <select
-                className="input-field py-1.5 text-xs font-medium min-w-[160px]"
+                className="input-field min-w-0 py-1.5 text-xs font-medium sm:min-w-[160px]"
                 value={selectedMonthKey}
                 onChange={(e) => {
                   setSelectedMonthKey(e.target.value);
@@ -492,20 +559,52 @@ export default function EmployeeJustificationPage() {
             </span>
           </div>
 
-          <Button size="sm" variant="outline" icon={<Plus className="h-3.5 w-3.5" />} onClick={addRow}>
+          <Button className="w-full sm:w-auto" size="sm" variant="outline" icon={<Plus className="h-3.5 w-3.5" />} onClick={addRow}>
             {t('employeeJustification:editor.addEmployee')}
           </Button>
+        </div>
+
+        {/* Mobile toggle: Editor / Preview */}
+        <div className="flex items-center gap-2 rounded-card border border-border bg-surface-card p-1.5 shadow-sm xl:hidden print:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileView('editor')}
+            aria-pressed={mobileView === 'editor'}
+            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+              mobileView === 'editor'
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <Settings className="h-3.5 w-3.5" />
+            {isEngLocale ? 'Editor' : 'التحرير'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileView('preview')}
+            aria-pressed={mobileView === 'preview'}
+            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+              mobileView === 'preview'
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            {isEngLocale ? 'Preview' : 'المعاينة'}
+          </button>
         </div>
 
         {/* Studio Workspace: Tabbed Editor (Left) & Unified Simple Preview (Right) */}
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 print:!block print:!gap-0 print:!m-0 print:!p-0">
           {/* ===== LEFT: Tabbed Studio Editor (5 Cols) ===== */}
-          <div className="xl:col-span-5 space-y-4 print:hidden">
+          <div className={`xl:col-span-5 space-y-4 print:hidden ${mobileView === 'preview' ? 'hidden xl:block' : 'block'}`}>
             {/* Tab Bar */}
             <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-surface-muted p-1">
               <button
+                type="button"
                 onClick={() => setActiveTab('general')}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeTab === 'general'
+                aria-pressed={activeTab === 'general'}
+                className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeTab === 'general'
                   ? 'bg-surface-card text-primary shadow-sm'
                   : 'text-text-secondary hover:text-text-primary'
                   }`}
@@ -514,8 +613,10 @@ export default function EmployeeJustificationPage() {
                 <span>{t('employeeJustification:tabs.general')}</span>
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('employees')}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeTab === 'employees'
+                aria-pressed={activeTab === 'employees'}
+                className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeTab === 'employees'
                   ? 'bg-surface-card text-primary shadow-sm'
                   : 'text-text-secondary hover:text-text-primary'
                   }`}
@@ -527,8 +628,10 @@ export default function EmployeeJustificationPage() {
                 </span>
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('signatures')}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeTab === 'signatures'
+                aria-pressed={activeTab === 'signatures'}
+                className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeTab === 'signatures'
                   ? 'bg-surface-card text-primary shadow-sm'
                   : 'text-text-secondary hover:text-text-primary'
                   }`}
@@ -537,8 +640,11 @@ export default function EmployeeJustificationPage() {
                 <span>{t('employeeJustification:tabs.signatures')}</span>
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('headers')}
-                className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeTab === 'headers'
+                aria-label={t('employeeJustification:tabs.headers')}
+                aria-pressed={activeTab === 'headers'}
+                className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${activeTab === 'headers'
                   ? 'bg-surface-card text-primary shadow-sm'
                   : 'text-text-secondary hover:text-text-primary'
                   }`}
@@ -636,12 +742,13 @@ export default function EmployeeJustificationPage() {
                         <div className="min-w-0 flex-1">
                           <div className="font-medium text-text-primary truncate">{emp.fullName}</div>
                           <div className="text-[10px] text-text-secondary font-mono">
-                            {emp.code} · {(emp as any).branch || 'General'}
+                            {emp.code} · {getEmployeeBranch(emp)}
                           </div>
                         </div>
                         <button
+                          type="button"
                           onClick={() => handleSelectRosterEmployee(emp)}
-                          className="ms-2 rounded bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary hover:bg-primary hover:text-white transition-colors"
+                          className="ms-2 min-h-11 rounded bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary hover:bg-primary hover:text-white transition-colors"
                         >
                           {isEngLocale ? '+ Add' : '+ إضافة'}
                         </button>
@@ -775,7 +882,7 @@ export default function EmployeeJustificationPage() {
           </div>
 
           {/* ===== RIGHT: Live Printable Preview — Two A4 Pages ===== */}
-          <div className="xl:col-span-7 space-y-3 print:!col-span-12 print:!space-y-0 print:!m-0 print:!p-0">
+          <div className={`xl:col-span-7 space-y-3 print:!col-span-12 print:!space-y-0 print:!m-0 print:!p-0 ${mobileView === 'editor' ? 'hidden xl:block' : 'block'}`}>
             <div className="flex items-center justify-between rounded-card border border-border bg-surface-card p-3 shadow-sm print:hidden">
               <span className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
                 <FileText className="h-4 w-4 text-primary" />
@@ -783,7 +890,8 @@ export default function EmployeeJustificationPage() {
               </span>
             </div>
 
-            <div className="space-y-6 print:!space-y-0">
+            {/* ScalableA4Preview — auto-scales to container width on all screens */}
+            <ScalableA4Preview>
               {/* ══════════════ PAGE 1 — Letterhead + Tables ══════════════ */}
               <div
                 className="bg-white dark:bg-slate-900 text-black dark:text-slate-100 border-2 border-black dark:border-slate-700 print:!bg-white print:!text-black print:!border-black shadow-xl print:shadow-none mx-auto print:mx-0 print:!max-w-none print:!w-full transition-colors"
@@ -800,7 +908,7 @@ export default function EmployeeJustificationPage() {
                 {/* Letterhead */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                   <img
-                    src={(isEng ? report.leftLogo : report.rightLogo) || '/mngha-logo.png'}
+                    src={(isEng ? report.leftLogo : report.rightLogo) || (isEng ? '/ct-logo.png' : '/mngha-logo.png')}
                     alt="logo-l"
                     style={{ height: 68, objectFit: 'contain' }}
                   />
@@ -821,7 +929,7 @@ export default function EmployeeJustificationPage() {
                     </div>
                   </div>
                   <img
-                    src={(isEng ? report.rightLogo : report.leftLogo) || '/ct-logo.png'}
+                    src={(isEng ? report.rightLogo : report.leftLogo) || (isEng ? '/mngha-logo.png' : '/ct-logo.png')}
                     alt="logo-r"
                     style={{ height: 68, objectFit: 'contain' }}
                   />
@@ -980,7 +1088,7 @@ export default function EmployeeJustificationPage() {
                   {/* Letterhead (repeated) */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 40 }}>
                     <img
-                      src={(isEng ? report.leftLogo : report.rightLogo) || '/mngha-logo.png'}
+                      src={(isEng ? report.leftLogo : report.rightLogo) || (isEng ? '/ct-logo.png' : '/mngha-logo.png')}
                       alt="logo-l"
                       style={{ height: 68, objectFit: 'contain' }}
                     />
@@ -992,7 +1100,7 @@ export default function EmployeeJustificationPage() {
                       </div>
                     </div>
                     <img
-                      src={(isEng ? report.rightLogo : report.leftLogo) || '/ct-logo.png'}
+                      src={(isEng ? report.rightLogo : report.leftLogo) || (isEng ? '/mngha-logo.png' : '/ct-logo.png')}
                       alt="logo-r"
                       style={{ height: 68, objectFit: 'contain' }}
                     />
@@ -1062,7 +1170,7 @@ export default function EmployeeJustificationPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </ScalableA4Preview>
           </div>
         </div>
       </div>
@@ -1119,19 +1227,23 @@ function EmployeeRowEditor({
       <div className="flex items-center gap-2 p-2">
         <div className="flex flex-col items-center gap-0.5">
           <button
+            type="button"
             onClick={onMoveUp}
             disabled={isFirst}
-            className="p-0.5 text-text-muted hover:text-text-primary disabled:opacity-20"
+            className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-20 sm:h-7 sm:w-7"
+            aria-label={isEngLocale ? `Move ${row.name || `row ${index + 1}`} up` : `نقل ${row.name || `الصف ${index + 1}`} لأعلى`}
           >
-            <ChevronUp className="h-3 w-3" />
+            <ChevronUp className="h-3 w-3" aria-hidden="true" />
           </button>
-          <GripVertical className="h-3 w-3 text-text-muted" />
+          <GripVertical className="h-3 w-3 text-text-muted" aria-hidden="true" />
           <button
+            type="button"
             onClick={onMoveDown}
             disabled={isLast}
-            className="p-0.5 text-text-muted hover:text-text-primary disabled:opacity-20"
+            className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-muted hover:bg-hover hover:text-text-primary disabled:opacity-20 sm:h-7 sm:w-7"
+            aria-label={isEngLocale ? `Move ${row.name || `row ${index + 1}`} down` : `نقل ${row.name || `الصف ${index + 1}`} لأسفل`}
           >
-            <ChevronDown className="h-3 w-3" />
+            <ChevronDown className="h-3 w-3" aria-hidden="true" />
           </button>
         </div>
 
@@ -1149,11 +1261,21 @@ function EmployeeRowEditor({
         </div>
 
         <div className="flex items-center gap-1">
-          <button onClick={onEdit} className="p-1 text-text-muted hover:text-primary">
-            <Edit2 className="h-3.5 w-3.5" />
+          <button
+            type="button"
+            onClick={onEdit}
+            className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-muted hover:bg-hover hover:text-primary sm:h-7 sm:w-7"
+            aria-label={`${t('employeeJustification:row.edit')}: ${row.name || index + 1}`}
+          >
+            <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
-          <button onClick={onDelete} className="p-1 text-text-muted hover:text-danger">
-            <Trash2 className="h-3.5 w-3.5" />
+          <button
+            type="button"
+            onClick={onDelete}
+            className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-muted hover:bg-danger-50 hover:text-danger sm:h-7 sm:w-7"
+            aria-label={`${t('employeeJustification:row.delete')}: ${row.name || index + 1}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>

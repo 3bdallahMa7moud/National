@@ -6,7 +6,7 @@ import type {
   VacationRange,
   VacationRow,
 } from '@/types/scheduleMatrix';
-import { recalculateAllConflicts } from '@/lib/validateAssignment';
+import { isTimeRangeOverlapping, recalculateAllConflicts } from '@/lib/validateAssignment';
 
 const GENERATED_VACATION_RANGE_PREFIX = 'generated-vacation';
 const GENERATED_VACATION_EMPLOYEE_RATIO = 0.35;
@@ -17,9 +17,28 @@ export interface ConflictFreeScheduleGenerationResult {
   assignedCount: number;
   skippedCount: number;
   eligibleCellCount: number;
+  multiStaffCellCount: number;
   vacationDaysGenerated: number;
   vacationEmployeesGenerated: number;
   conflictCount: number;
+}
+
+export interface ConflictFreeScheduleGenerationOptions {
+  /** Changes row and employee rotation so repeated generation produces a fresh layout. */
+  rotationSeed?: number;
+  /** The generator may safely place multiple employees in the same shift cell. */
+  maxAssignmentsPerCell?: number;
+}
+
+interface GenerationRow {
+  facilityId: string;
+  row: ShiftRow;
+  isAvailable: boolean;
+}
+
+interface DailyEmployeeAssignment {
+  facilityId: string;
+  timeRange: string;
 }
 
 function cloneData(data: ScheduleMatrixData): ScheduleMatrixData {
@@ -181,27 +200,88 @@ function makeAssignment(employee: LegendEmployee): Assignment {
 }
 
 function rotatedRank(index: number, seed: number, total: number): number {
-  return (index - seed + total) % total;
+  return ((index - seed) % total + total) % total;
+}
+
+function rotate<T>(items: T[], offset: number): T[] {
+  if (items.length <= 1) return items;
+  const normalizedOffset = ((offset % items.length) + items.length) % items.length;
+  return [...items.slice(normalizedOffset), ...items.slice(0, normalizedOffset)];
+}
+
+function interleaveRowsByFacility(
+  rows: GenerationRow[],
+  day: number,
+  rotationSeed: number,
+): GenerationRow[] {
+  const rowsByFacility = new Map<string, GenerationRow[]>();
+
+  rows.forEach((entry) => {
+    const facilityRows = rowsByFacility.get(entry.facilityId) ?? [];
+    facilityRows.push(entry);
+    rowsByFacility.set(entry.facilityId, facilityRows);
+  });
+
+  const facilityIds = rotate(
+    [...rowsByFacility.keys()],
+    rotationSeed + day,
+  );
+  const queues = new Map(
+    facilityIds.map((facilityId, facilityIndex) => [
+      facilityId,
+      rotate(
+        rowsByFacility.get(facilityId) ?? [],
+        rotationSeed + day * 3 + facilityIndex,
+      ),
+    ]),
+  );
+  const orderedRows: GenerationRow[] = [];
+  let queueIndex = 0;
+
+  while ([...queues.values()].some((queue) => queueIndex < queue.length)) {
+    facilityIds.forEach((facilityId) => {
+      const row = queues.get(facilityId)?.[queueIndex];
+      if (row) orderedRows.push(row);
+    });
+    queueIndex += 1;
+  }
+
+  return orderedRows;
 }
 
 function selectEmployee(
   roster: LegendEmployee[],
   day: number,
   rowIndex: number,
-  usedToday: Set<string>,
+  facilityId: string,
+  timeRange: string,
+  rotationSeed: number,
+  employeesInCell: Set<string>,
+  dailyAssignmentsByEmployee: Map<string, DailyEmployeeAssignment[]>,
   vacationIndex: Map<string, Set<number>>,
   workloadByEmployee: Map<string, number>,
 ): LegendEmployee | null {
   if (roster.length === 0) return null;
-  const seed = (day * 7 + rowIndex * 3) % roster.length;
+  const seed = (rotationSeed + day * 7 + rowIndex * 3) % roster.length;
 
   return roster
     .map((employee, index) => ({ employee, index }))
     .filter(({ employee }) => {
-      if (usedToday.has(employee.employeeId)) return false;
-      return !vacationIndex.get(employee.employeeId)?.has(day);
+      if (employeesInCell.has(employee.employeeId)) return false;
+      if (vacationIndex.get(employee.employeeId)?.has(day)) return false;
+
+      const existingAssignments = dailyAssignmentsByEmployee.get(employee.employeeId) ?? [];
+      return existingAssignments.every((assignment) =>
+        assignment.facilityId === facilityId
+        && !isTimeRangeOverlapping(assignment.timeRange, timeRange));
     })
     .sort((left, right) => {
+      const leftAssignedToday = dailyAssignmentsByEmployee.get(left.employee.employeeId)?.length ?? 0;
+      const rightAssignedToday = dailyAssignmentsByEmployee.get(right.employee.employeeId)?.length ?? 0;
+      if ((leftAssignedToday > 0) !== (rightAssignedToday > 0)) {
+        return leftAssignedToday > 0 ? -1 : 1;
+      }
+
       const leftWorkload = workloadByEmployee.get(left.employee.employeeId) ?? 0;
       const rightWorkload = workloadByEmployee.get(right.employee.employeeId) ?? 0;
       if (leftWorkload !== rightWorkload) return leftWorkload - rightWorkload;
@@ -236,10 +316,15 @@ export function countScheduleConflicts(data: ScheduleMatrixData): number {
 
 export function generateConflictFreeScheduleMonth(
   source: ScheduleMatrixData,
+  options: ConflictFreeScheduleGenerationOptions = {},
 ): ConflictFreeScheduleGenerationResult {
   const data = cloneData(source);
   const daysInMonth = new Date(data.year, data.month + 1, 0).getDate();
   const roster = [...data.legend];
+  const rotationSeed = Number.isFinite(options.rotationSeed)
+    ? Math.trunc(options.rotationSeed ?? 0)
+    : 0;
+  const maxAssignmentsPerCell = Math.max(1, Math.trunc(options.maxAssignmentsPerCell ?? 2));
   const workloadByEmployee = new Map(roster.map((employee) => [employee.employeeId, 0]));
   const generatedVacations = generateMonthlyVacations(data, daysInMonth);
   const vacationIndex = buildVacationIndex(data);
@@ -247,9 +332,10 @@ export function generateConflictFreeScheduleMonth(
   let skippedCount = 0;
   let eligibleCellCount = 0;
 
-  const rows = data.facilities.flatMap((facility) =>
+  const rows: GenerationRow[] = data.facilities.flatMap((facility) =>
     facility.units.flatMap((unit) =>
       unit.rows.map((row) => ({
+        facilityId: facility.id,
         row,
         isAvailable: !unit.archived && !row.archived,
       })),
@@ -260,42 +346,64 @@ export function generateConflictFreeScheduleMonth(
 
   for (let day = 1; day <= daysInMonth; day += 1) {
     const weekend = isSaudiWeekend(data.year, data.month, day);
-    const usedToday = new Set<string>();
+    const eligibleRows = interleaveRowsByFacility(
+      rows.filter(({ row, isAvailable }) =>
+        isAvailable && (row.weekendOnly ? weekend : !weekend)),
+      day,
+      rotationSeed,
+    );
+    const dailyAssignmentsByEmployee = new Map<string, DailyEmployeeAssignment[]>();
+    eligibleCellCount += eligibleRows.length;
 
-    rows.forEach(({ row, isAvailable }, rowIndex) => {
-      if (!isAvailable) return;
-      const eligible = row.weekendOnly ? weekend : !weekend;
-      if (!eligible) return;
+    for (let pass = 0; pass < maxAssignmentsPerCell; pass += 1) {
+      // Keep the first coverage pass interleaved so a large facility cannot
+      // consume the roster before smaller facilities (such as WHH) are reached.
+      const rowsForPass = pass === 0
+        ? eligibleRows
+        : rotate(eligibleRows, rotationSeed + day + pass * 5);
 
-      eligibleCellCount += 1;
-      const employee = selectEmployee(
-        roster,
-        day,
-        rowIndex,
-        usedToday,
-        vacationIndex,
-        workloadByEmployee,
-      );
+      rowsForPass.forEach(({ facilityId, row }, rowIndex) => {
+        const assignments = row.cellsByDay[day];
+        if (assignments.length > pass) return;
 
-      if (!employee) {
-        skippedCount += 1;
-        return;
-      }
+        const employee = selectEmployee(
+          roster,
+          day,
+          rowIndex,
+          facilityId,
+          row.timeRange,
+          rotationSeed + pass * 11,
+          new Set(assignments.map((assignment) => assignment.employeeId)),
+          dailyAssignmentsByEmployee,
+          vacationIndex,
+          workloadByEmployee,
+        );
 
-      row.cellsByDay[day] = [makeAssignment(employee)];
-      usedToday.add(employee.employeeId);
-      workloadByEmployee.set(employee.employeeId, (workloadByEmployee.get(employee.employeeId) ?? 0) + 1);
-      assignedCount += 1;
-    });
+        if (!employee) {
+          if (pass === 0) skippedCount += 1;
+          return;
+        }
+
+        assignments.push(makeAssignment(employee));
+        const employeeAssignments = dailyAssignmentsByEmployee.get(employee.employeeId) ?? [];
+        employeeAssignments.push({ facilityId, timeRange: row.timeRange });
+        dailyAssignmentsByEmployee.set(employee.employeeId, employeeAssignments);
+        workloadByEmployee.set(employee.employeeId, (workloadByEmployee.get(employee.employeeId) ?? 0) + 1);
+        assignedCount += 1;
+      });
+    }
   }
 
   recalculateAllConflicts(data);
+  const multiStaffCellCount = rows.reduce((total, { row }) =>
+    total + Object.values(row.cellsByDay).filter((assignments) => assignments.length > 1).length, 0);
 
   return {
     data,
     assignedCount,
     skippedCount,
     eligibleCellCount,
+    multiStaffCellCount,
     ...generatedVacations,
     conflictCount: countScheduleConflicts(data),
   };

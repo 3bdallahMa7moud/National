@@ -14,7 +14,6 @@ import { isActiveLateScheduleRow, orderLateScheduleRows } from '@/lib/lateSchedu
 import type { OTShiftInput } from '@/types/lateSchedule';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import LateScheduleToolbar, { type OTViewMode } from './LateScheduleToolbar';
-import LateScheduleStats from './LateScheduleStats';
 import LateScheduleDesktopGrid from './LateScheduleDesktopGrid';
 import LateScheduleMobileWeek from './LateScheduleMobileWeek';
 import OTAssignmentPanel from './OTAssignmentPanel';
@@ -68,8 +67,6 @@ export default function LateSchedulePage() {
   const currentMonthStatus = useLateScheduleStore((state) => state.currentMonthStatus);
   const storageError = useLateScheduleStore((state) => state.storageError);
   const setNotice = useLateScheduleStore((state) => state.setNotice);
-  const [search, setSearch] = useState('');
-  const [showStats, setShowStats] = useState(true);
   const [viewMode, setViewMode] = useState<OTViewMode>('auto');
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
@@ -101,23 +98,10 @@ export default function LateSchedulePage() {
   }, [addToast, isAdmin, isRtl, month, rows, searchParams, setMonth, year]);
 
   const roster = useEmployeeRosterStore((state) => state.employees);
-  const employeeById = useMemo(() => new Map(roster.map((employee) => [employee.employeeId, employee])), [roster]);
   const orderedRows = useMemo(() => orderLateScheduleRows(rows, units), [rows, units]);
 
-  const filteredRows = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return orderedRows;
-    return orderedRows.filter((row) => {
-      const identityText = Object.values(row.assignments).flat().map((assignment) => {
-        if (assignment.kind === 'unresolved') return assignment.legacyCode;
-        const employee = employeeById.get(assignment.employeeId);
-        return `${employee?.code ?? ''} ${employee?.fullName ?? ''} ${employee?.fullNameEn ?? ''}`;
-      }).join(' ');
-      return `${row.title} ${row.location} ${row.timeRange} ${identityText}`.toLowerCase().includes(query);
-    });
-  }, [orderedRows, search, employeeById]);
-  const activeFilteredRows = filteredRows.filter((row) => isActiveLateScheduleRow(row, units));
-  const archivedFilteredRows = filteredRows.filter((row) => row.archived);
+  const activeFilteredRows = useMemo(() => orderedRows.filter((row) => isActiveLateScheduleRow(row, units)), [orderedRows, units]);
+  const archivedFilteredRows = useMemo(() => orderedRows.filter((row) => row.archived), [orderedRows]);
 
   const activeRow = activeCell ? rows.find((row) => row.id === activeCell.rowId) : undefined;
   const editingRow = editingRowId ? rows.find((row) => row.id === editingRowId) : undefined;
@@ -169,15 +153,11 @@ export default function LateSchedulePage() {
     <div className="min-w-0 space-y-4 overflow-x-clip pb-10">
       <LateScheduleToolbar
         monthLabel={monthLabel}
-        search={search}
         canEdit={isAdmin}
-        showStats={showStats}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        onSearch={setSearch}
         onPreviousMonth={goToPreviousMonth}
         onNextMonth={goToNextMonth}
-        onToggleStats={() => setShowStats((value) => !value)}
         onExportExcel={async () => {
           const context = exportContext();
           await exportLateScheduleExcel(activeRows, roster, context.title, year, month, context.days, notice);
@@ -238,8 +218,6 @@ export default function LateSchedulePage() {
           }}
         />
       )}
-
-      {showStats && <LateScheduleStats isRtl={isRtl} shiftRows={activeRows.length} assignments={assignmentCount} hours={totalHours} employees={roster.length} />}
 
       {(notice || isAdmin || warnings.length > 0) && (
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">

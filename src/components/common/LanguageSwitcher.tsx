@@ -29,13 +29,13 @@ export default function LanguageSwitcher({ className, variant = 'default' }: Lan
         type="button"
         onClick={() => handleChange(otherLanguage)}
         className={cn(
-          'relative rounded-xl p-2 transition-colors hover:bg-hover',
+          'relative inline-flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-hover',
           className,
         )}
         aria-label={t('language.switchTo', { lang: otherLanguageLabel })}
         title={t('language.switchTo', { lang: otherLanguageLabel })}
       >
-        <Globe className="h-5 w-5 text-text-secondary" />
+        <Globe className="h-5 w-5 text-text-secondary" aria-hidden="true" />
       </button>
     );
   }
@@ -46,13 +46,13 @@ export default function LanguageSwitcher({ className, variant = 'default' }: Lan
         type="button"
         onClick={() => handleChange(otherLanguage)}
         className={cn(
-          'relative flex items-center gap-2 rounded-btn border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-hover',
+          'relative flex min-h-11 items-center gap-2 rounded-btn border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-hover',
           className,
         )}
         aria-label={t('language.switchTo', { lang: otherLanguageLabel })}
         title={t('language.switchTo', { lang: otherLanguageLabel })}
       >
-        <Globe className="h-4 w-4 text-text-secondary" aria-hidden />
+        <Globe className="h-4 w-4 text-text-secondary" aria-hidden="true" />
         <span>{t(`language.${language}`)}</span>
       </button>
     );
@@ -73,7 +73,7 @@ export default function LanguageSwitcher({ className, variant = 'default' }: Lan
             aria-pressed={language === lng}
             aria-label={LANGUAGE_LABELS[lng]}
             className={cn(
-              'rounded-btn px-2.5 py-1 text-xs font-semibold transition-colors',
+              'min-h-11 rounded-btn px-2.5 py-1 text-xs font-semibold transition-colors',
               language === lng
                 ? 'bg-primary text-white'
                 : 'text-text-secondary hover:bg-hover hover:text-text-primary',
@@ -92,12 +92,12 @@ export default function LanguageSwitcher({ className, variant = 'default' }: Lan
         {t('language.switch')}
       </label>
       <div className="relative flex items-center">
-        <Globe className="pointer-events-none absolute start-2.5 h-4 w-4 text-text-secondary" aria-hidden />
+        <Globe className="pointer-events-none absolute start-2.5 h-4 w-4 text-text-secondary" aria-hidden="true" />
         <select
           id="language-select"
           value={language}
           onChange={(e) => handleChange(e.target.value as Language)}
-          className="cursor-pointer appearance-none rounded-btn border border-border bg-surface py-1.5 ps-8 pe-8 text-sm font-medium text-text-primary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="min-h-11 cursor-pointer appearance-none rounded-btn border border-border bg-surface py-1.5 ps-8 pe-8 text-sm font-medium text-text-primary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/20"
           aria-label={t('language.switch')}
         >
           {LANGUAGES.map((lng) => (

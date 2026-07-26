@@ -112,7 +112,7 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
           <label className="block text-sm font-medium text-text-primary mb-1.5">
             {t('common:lateSchedule.form.timeRange', { defaultValue: isRtl ? 'الوقت' : 'Time range' })}
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <span className="block text-xs font-medium text-text-secondary mb-1">{isRtl ? 'من (From)' : 'From'}</span>
               <select
@@ -166,7 +166,7 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
         </div>
 
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input label={isRtl ? 'لون الخلفية' : 'Background color'} type="color" value={form.backgroundColor || '#E0F2FE'} onChange={(event) => setForm({ ...form, backgroundColor: event.target.value })} />
           <Input label={isRtl ? 'لون النص' : 'Text color'} type="color" value={form.textColor || '#075985'} onChange={(event) => setForm({ ...form, textColor: event.target.value })} />
         </div>
@@ -178,7 +178,7 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
                 {t('common:lateSchedule.form.archive', { defaultValue: isRtl ? 'أرشفة شفت OT' : 'Archive OT shift' })}
               </Button>
             ) : (
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-danger">{t('common:lateSchedule.form.archiveConfirmText', { defaultValue: isRtl ? 'هل تريد أرشفة هذا الشفت؟' : 'Archive this shift?' })}</span>
                 <Button variant="danger" className="min-h-11" onClick={onArchive}>
                   {t('common:lateSchedule.form.confirmArchive', { defaultValue: isRtl ? 'تأكيد الأرشفة' : 'Confirm archive' })}
@@ -188,7 +188,7 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
           </div>
         )}
 
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
+        <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
           <Button variant="ghost" className="min-h-11" onClick={onClose}>{isRtl ? 'إلغاء' : 'Cancel'}</Button>
           <Button className="min-h-11" onClick={submit}>
             {t('common:lateSchedule.form.save', { defaultValue: isRtl ? 'حفظ شفت OT' : 'Save OT shift' })}

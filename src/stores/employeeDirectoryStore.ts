@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { OFFICIAL_EMPLOYEE_ROSTER, type OfficialEmployee } from '@/data/officialEmployeeRoster';
+import type { OfficialEmployee } from '@/data/officialEmployeeRoster';
 import {
   BUILTIN_EMPLOYEE_ACCOUNTS,
   MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY,

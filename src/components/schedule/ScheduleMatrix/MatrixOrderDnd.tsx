@@ -165,7 +165,6 @@ export function SortableMatrixUnit({
   facilityId,
   unitId,
   unitLabel,
-  rowIds,
   enabled,
   children,
 }: {
@@ -212,7 +211,6 @@ export function SortableMatrixRow({
   facilityId,
   unitId,
   rowId,
-  rowLabel,
   enabled,
   children,
 }: {

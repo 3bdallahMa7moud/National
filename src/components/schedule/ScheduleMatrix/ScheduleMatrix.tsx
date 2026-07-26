@@ -190,7 +190,7 @@ function ScheduleMatrix({
   onToggleExpandedCellsView,
   colorblindMode = false,
 }: ScheduleMatrixProps) {
-  const { t, i18n } = useTranslation(['schedule', 'common']);
+  const { t } = useTranslation(['schedule', 'common']);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [rowEditTarget, setRowEditTarget] = useState<RowEditTarget | null>(null);
@@ -205,7 +205,7 @@ function ScheduleMatrix({
   const [newRowLabel, setNewRowLabel] = useState('');
   const [newRowShiftDefinitionId, setNewRowShiftDefinitionId] = useState('');
   const [dayColWidth, setDayColWidth] = useState(56);
-  const [labelColWidth, setLabelColWidth] = useState(190);
+  const labelColWidth = 190;
   const [facilityColWidth, setFacilityColWidth] = useState(40);
   const [baseRowHeight, setBaseRowHeight] = useState(54);
   
@@ -258,10 +258,6 @@ function ScheduleMatrix({
   const handleColumnResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     createHorizontalResizer(dayColWidth, '--matrix-day-col', 40, 300, setDayColWidth)(e);
   }, [dayColWidth, createHorizontalResizer]);
-
-  const handleLabelColResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    createHorizontalResizer(labelColWidth, '--matrix-label-col', 100, 400, setLabelColWidth)(e);
-  }, [labelColWidth, createHorizontalResizer]);
 
   const handleFacilityColResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     createHorizontalResizer(facilityColWidth, '--matrix-facility-col', 30, 150, setFacilityColWidth)(e);
@@ -810,6 +806,7 @@ function ScheduleMatrix({
                             onRangeSelect={readOnly ? undefined : onRangeSelect}
                             onDragFill={readOnly ? undefined : onDragFill}
                             expandedCellsView={expandedCellsView}
+                            colorblindMode={colorblindMode}
                           />
                         </>
                         )}
@@ -1123,10 +1120,10 @@ function ScheduleMatrix({
             onClick={() => setRowAddTarget(null)}
           />
           <div
-            className="fixed z-[250] w-[300px] rounded-lg border border-border bg-surface p-3 shadow-2xl"
+            className="fixed z-[250] w-[min(300px,calc(100vw-32px))] rounded-lg border border-border bg-surface p-3 shadow-2xl"
             style={{
-              top: Math.min(rowAddTarget.anchorRect.bottom + 8, window.innerHeight - 300),
-              left: Math.max(16, Math.min(rowAddTarget.anchorRect.left, window.innerWidth - 320)),
+              top: Math.max(8, Math.min(rowAddTarget.anchorRect.bottom + 8, window.innerHeight - 300)),
+              left: Math.max(16, Math.min(rowAddTarget.anchorRect.left, window.innerWidth - 316)),
             }}
             role="dialog"
             aria-label={t('schedule:matrix.addRow', 'Add row')}

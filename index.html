@@ -1,30 +1,37 @@
 <!doctype html>
-<html lang="en" dir="ltr">
+<html lang="en" dir="ltr" data-theme="light" style="color-scheme: light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="CT Scan Scheduling System - Specialized Medical Center" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <title>CT Scan Scheduling System - Specialized Medical Center</title>
+    <meta name="theme-color" content="#0b7285" />
+    <meta
+      name="description"
+      content="Secure CT scan workforce scheduling for National Guard Health Affairs."
+    />
+    <meta name="robots" content="index, follow" />
+    <script src="/theme-bootstrap.js" defer></script>
+    <style>
+      #app-attribution {
+        position: fixed;
+        inset-inline: 1rem;
+        bottom: 1rem;
+        z-index: 20;
+        margin: 0;
+        color: #64748b;
+        font: 500 11px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, Arial, sans-serif;
+        text-align: center;
+        pointer-events: none;
+      }
+    </style>
+    <title>CT Scan Scheduling</title>
   </head>
   <body>
-    <script>
-      (() => {
-        const storageKey = 'theme-preference';
-        const legacyKey = 'national-theme';
-        const saved = localStorage.getItem(storageKey) || localStorage.getItem(legacyKey) || 'system';
-        const mode = ['light', 'dark', 'system'].includes(saved) ? saved : 'system';
-        const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const resolved = mode === 'system' ? (systemDark ? 'dark' : 'light') : mode;
-        document.documentElement.dataset.theme = resolved;
-        document.documentElement.classList.toggle('dark', resolved === 'dark');
-        document.documentElement.style.colorScheme = resolved;
-      })();
-    </script>
     <div id="root"></div>
+    <footer id="app-attribution">
+      Created by Eshraq Alruhaimi<br />
+      Technical Development by Abdallah Mahmoud
+    </footer>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-import React from 'react';
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
@@ -18,6 +18,11 @@ export default function HospitalLogo({
   className,
 }: HospitalLogoProps) {
   const { t } = useTranslation(['common']);
+  const idSuffix = useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const shieldGradientId = `hospital-logo-shield-${idSuffix}`;
+  const crossGradientId = `hospital-logo-cross-${idSuffix}`;
+  const emeraldGradientId = `hospital-logo-emerald-${idSuffix}`;
+  const goldGradientId = `hospital-logo-gold-${idSuffix}`;
   const displaySubtitle = subtitle ?? t('common:hospital.subtitleDefault');
 
   const sizeMap = {
@@ -48,22 +53,26 @@ export default function HospitalLogo({
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           className="w-full h-full relative z-10 drop-shadow-sm"
+          aria-hidden={showText ? true : undefined}
+          aria-label={showText ? undefined : t('common:hospital.name')}
+          role={showText ? undefined : 'img'}
+          focusable="false"
         >
           <defs>
-            <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id={shieldGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={isWhite ? '#FFFFFF' : '#3B82F6'} stopOpacity="0.9" />
               <stop offset="50%" stopColor={isWhite ? '#E0F2FE' : '#2563EB'} stopOpacity="1" />
               <stop offset="100%" stopColor={isWhite ? '#BAE6FD' : '#1D4ED8'} stopOpacity="0.95" />
             </linearGradient>
-            <linearGradient id="crossGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id={crossGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor={isWhite ? '#2563EB' : '#FFFFFF'} />
               <stop offset="100%" stopColor={isWhite ? '#1D4ED8' : '#F0F9FF'} />
             </linearGradient>
-            <linearGradient id="emeraldGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+            <linearGradient id={emeraldGradientId} x1="0%" y1="100%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#10B981" />
               <stop offset="100%" stopColor="#34D399" />
             </linearGradient>
-            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id={goldGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#F59E0B" />
               <stop offset="100%" stopColor="#FBBF24" />
             </linearGradient>
@@ -71,16 +80,16 @@ export default function HospitalLogo({
 
           <path
             d="M50 8 C28 8, 15 16, 15 35 C15 65, 38 85, 50 92 C62 85, 85 65, 85 35 C85 16, 72 8, 50 8 Z"
-            fill="url(#shieldGrad)"
+            fill={`url(#${shieldGradientId})`}
             stroke={isWhite ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)'}
             strokeWidth="2.5"
           />
-          <circle cx="50" cy="46" r="28" stroke="url(#emeraldGrad)" strokeWidth="1.8" strokeDasharray="4 3" strokeLinecap="round" opacity="0.85" />
+          <circle cx="50" cy="46" r="28" stroke={`url(#${emeraldGradientId})`} strokeWidth="1.8" strokeDasharray="4 3" strokeLinecap="round" opacity="0.85" />
           <circle cx="50" cy="46" r="22" stroke={isWhite ? '#0EA5E9' : '#60A5FA'} strokeWidth="1.2" opacity="0.6" />
-          <path d="M44 32 H56 V40 H64 V52 H56 V60 H44 V52 H36 V40 H44 V32 Z" fill="url(#crossGrad)" rx="2" className="drop-shadow" />
+          <path d="M44 32 H56 V40 H64 V52 H56 V60 H44 V52 H36 V40 H44 V32 Z" fill={`url(#${crossGradientId})`} rx="2" className="drop-shadow" />
           <path d="M40 46 L45 46 L48 41 L52 51 L55 46 L60 46" stroke={isWhite ? '#2563EB' : '#10B981'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M40 76 C45 73, 50 71, 50 71 C50 71, 55 73, 60 76 C55 78, 50 80, 50 80 C50 80, 45 78, 40 76 Z" fill="url(#goldGrad)" opacity="0.9" />
-          <circle cx="50" cy="67" r="2.5" fill="url(#goldGrad)" />
+          <path d="M40 76 C45 73, 50 71, 50 71 C50 71, 55 73, 60 76 C55 78, 50 80, 50 80 C50 80, 45 78, 40 76 Z" fill={`url(#${goldGradientId})`} opacity="0.9" />
+          <circle cx="50" cy="67" r="2.5" fill={`url(#${goldGradientId})`} />
         </svg>
 
         <span className="absolute -bottom-0.5 -start-0.5 flex h-3 w-3">

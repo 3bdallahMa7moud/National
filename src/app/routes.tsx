@@ -2,10 +2,17 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Trans } from 'react-i18next';
 import RouteGuard from '@/features/auth/RouteGuard';
+import {
+  AuthenticatedLandingRedirect,
+  LoginRouteGuard,
+} from '@/features/auth/AuthEntryRoutes';
 import RouteErrorFallback from '@/components/common/RouteErrorFallback';
+import NamespaceBoundary from '@/i18n/NamespaceBoundary';
+import type { Namespace } from '@/i18n';
+import DocumentTitle from './DocumentTitle';
+import LoginPage from '@/features/auth/LoginPage';
 
 const AppShell = lazy(() => import('@/layouts/AppShell'));
-const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'));
 const NotFoundPage = lazy(() => import('@/features/auth/NotFoundPage'));
 const ForbiddenPage = lazy(() => import('@/features/auth/ForbiddenPage'));
@@ -21,14 +28,18 @@ const EmployeeSchedulePage = lazy(() => import('@/features/schedule/EmployeeSche
 const DepartmentSchedulePage = lazy(() => import('@/features/schedule/DepartmentSchedulePage'));
 const CalendarSyncPage = lazy(() => import('@/features/calendar-sync/CalendarSyncPage'));
 const NotificationsPage = lazy(() => import('@/features/notifications/NotificationsPage'));
-const ShiftRequestsPage = lazy(() => import('@/features/shift-requests/ShiftRequestsPage'));
 const AdminShiftRequestsPage = lazy(() => import('@/features/shift-requests/AdminShiftRequestsPage'));
 const EmployeeShiftRequestsPage = lazy(() => import('@/features/shift-requests/EmployeeShiftRequestsPage'));
 const EmployeeJustificationPage = lazy(() => import('@/features/employee-justification/EmployeeJustificationPage'));
 const ProfilePage = lazy(() => import('@/features/employees/ProfilePage'));
 
 const routeFallback = (
-  <div className="flex min-h-screen items-center justify-center bg-background text-sm font-semibold text-text-secondary">
+  <div
+    className="flex min-h-screen items-center justify-center bg-background text-sm font-semibold text-text-secondary"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+  >
     <Trans ns="common" i18nKey="loading" />
   </div>
 );
@@ -37,32 +48,50 @@ function lazyElement(element: ReactNode) {
   return <Suspense fallback={routeFallback}>{element}</Suspense>;
 }
 
+function featureElement(
+  namespaces: Namespace | readonly Namespace[],
+  element: ReactNode,
+) {
+  const requiredNamespaces = typeof namespaces === 'string' ? [namespaces] : namespaces;
+  return (
+    <NamespaceBoundary namespaces={requiredNamespaces}>
+      {lazyElement(element)}
+    </NamespaceBoundary>
+  );
+}
+
+function titledElement(element: ReactNode) {
+  return <DocumentTitle>{element}</DocumentTitle>;
+}
+
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate to="/login" replace />,
+    element: titledElement(<AuthenticatedLandingRedirect />),
   },
   {
     path: '/login',
-    element: lazyElement(<LoginPage />),
+    element: titledElement(
+      <LoginRouteGuard>{lazyElement(<LoginPage />)}</LoginRouteGuard>,
+    ),
     errorElement: <RouteErrorFallback />,
   },
   {
     path: '/forgot-password',
-    element: lazyElement(<ForgotPasswordPage />),
+    element: titledElement(lazyElement(<ForgotPasswordPage />)),
     errorElement: <RouteErrorFallback />,
   },
   {
     path: '/403',
-    element: lazyElement(<ForbiddenPage />),
+    element: titledElement(lazyElement(<ForbiddenPage />)),
   },
   {
     path: '/',
-    element: <RouteGuard />,
+    element: titledElement(<RouteGuard />),
     errorElement: <RouteErrorFallback />,
     children: [
       {
-        element: lazyElement(<AppShell />),
+        element: featureElement(['notifications', 'shiftRequests'], <AppShell />),
         errorElement: <RouteErrorFallback />,
         children: [
           // مسارات المسؤول (Admin Routes)
@@ -72,39 +101,39 @@ export const router = createBrowserRouter([
             children: [
               {
                 path: 'admin/dashboard',
-                element: lazyElement(<DashboardPage />),
+                element: featureElement('dashboard', <DashboardPage />),
               },
               {
                 path: 'admin/schedule',
-                element: lazyElement(<AdminSchedulePage />),
+                element: featureElement('schedule', <AdminSchedulePage />),
               },
               {
                 path: 'admin/late-schedule',
-                element: lazyElement(<LateSchedulePage />),
+                element: featureElement('schedule', <LateSchedulePage />),
               },
               {
                 path: 'admin/employees',
-                element: lazyElement(<EmployeesPage />),
+                element: featureElement(['employees', 'access'], <EmployeesPage />),
               },
               {
                 path: 'admin/departments',
-                element: lazyElement(<DepartmentsPage />),
+                element: featureElement('departments', <DepartmentsPage />),
               },
               {
                 path: 'admin/reports',
-                element: lazyElement(<ReportsPage />),
+                element: featureElement('reports', <ReportsPage />),
               },
               {
                 path: 'admin/audit-log',
-                element: lazyElement(<AuditLogPage />),
+                element: featureElement('reports', <AuditLogPage />),
               },
               {
                 path: 'admin/shift-requests',
-                element: lazyElement(<AdminShiftRequestsPage />),
+                element: featureElement('shiftRequests', <AdminShiftRequestsPage />),
               },
               {
                 path: 'admin/employee-justification',
-                element: lazyElement(<EmployeeJustificationPage />),
+                element: featureElement('employeeJustification', <EmployeeJustificationPage />),
               },
             ],
           },
@@ -115,20 +144,20 @@ export const router = createBrowserRouter([
             children: [
               {
                 path: 'employee/dashboard',
-                element: lazyElement(<EmployeeDashboardPage />),
+                element: featureElement('dashboard', <EmployeeDashboardPage />),
               },
               {
                 element: <RouteGuard requiredAnyPermission={['schedule.own.view', 'schedule.ot.own.view']} />,
                 children: [{
                   path: 'schedule/me',
-                  element: lazyElement(<EmployeeSchedulePage />),
+                  element: featureElement(['schedule', 'shiftRequests'], <EmployeeSchedulePage />),
                 }],
               },
               {
                 element: <RouteGuard requiredAnyPermission={['schedule.department.view', 'schedule.ot.department.view']} />,
                 children: [{
                   path: 'schedule/department',
-                  element: lazyElement(<DepartmentSchedulePage />),
+                  element: featureElement('schedule', <DepartmentSchedulePage />),
                 }],
               },
               {
@@ -142,7 +171,7 @@ export const router = createBrowserRouter([
                 element: <RouteGuard requiredPermission="schedule.calendar.sync" />,
                 children: [{
                   path: 'calendar-sync',
-                  element: lazyElement(<CalendarSyncPage />),
+                  element: featureElement('calendar', <CalendarSyncPage />),
                 }],
               },
               {
@@ -155,18 +184,18 @@ export const router = createBrowserRouter([
                 ]} />,
                 children: [{
                   path: 'shift-requests',
-                  element: lazyElement(<EmployeeShiftRequestsPage />),
+                  element: featureElement('shiftRequests', <EmployeeShiftRequestsPage />),
                 }],
               },
               {
                 path: 'notifications',
-                element: lazyElement(<NotificationsPage />),
+                element: featureElement(['notifications', 'shiftRequests'], <NotificationsPage />),
               },
             ],
           },
           {
             path: 'profile',
-            element: lazyElement(<ProfilePage />),
+            element: featureElement('employees', <ProfilePage />),
           },
         ],
       },
@@ -174,6 +203,6 @@ export const router = createBrowserRouter([
   },
   {
     path: '*',
-    element: lazyElement(<NotFoundPage />),
+    element: titledElement(lazyElement(<NotFoundPage />)),
   },
 ]);

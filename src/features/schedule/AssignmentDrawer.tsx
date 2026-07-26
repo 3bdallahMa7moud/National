@@ -208,7 +208,7 @@ function AssignmentDrawer({
 
       <div
         className={cn(
-          'fixed top-0 z-50 flex h-full w-full max-w-[520px] flex-col',
+          'fixed top-0 z-50 flex h-full w-full max-w-[min(520px,100vw)] flex-col',
           'border-s border-border bg-surface shadow-dropdown',
           'inset-inline-end-0 animate-slideIn',
         )}
@@ -340,8 +340,8 @@ function AssignmentDrawer({
         </div>
 
         {/* ── Footer ── */}
-        <footer className="border-t border-border bg-surface px-5 py-4">
-          <div className="grid grid-cols-[1fr_auto_auto] gap-2">
+        <footer className="border-t border-border bg-surface px-4 py-4 sm:px-5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
             <button
               type="button"
               onClick={handleSave}

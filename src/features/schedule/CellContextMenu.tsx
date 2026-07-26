@@ -39,14 +39,14 @@ function CellContextMenu({
     };
   }, [onClose]);
 
-  const top = Math.min(position.y, window.innerHeight - 240);
-  const left = Math.min(position.x, window.innerWidth - 230);
+  const top = Math.max(8, Math.min(position.y, window.innerHeight - 240));
+  const left = Math.max(8, Math.min(position.x, window.innerWidth - 232));
 
   const itemClass = 'flex w-full items-center gap-2 px-3 py-2 text-start text-xs font-semibold transition-colors hover:bg-hover';
 
   return (
     <div
-      className="fixed z-[240] w-56 overflow-hidden rounded-lg border border-border bg-surface py-1.5 text-ink shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+      className="fixed z-[240] w-[min(14rem,calc(100vw-16px))] overflow-hidden rounded-lg border border-border bg-surface py-1.5 text-ink shadow-2xl animate-in fade-in zoom-in-95 duration-150"
       style={{ top, left }}
       role="menu"
     >

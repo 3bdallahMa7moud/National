@@ -24,9 +24,6 @@ import {
   Search,
   FileSpreadsheet,
   Printer,
-  User,
-  Filter,
-  X,
   RotateCcw,
 } from 'lucide-react';
 import {
@@ -45,16 +42,6 @@ import {
   type AnalysisGranularity,
 } from '@/lib/analysisPeriod';
 import { buildEmployeeAnalysisView } from '@/lib/employeeAnalysisView';
-import {
-  operationalShiftBackgrounds,
-  operationalShiftGradient,
-  operationalShiftStyle,
-} from '@/lib/occurrenceShiftStyle';
-import {
-  collectPublishedShiftVisualsForPeriod,
-  defaultOperationalShiftVisual,
-} from '@/lib/operationalShiftVisuals';
-import type { CoverageCategory } from '@/types/operationalDashboard';
 
 type TabKey = 'overview' | 'workloadMatrix';
 
@@ -93,10 +80,6 @@ export default function ReportsPage() {
   );
   const coverage = useMemo(
     () => getAnalysisCoverage(period, matricesByMonth, otRowsByMonth),
-    [matricesByMonth, otRowsByMonth, period],
-  );
-  const publishedShiftVisuals = useMemo(
-    () => collectPublishedShiftVisualsForPeriod(matricesByMonth, otRowsByMonth, period),
     [matricesByMonth, otRowsByMonth, period],
   );
   const analysisRows = useMemo(

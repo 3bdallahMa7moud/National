@@ -12,7 +12,7 @@
   --color-surface-elevated: 255 255 255;
   --color-text-primary: 16 27 45;
   --color-text-secondary: 91 100 114;
-  --color-text-muted: 119 132 146;
+  --color-text-muted: 100 113 126;
   --color-border: 218 226 230;
   --color-hover: 232 244 246;
   --color-ring: 11 114 133;
@@ -33,18 +33,18 @@
 
   --color-secondary: 34 211 216;
   --color-accent: 34 197 94;
-  --color-success: 34 197 94;
+  --color-success: 21 128 61;
   --color-success-50: 240 253 244;
-  --color-success-500: 34 197 94;
-  --color-success-600: 22 163 74;
-  --color-warning: 245 158 11;
+  --color-success-500: 21 128 61;
+  --color-success-600: 22 101 52;
+  --color-warning: 180 83 9;
   --color-warning-50: 255 251 235;
-  --color-warning-500: 245 158 11;
-  --color-warning-600: 217 119 6;
-  --color-danger: 226 87 43;
+  --color-warning-500: 180 83 9;
+  --color-warning-600: 146 64 14;
+  --color-danger: 194 65 30;
   --color-danger-50: 254 242 240;
-  --color-danger-500: 226 87 43;
-  --color-danger-600: 194 65 30;
+  --color-danger-500: 194 65 30;
+  --color-danger-600: 154 52 18;
   --color-info: 11 114 133;
   --color-info-50: 232 248 250;
   --color-info-500: 11 114 133;
@@ -54,7 +54,7 @@
   --color-signal-cyan: 34 211 216;
   --color-warm-surface: 246 245 241;
   --color-slate-brand: 91 100 114;
-  --color-alert-coral: 226 87 43;
+  --color-alert-coral: 194 65 30;
 
   /* Core brand hex tokens used directly by schedule CSS. */
   --ink:            #101B2D;
@@ -62,7 +62,7 @@
   --signal-cyan:    #22D3D8;
   --warm-surface:   #F6F5F1;
   --slate:          #5B6472;
-  --alert-coral:    #E2572B;
+  --alert-coral:    #C2411E;
 
   /* Facility band colors. */
   --facility-kamc:  #101B2D;

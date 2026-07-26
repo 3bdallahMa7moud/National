@@ -58,6 +58,14 @@ const statusVariant: Record<
   stale: 'danger',
 };
 
+const CLOSED_STATUSES: ShiftRequestStatus[] = [
+  'recipient_rejected',
+  'admin_rejected',
+  'cancelled',
+  'expired',
+  'stale',
+];
+
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
@@ -161,10 +169,6 @@ export default function AdminShiftRequestsPage() {
   }, [expirePending, user]);
 
   /* ---- Filtered & sorted data ---- */
-  const CLOSED_STATUSES: ShiftRequestStatus[] = [
-    'recipient_rejected', 'admin_rejected', 'cancelled', 'expired', 'stale',
-  ];
-
   const filtered = useMemo(() => {
     let result = [...requests];
     if (typeFilter !== 'all') result = result.filter((r) => r.type === typeFilter);
@@ -283,7 +287,7 @@ export default function AdminShiftRequestsPage() {
           </h1>
           <p className="mt-1 text-sm text-text-secondary">{t('shiftRequests:subtitle')}</p>
         </div>
-        <Button icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
+        <Button className="w-full sm:w-auto" icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
           {t('shiftRequests:newRequest')}
         </Button>
       </header>
@@ -306,7 +310,7 @@ export default function AdminShiftRequestsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 rounded-card border border-border bg-surface-card p-3">
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative min-w-0 flex-1 sm:min-w-[180px]">
           <Search className="absolute top-2.5 h-4 w-4 text-text-muted rtl:right-3 ltr:left-3" />
           <input
             type="text"
@@ -316,7 +320,7 @@ export default function AdminShiftRequestsPage() {
             className="input-field w-full rtl:pr-9 ltr:pl-9"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Filter className="h-4 w-4 text-text-secondary" />
           <select
             className="input-field py-1.5 text-sm"
@@ -341,288 +345,437 @@ export default function AdminShiftRequestsPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Requests List */}
       <ErrorBoundary fallback={<div className="p-4 text-xs text-danger">{t('shiftRequests:errors.load')}</div>}>
         {filtered.length === 0 ? (
           <Card className="py-12 text-center text-sm text-text-secondary">
             {t('shiftRequests:empty')}
           </Card>
         ) : (
-          <div className="overflow-x-auto rounded-card border border-border bg-surface-card shadow-xs">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface-muted text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                  <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'رقم الطلب' : 'ID'}</th>
-                  <th className="px-4 py-3 text-start">
-                    <button className="flex items-center gap-1 hover:text-text-primary" onClick={() => toggleSort('type')}>
-                      {getStoredLanguage() === 'ar' ? 'النوع' : 'Type'}
-                      {sortField === 'type' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'مقدم الطلب' : 'Requester'}</th>
-                  <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'الموظف المستهدف' : 'Target Employee'}</th>
-                  <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'الفرع' : 'Branch'}</th>
-                  <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'تاريخ الشفت' : 'Shift Date'}</th>
-                  <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'تفاصيل الشفت' : 'Shift Details'}</th>
-                  <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'رد الموظف' : 'Employee Response'}</th>
-                  <th className="px-4 py-3 text-start">
-                    <button className="flex items-center gap-1 hover:text-text-primary" onClick={() => toggleSort('status')}>
-                      {getStoredLanguage() === 'ar' ? 'حالة الأدمن' : 'Admin Status'}
-                      {sortField === 'status' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-start">
-                    <button className="flex items-center gap-1 hover:text-text-primary" onClick={() => toggleSort('createdAt')}>
-                      {getStoredLanguage() === 'ar' ? 'التاريخ' : 'Created'}
-                      {sortField === 'createdAt' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-start">
-                    <button className="flex items-center gap-1 hover:text-text-primary" onClick={() => toggleSort('updatedAt')}>
-                      {getStoredLanguage() === 'ar' ? 'آخر تحديث' : 'Updated'}
-                      {sortField === 'updatedAt' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
-                    </button>
-                  </th>
-                  <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'الإجراءات' : 'Actions'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.map((request) => {
-                  const isExpanded = expandedId === request.id;
-                  const isOverridePending = overridePendingId === request.id;
-                  const empResponseDate = getEmployeeResponseDate(request);
-                  const adminDecisionDate = getAdminDecisionDate(request);
-                  const shiftDate = `${request.requesterAssignment.monthKey}-${String(request.requesterAssignment.day).padStart(2, '0')}`;
-                  const isEmployeeAccepted = request.timeline.some((event) =>
-                    event.action === 'recipient_accepted',
-                  ) || request.status === 'approved';
-                  const isEmployeeRejected = request.status === 'recipient_rejected';
-                  const isPendingEmployee = request.status === 'pending_recipient';
-                  const requesterName = requestPartyName(request.requester, lang);
-                  const recipientName = requestPartyName(request.recipient, lang);
+          <>
+            {/* ── Mobile: Card list (hidden on md+) ── */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {filtered.map((request) => {
+                const isExpanded = expandedId === request.id;
+                const isOverridePending = overridePendingId === request.id;
+                const empResponseDate = getEmployeeResponseDate(request);
+                const adminDecisionDate = getAdminDecisionDate(request);
+                const shiftDate = `${request.requesterAssignment.monthKey}-${String(request.requesterAssignment.day).padStart(2, '0')}`;
+                const isEmployeeAccepted = request.timeline.some((e) => e.action === 'recipient_accepted') || request.status === 'approved';
+                const isEmployeeRejected = request.status === 'recipient_rejected';
+                const isPendingEmployee = request.status === 'pending_recipient';
+                const requesterName = requestPartyName(request.requester, lang);
+                const recipientName = requestPartyName(request.recipient, lang);
+                const isAr = getStoredLanguage() === 'ar';
 
-                  return (
-                    <>
-                      <tr
-                        key={request.id}
-                        className="group hover:bg-surface-muted/50 transition-colors cursor-pointer"
-                        onClick={() => setExpandedId(isExpanded ? null : request.id)}
-                      >
-                        {/* ID */}
-                        <td className="px-4 py-3">
-                          <span className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-text-secondary">
-                            {request.id.slice(0, 12)}…
-                          </span>
-                        </td>
-
-                        {/* Type */}
-                        <td className="px-4 py-3">
-                          <span className="flex items-center gap-1.5 font-medium text-text-primary">
-                            <ArrowLeftRight className="h-3.5 w-3.5 text-primary" />
+                return (
+                  <div key={request.id} className="rounded-card border border-border bg-surface-card shadow-xs overflow-hidden">
+                    {/* Card header — clickable to expand */}
+                    <button
+                      type="button"
+                      className="w-full text-start p-4 flex items-start justify-between gap-3 hover:bg-surface-muted/40 transition-colors"
+                      onClick={() => setExpandedId(isExpanded ? null : request.id)}
+                    >
+                      <div className="min-w-0 space-y-1.5">
+                        {/* Type + Status */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="flex items-center gap-1.5 font-semibold text-text-primary text-sm">
+                            <ArrowLeftRight className="h-3.5 w-3.5 text-primary shrink-0" />
                             {t(`shiftRequests:type.${request.type}`)}
                           </span>
-                        </td>
-
-                        {/* Requester */}
-                        <td className="px-4 py-3 font-medium text-text-primary">
-                          {requesterName}
-                          <div className="text-[11px] font-normal text-text-muted">
-                            {request.requester.employeeCode}
-                          </div>
-                        </td>
-
-                        {/* Target */}
-                        <td className="px-4 py-3 font-medium text-text-primary">
-                          {recipientName}
-                          <div className="text-[11px] font-normal text-text-muted">
-                            {request.recipient.employeeCode}
-                          </div>
-                        </td>
-
-                        {/* Branch */}
-                        <td className="px-4 py-3 text-text-secondary">
-                          {request.requesterAssignment.facilityLabel}
-                        </td>
-
-                        {/* Shift Date */}
-                        <td className="px-4 py-3 text-text-secondary">{shiftDate}</td>
-
-                        {/* Shift Details */}
-                        <td className="px-4 py-3 text-text-secondary">
-                          <div>{request.requesterAssignment.shiftLabel}</div>
-                          <div className="text-[11px] text-text-muted">{request.requesterAssignment.timeRange}</div>
-                        </td>
-
-                        {/* Employee Response */}
-                        <td className="px-4 py-3">
-                          {isPendingEmployee && (
-                            <Badge variant="warning">{getStoredLanguage() === 'ar' ? 'بانتظار الرد' : 'Pending'}</Badge>
-                          )}
-                          {isEmployeeAccepted && (
-                            <div>
-                              <Badge variant="success">{getStoredLanguage() === 'ar' ? 'وافق' : 'Accepted'}</Badge>
-                              {empResponseDate && (
-                                <div className="mt-0.5 text-[10px] text-text-muted">
-                                  {formatDate(empResponseDate, lang)}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {isEmployeeRejected && (
-                            <Badge variant="danger">{getStoredLanguage() === 'ar' ? 'رفض' : 'Rejected'}</Badge>
-                          )}
-                        </td>
-
-                        {/* Admin Status */}
-                        <td className="px-4 py-3">
                           <Badge variant={statusVariant[request.status]}>
                             {t(`shiftRequests:status.${request.status}`)}
                           </Badge>
-                          {adminDecisionDate && (
-                            <div className="mt-0.5 text-[10px] text-text-muted">
-                              {formatDate(adminDecisionDate, lang)}
+                        </div>
+                        {/* Requester → Recipient */}
+                        <p className="text-xs text-text-secondary">
+                          {requesterName} → {recipientName}
+                        </p>
+                        {/* Shift date + facility */}
+                        <p className="text-xs text-text-muted" dir="ltr">
+                          {shiftDate} · {request.requesterAssignment.shiftLabel} · {request.requesterAssignment.facilityLabel}
+                        </p>
+                        {/* Employee response row */}
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                          <span className="text-xs text-text-secondary">{isAr ? 'رد الموظف:' : 'Response:'}</span>
+                          {isPendingEmployee && <Badge variant="warning">{isAr ? 'بانتظار الرد' : 'Pending'}</Badge>}
+                          {isEmployeeAccepted && (
+                            <span className="flex items-center gap-1">
+                              <Badge variant="success">{isAr ? 'وافق' : 'Accepted'}</Badge>
+                              {empResponseDate && <span className="text-[10px] text-text-muted">{formatDate(empResponseDate, lang)}</span>}
+                            </span>
+                          )}
+                          {isEmployeeRejected && <Badge variant="danger">{isAr ? 'رفض' : 'Rejected'}</Badge>}
+                          {adminDecisionDate && !isPendingEmployee && (
+                            <span className="text-[10px] text-text-muted">{isAr ? 'قرار:' : 'Decision:'} {formatDate(adminDecisionDate, lang)}</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Expand icon */}
+                      <span className="shrink-0 text-text-secondary mt-0.5">
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </span>
+                    </button>
+
+                    {/* Action buttons (always visible for actionable requests) */}
+                    {(['pending_recipient', 'pending_admin'] as ShiftRequestStatus[]).includes(request.status) && (
+                      <div className="flex flex-wrap items-center gap-2 px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+                        {request.status === 'pending_admin' && (
+                          isOverridePending ? (
+                            <Button size="sm" variant="danger" onClick={() => handleOverrideApprove(request.id)}>
+                              {t('shiftRequests:approveOverride')}
+                            </Button>
+                          ) : (
+                            <Button size="sm" icon={<Check className="h-3.5 w-3.5" />} onClick={() => handleApprove(request.id)}>
+                              {t('shiftRequests:approve')}
+                            </Button>
+                          )
+                        )}
+                        <Button size="sm" variant="danger" icon={<X className="h-3.5 w-3.5" />} onClick={() => handleRejectOpen(request.id)}>
+                          {t('shiftRequests:rejectAdmin')}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Expanded details */}
+                    {isExpanded && (
+                      <div className="border-t border-border bg-surface-muted/40 p-4 space-y-3">
+                        {/* ID */}
+                        <p className="text-[11px] text-text-muted font-mono">{isAr ? 'رقم الطلب: ' : 'ID: '}{request.id}</p>
+                        {/* Timestamps */}
+                        <div className="grid grid-cols-2 gap-2 text-xs text-text-secondary">
+                          <div><span className="font-semibold">{isAr ? 'أُنشئ:' : 'Created:'}</span><br />{formatDateTime(request.createdAt, lang)}</div>
+                          <div><span className="font-semibold">{isAr ? 'آخر تحديث:' : 'Updated:'}</span><br />{formatDateTime(request.updatedAt, lang)}</div>
+                        </div>
+                        {/* Shift cards */}
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="rounded-card border border-border bg-surface-card p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-1">{t('shiftRequests:requesterShift')}</p>
+                            <p className="text-sm font-medium text-text-primary">{request.requesterAssignment.shiftLabel} · {request.requesterAssignment.timeRange}</p>
+                            <p className="text-xs text-text-secondary mt-0.5">{request.requesterAssignment.facilityLabel} / {request.requesterAssignment.unitLabel}</p>
+                          </div>
+                          {request.offeredAssignment && (
+                            <div className="rounded-card border border-border bg-surface-card p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-1">{t('shiftRequests:offeredShift')}</p>
+                              <p className="text-sm font-medium text-text-primary">{request.offeredAssignment.shiftLabel} · {request.offeredAssignment.timeRange}</p>
+                              <p className="text-xs text-text-secondary mt-0.5">{request.offeredAssignment.facilityLabel} / {request.offeredAssignment.unitLabel}</p>
                             </div>
                           )}
-                        </td>
+                        </div>
+                        {/* Admin rejection */}
+                        {request.status === 'admin_rejected' && request.adminRejectionReason && (
+                          <div className="rounded-card border border-danger/20 bg-danger-50 p-3 text-xs text-text-primary">
+                            <strong>{t('shiftRequests:adminReason')}:</strong>{' '}{t(`shiftRequests:reasons.${request.adminRejectionReason}`)}
+                            {request.adminRejectionNote && <span className="mt-1 block"><strong>{t('shiftRequests:adminNote')}:</strong> {request.adminRejectionNote}</span>}
+                          </div>
+                        )}
+                        {/* Warnings */}
+                        {request.warnings.length > 0 && (
+                          <div className="rounded-card border border-warning/30 bg-warning-50 p-3">
+                            <p className="flex items-center gap-2 text-sm font-semibold text-text-primary"><AlertTriangle className="h-4 w-4 text-warning" /> {t('shiftRequests:warnings')}</p>
+                            <ul className="mt-2 list-disc space-y-1 ps-5 text-xs text-text-secondary">
+                              {request.warnings.map((w, i) => <li key={i}>{t(`shiftRequests:warningCodes.${w.code}`)}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                        {/* Timeline */}
+                        <ol className="space-y-2 rounded-card bg-surface-muted p-3">
+                          <p className="text-xs font-semibold text-text-secondary mb-2">{t('shiftRequests:timeline')}</p>
+                          {request.timeline.map((event) => (
+                            <li key={event.id} className="flex gap-2 text-xs text-text-secondary">
+                              <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                              <span>
+                                <strong className="text-text-primary">{event.actorRole === 'system' ? t('shiftRequests:systemActor') : timelineActorName(event, lang)}</strong>{' '}
+                                · {t(`shiftRequests:timelineActions.${event.action}`)} · {formatDateTime(event.createdAt, lang)}
+                                {event.note && <span className="mt-0.5 block text-text-primary">{event.note}</span>}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-                        {/* Created */}
-                        <td className="px-4 py-3 text-xs text-text-secondary">
-                          {formatDateTime(request.createdAt, lang)}
-                        </td>
+            {/* ── Desktop: Table (hidden below md) ── */}
+            <div className="hidden md:block overflow-x-auto rounded-card border border-border bg-surface-card shadow-xs">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface-muted text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                    <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'رقم الطلب' : 'ID'}</th>
+                    <th className="px-4 py-3 text-start">
+                      <button className="flex items-center gap-1 hover:text-text-primary" onClick={() => toggleSort('type')}>
+                        {getStoredLanguage() === 'ar' ? 'النوع' : 'Type'}
+                        {sortField === 'type' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'مقدم الطلب' : 'Requester'}</th>
+                    <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'الموظف المستهدف' : 'Target Employee'}</th>
+                    <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'الفرع' : 'Branch'}</th>
+                    <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'تاريخ الشفت' : 'Shift Date'}</th>
+                    <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'تفاصيل الشفت' : 'Shift Details'}</th>
+                    <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'رد الموظف' : 'Employee Response'}</th>
+                    <th className="px-4 py-3 text-start">
+                      <button className="flex items-center gap-1 hover:text-text-primary" onClick={() => toggleSort('status')}>
+                        {getStoredLanguage() === 'ar' ? 'حالة الأدمن' : 'Admin Status'}
+                        {sortField === 'status' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-start">
+                      <button className="flex items-center gap-1 hover:text-text-primary" onClick={() => toggleSort('createdAt')}>
+                        {getStoredLanguage() === 'ar' ? 'التاريخ' : 'Created'}
+                        {sortField === 'createdAt' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-start">
+                      <button className="flex items-center gap-1 hover:text-text-primary" onClick={() => toggleSort('updatedAt')}>
+                        {getStoredLanguage() === 'ar' ? 'آخر تحديث' : 'Updated'}
+                        {sortField === 'updatedAt' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : null}
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-start">{getStoredLanguage() === 'ar' ? 'الإجراءات' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filtered.map((request) => {
+                    const isExpanded = expandedId === request.id;
+                    const isOverridePending = overridePendingId === request.id;
+                    const empResponseDate = getEmployeeResponseDate(request);
+                    const adminDecisionDate = getAdminDecisionDate(request);
+                    const shiftDate = `${request.requesterAssignment.monthKey}-${String(request.requesterAssignment.day).padStart(2, '0')}`;
+                    const isEmployeeAccepted = request.timeline.some((event) =>
+                      event.action === 'recipient_accepted',
+                    ) || request.status === 'approved';
+                    const isEmployeeRejected = request.status === 'recipient_rejected';
+                    const isPendingEmployee = request.status === 'pending_recipient';
+                    const requesterName = requestPartyName(request.requester, lang);
+                    const recipientName = requestPartyName(request.recipient, lang);
 
-                        {/* Updated */}
-                        <td className="px-4 py-3 text-xs text-text-secondary">
-                          {formatDateTime(request.updatedAt, lang)}
-                        </td>
+                    return (
+                      <>
+                        <tr
+                          key={request.id}
+                          className="group hover:bg-surface-muted/50 transition-colors cursor-pointer"
+                          onClick={() => setExpandedId(isExpanded ? null : request.id)}
+                        >
+                          {/* ID */}
+                          <td className="px-4 py-3">
+                            <span className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-text-secondary">
+                              {request.id.slice(0, 12)}…
+                            </span>
+                          </td>
 
-                        {/* Actions */}
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          {(['pending_recipient', 'pending_admin'] as ShiftRequestStatus[]).includes(request.status) && (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {request.status === 'pending_admin' && (
-                                isOverridePending ? (
-                                  <Button
-                                    size="sm"
-                                    variant="danger"
-                                    onClick={() => handleOverrideApprove(request.id)}
-                                  >
-                                    {t('shiftRequests:approveOverride')}
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    icon={<Check className="h-3.5 w-3.5" />}
-                                    onClick={() => handleApprove(request.id)}
-                                  >
-                                    {t('shiftRequests:approve')}
-                                  </Button>
-                                )
-                              )}
-                              <Button
-                                size="sm"
-                                variant="danger"
-                                icon={<X className="h-3.5 w-3.5" />}
-                                onClick={() => handleRejectOpen(request.id)}
-                              >
-                                {t('shiftRequests:rejectAdmin')}
-                              </Button>
+                          {/* Type */}
+                          <td className="px-4 py-3">
+                            <span className="flex items-center gap-1.5 font-medium text-text-primary">
+                              <ArrowLeftRight className="h-3.5 w-3.5 text-primary" />
+                              {t(`shiftRequests:type.${request.type}`)}
+                            </span>
+                          </td>
+
+                          {/* Requester */}
+                          <td className="px-4 py-3 font-medium text-text-primary">
+                            {requesterName}
+                            <div className="text-[11px] font-normal text-text-muted">
+                              {request.requester.employeeCode}
                             </div>
-                          )}
-                        </td>
-                      </tr>
+                          </td>
 
-                      {/* Expanded Row: Timeline */}
-                      {isExpanded && (
-                        <tr key={`${request.id}-detail`} className="bg-surface-muted/40">
-                          <td colSpan={12} className="px-6 py-4">
-                            <div className="space-y-3">
-                              {/* Shift info */}
-                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="rounded-card border border-border bg-surface-card p-3">
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">
-                                    {t('shiftRequests:requesterShift')}
-                                  </p>
-                                  <p className="text-sm font-medium text-text-primary">
-                                    {request.requesterAssignment.shiftLabel} · {request.requesterAssignment.timeRange}
-                                  </p>
-                                  <p className="text-xs text-text-secondary mt-0.5">
-                                    {request.requesterAssignment.facilityLabel} / {request.requesterAssignment.unitLabel}
-                                  </p>
-                                </div>
-                                {request.offeredAssignment && (
-                                  <div className="rounded-card border border-border bg-surface-card p-3">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">
-                                      {t('shiftRequests:offeredShift')}
-                                    </p>
-                                    <p className="text-sm font-medium text-text-primary">
-                                      {request.offeredAssignment.shiftLabel} · {request.offeredAssignment.timeRange}
-                                    </p>
-                                    <p className="text-xs text-text-secondary mt-0.5">
-                                      {request.offeredAssignment.facilityLabel} / {request.offeredAssignment.unitLabel}
-                                    </p>
+                          {/* Target */}
+                          <td className="px-4 py-3 font-medium text-text-primary">
+                            {recipientName}
+                            <div className="text-[11px] font-normal text-text-muted">
+                              {request.recipient.employeeCode}
+                            </div>
+                          </td>
+
+                          {/* Branch */}
+                          <td className="px-4 py-3 text-text-secondary">
+                            {request.requesterAssignment.facilityLabel}
+                          </td>
+
+                          {/* Shift Date */}
+                          <td className="px-4 py-3 text-text-secondary">{shiftDate}</td>
+
+                          {/* Shift Details */}
+                          <td className="px-4 py-3 text-text-secondary">
+                            <div>{request.requesterAssignment.shiftLabel}</div>
+                            <div className="text-[11px] text-text-muted">{request.requesterAssignment.timeRange}</div>
+                          </td>
+
+                          {/* Employee Response */}
+                          <td className="px-4 py-3">
+                            {isPendingEmployee && (
+                              <Badge variant="warning">{getStoredLanguage() === 'ar' ? 'بانتظار الرد' : 'Pending'}</Badge>
+                            )}
+                            {isEmployeeAccepted && (
+                              <div>
+                                <Badge variant="success">{getStoredLanguage() === 'ar' ? 'وافق' : 'Accepted'}</Badge>
+                                {empResponseDate && (
+                                  <div className="mt-0.5 text-[10px] text-text-muted">
+                                    {formatDate(empResponseDate, lang)}
                                   </div>
                                 )}
                               </div>
+                            )}
+                            {isEmployeeRejected && (
+                              <Badge variant="danger">{getStoredLanguage() === 'ar' ? 'رفض' : 'Rejected'}</Badge>
+                            )}
+                          </td>
 
-                              {/* Admin rejection reason */}
-                              {request.status === 'admin_rejected' && request.adminRejectionReason && (
-                                <div className="rounded-card border border-danger/20 bg-danger-50 p-3 text-xs text-text-primary">
-                                  <strong>{t('shiftRequests:adminReason')}:</strong>{' '}
-                                  {t(`shiftRequests:reasons.${request.adminRejectionReason}`)}
-                                  {request.adminRejectionNote ? (
-                                    <span className="mt-1 block">
-                                      <strong>{t('shiftRequests:adminNote')}:</strong>{' '}
-                                      {request.adminRejectionNote}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              )}
+                          {/* Admin Status */}
+                          <td className="px-4 py-3">
+                            <Badge variant={statusVariant[request.status]}>
+                              {t(`shiftRequests:status.${request.status}`)}
+                            </Badge>
+                            {adminDecisionDate && (
+                              <div className="mt-0.5 text-[10px] text-text-muted">
+                                {formatDate(adminDecisionDate, lang)}
+                              </div>
+                            )}
+                          </td>
 
-                              {/* Warnings */}
-                              {request.warnings.length > 0 && (
-                                <div className="rounded-card border border-warning/30 bg-warning-50 p-3">
-                                  <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-                                    <AlertTriangle className="h-4 w-4 text-warning" /> {t('shiftRequests:warnings')}
-                                  </p>
-                                  <ul className="mt-2 list-disc space-y-1 ps-5 text-xs text-text-secondary">
-                                    {request.warnings.map((w, i) => (
-                                      <li key={i}>{t(`shiftRequests:warningCodes.${w.code}`)}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
+                          {/* Created */}
+                          <td className="px-4 py-3 text-xs text-text-secondary">
+                            {formatDateTime(request.createdAt, lang)}
+                          </td>
 
-                              {/* Timeline */}
-                              <ol className="space-y-2 rounded-card bg-surface-muted p-3">
-                                <p className="text-xs font-semibold text-text-secondary mb-2">
-                                  {t('shiftRequests:timeline')}
-                                </p>
-                                {request.timeline.map((event) => (
-                                  <li key={event.id} className="flex gap-2 text-xs text-text-secondary">
-                                    <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                                    <span>
-                                      <strong className="text-text-primary">
-                                        {event.actorRole === 'system' ? t('shiftRequests:systemActor') : timelineActorName(event, lang)}
-                                      </strong>{' '}
-                                      · {t(`shiftRequests:timelineActions.${event.action}`)} ·{' '}
-                                      {formatDateTime(event.createdAt, lang)}
-                                      {event.note ? (
-                                        <span className="mt-0.5 block text-text-primary">{event.note}</span>
-                                      ) : null}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ol>
-                            </div>
+                          {/* Updated */}
+                          <td className="px-4 py-3 text-xs text-text-secondary">
+                            {formatDateTime(request.updatedAt, lang)}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                            {(['pending_recipient', 'pending_admin'] as ShiftRequestStatus[]).includes(request.status) && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {request.status === 'pending_admin' && (
+                                  isOverridePending ? (
+                                    <Button
+                                      size="sm"
+                                      variant="danger"
+                                      onClick={() => handleOverrideApprove(request.id)}
+                                    >
+                                      {t('shiftRequests:approveOverride')}
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      icon={<Check className="h-3.5 w-3.5" />}
+                                      onClick={() => handleApprove(request.id)}
+                                    >
+                                      {t('shiftRequests:approve')}
+                                    </Button>
+                                  )
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  icon={<X className="h-3.5 w-3.5" />}
+                                  onClick={() => handleRejectOpen(request.id)}
+                                >
+                                  {t('shiftRequests:rejectAdmin')}
+                                </Button>
+                              </div>
+                            )}
                           </td>
                         </tr>
-                      )}
-                    </>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+
+                        {/* Expanded Row: Timeline */}
+                        {isExpanded && (
+                          <tr key={`${request.id}-detail`} className="bg-surface-muted/40">
+                            <td colSpan={12} className="px-6 py-4">
+                              <div className="space-y-3">
+                                {/* Shift info */}
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <div className="rounded-card border border-border bg-surface-card p-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">
+                                      {t('shiftRequests:requesterShift')}
+                                    </p>
+                                    <p className="text-sm font-medium text-text-primary">
+                                      {request.requesterAssignment.shiftLabel} · {request.requesterAssignment.timeRange}
+                                    </p>
+                                    <p className="text-xs text-text-secondary mt-0.5">
+                                      {request.requesterAssignment.facilityLabel} / {request.requesterAssignment.unitLabel}
+                                    </p>
+                                  </div>
+                                  {request.offeredAssignment && (
+                                    <div className="rounded-card border border-border bg-surface-card p-3">
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">
+                                        {t('shiftRequests:offeredShift')}
+                                      </p>
+                                      <p className="text-sm font-medium text-text-primary">
+                                        {request.offeredAssignment.shiftLabel} · {request.offeredAssignment.timeRange}
+                                      </p>
+                                      <p className="text-xs text-text-secondary mt-0.5">
+                                        {request.offeredAssignment.facilityLabel} / {request.offeredAssignment.unitLabel}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Admin rejection reason */}
+                                {request.status === 'admin_rejected' && request.adminRejectionReason && (
+                                  <div className="rounded-card border border-danger/20 bg-danger-50 p-3 text-xs text-text-primary">
+                                    <strong>{t('shiftRequests:adminReason')}:</strong>{' '}
+                                    {t(`shiftRequests:reasons.${request.adminRejectionReason}`)}
+                                    {request.adminRejectionNote ? (
+                                      <span className="mt-1 block">
+                                        <strong>{t('shiftRequests:adminNote')}:</strong>{' '}
+                                        {request.adminRejectionNote}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                )}
+
+                                {/* Warnings */}
+                                {request.warnings.length > 0 && (
+                                  <div className="rounded-card border border-warning/30 bg-warning-50 p-3">
+                                    <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+                                      <AlertTriangle className="h-4 w-4 text-warning" /> {t('shiftRequests:warnings')}
+                                    </p>
+                                    <ul className="mt-2 list-disc space-y-1 ps-5 text-xs text-text-secondary">
+                                      {request.warnings.map((w, i) => (
+                                        <li key={i}>{t(`shiftRequests:warningCodes.${w.code}`)}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {/* Timeline */}
+                                <ol className="space-y-2 rounded-card bg-surface-muted p-3">
+                                  <p className="text-xs font-semibold text-text-secondary mb-2">
+                                    {t('shiftRequests:timeline')}
+                                  </p>
+                                  {request.timeline.map((event) => (
+                                    <li key={event.id} className="flex gap-2 text-xs text-text-secondary">
+                                      <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                                      <span>
+                                        <strong className="text-text-primary">
+                                          {event.actorRole === 'system' ? t('shiftRequests:systemActor') : timelineActorName(event, lang)}
+                                        </strong>{' '}
+                                        · {t(`shiftRequests:timelineActions.${event.action}`)} ·{' '}
+                                        {formatDateTime(event.createdAt, lang)}
+                                        {event.note ? (
+                                          <span className="mt-0.5 block text-text-primary">{event.note}</span>
+                                        ) : null}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </ErrorBoundary>
 
@@ -670,7 +823,7 @@ export default function AdminShiftRequestsPage() {
               />
             </div>
           )}
-          <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
             <Button variant="secondary" onClick={() => setRejectModalId(null)}>
               {getStoredLanguage() === 'ar' ? 'إلغاء' : 'Cancel'}
             </Button>

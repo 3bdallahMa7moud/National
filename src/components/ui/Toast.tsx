@@ -57,7 +57,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
       role={toast.type === 'error' || toast.type === 'urgent' ? 'alert' : 'status'}
       aria-live={toast.type === 'error' || toast.type === 'urgent' ? 'assertive' : 'polite'}
       className={cn(
-        'flex items-start gap-3 p-4 rounded-card border-s-4 shadow-dropdown min-w-[320px] max-w-[420px] animate-toastIn',
+        'flex w-full max-w-[420px] items-start gap-3 rounded-card border-s-4 p-4 shadow-dropdown animate-toastIn sm:w-auto sm:min-w-[320px]',
         styles[toast.type]
       )}
     >
@@ -93,7 +93,7 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
     <ToastContext.Provider value={{ addToast }}>
       {children}
       {/* Toast Container */}
-      <div className="fixed top-4 start-4 z-[100] flex flex-col gap-2">
+      <div className="fixed start-2 end-2 top-3 z-[100] flex flex-col gap-2 sm:start-4 sm:end-auto sm:top-4">
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} onDismiss={dismissToast} />
         ))}

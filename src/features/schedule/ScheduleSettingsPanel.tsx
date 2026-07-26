@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-import Button from '@/components/ui/Button';
 import Time24Select from '@/components/ui/Time24Select';
 import { SHIFT_COLOR_PALETTE } from '@/lib/shiftColorPalette';
 import { useTheme } from '@/hooks/useTheme';

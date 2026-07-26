@@ -35,6 +35,7 @@ interface EmployeeChipProps {
   monthLabel: string;
   isHighlighted: boolean;
   colorblindMode?: boolean;
+  shiftIcon?: string;
   historyEntries?: AuditEntry[];
   /** Employee-facing mode: keep shift details, but never expose audit or edit actions. */
   readOnly?: boolean;
@@ -57,6 +58,7 @@ function EmployeeChip({
   monthLabel,
   isHighlighted,
   colorblindMode = false,
+  shiftIcon,
   historyEntries = [],
   readOnly = false,
   suppressPopover = false,
@@ -120,8 +122,8 @@ function EmployeeChip({
           </span>
         )}
         {colorblindMode && (
-          <span className="shrink-0" aria-hidden="true">
-            {markerIcons[resolveAssignmentColorKey(assignment, rowColorKey)]}
+          <span className="shrink-0" aria-hidden="true" data-testid="shift-symbol">
+            {shiftIcon || markerIcons[resolveAssignmentColorKey(assignment, rowColorKey)]}
           </span>
         )}
         <span className="truncate">{assignment.employeeCode}</span>

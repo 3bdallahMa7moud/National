@@ -76,7 +76,7 @@ export const DEFAULT_JUSTIFICATION_STATE: JustificationReportState = {
   year: '',
   numberOfStaff: '0',
   leftLogo: '/ct-logo.png',
-  rightLogo: '/ct-logo.png',
+  rightLogo: '/mngha-logo.png',
   headers: {
     no: '#',
     bn: 'BN',
@@ -141,4 +141,3 @@ export interface OTMonthSummaryRow {
   shiftCount: number;
   totalHours: number;
 }
-

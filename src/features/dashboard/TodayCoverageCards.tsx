@@ -1,7 +1,7 @@
-import { CalendarDays, Clock3, Moon, PhoneCall, TimerReset } from 'lucide-react';
+import { CalendarDays, Moon, PhoneCall, TimerReset } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { operationalShiftGradient, operationalShiftStyle } from '@/lib/occurrenceShiftStyle';
+import { operationalShiftStyle } from '@/lib/occurrenceShiftStyle';
 import { defaultOperationalShiftVisual } from '@/lib/operationalShiftVisuals';
 import type { CoverageCategory, CoverageMetric } from '@/types/operationalDashboard';
 

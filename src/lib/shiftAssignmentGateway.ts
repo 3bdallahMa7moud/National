@@ -844,9 +844,11 @@ export interface DayShiftOTConflictResult {
 }
 
 export function hasDayShiftOTConflict(
-  _assignment: ShiftAssignmentRef,
-  _employeeId: string,
+  assignment: ShiftAssignmentRef,
+  employeeId: string,
 ): DayShiftOTConflictResult {
+  void assignment;
+  void employeeId;
   // Day Shift + OT conflict restriction is lifted to allow employees to exchange/replace day shifts and OT shifts.
   return { conflict: false };
 }

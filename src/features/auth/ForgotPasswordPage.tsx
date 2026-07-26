@@ -5,13 +5,13 @@
 // Step 3: Set new password with strength indicator → success
 // ============================================================
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Mail, KeyRound, Lock, Eye, EyeOff, CheckCircle2,
   ArrowLeft, RotateCcw, ShieldCheck, Loader2,
-  AlertCircle, ChevronRight, Clock, Sparkles,
+  AlertCircle, ChevronRight, Clock,
 } from 'lucide-react';
 import HospitalLogo from '@/components/common/HospitalLogo';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
@@ -82,6 +82,8 @@ export default function ForgotPasswordPage() {
 
   /* ─── OTP input refs ─── */
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const otpGroupId = `otp-group-${useId()}`;
+  const otpErrorId = `${otpGroupId}-error`;
 
   /* ─── Countdown timer ─── */
   useEffect(() => {
@@ -274,11 +276,20 @@ export default function ForgotPasswordPage() {
       {/* ─── Left Hero Panel ─── */}
       <aside className={AUTH_HERO_COLUMN_CLASS}>
         <div className="absolute inset-0 z-0">
-          <img
-            src="/saudi-hospital.webp"
-            alt={t('common:hospital.imageAlt')}
-            className="h-full w-full object-cover object-center scale-105"
-          />
+          <picture className="block h-full w-full">
+            <source
+              type="image/webp"
+              srcSet="/saudi-hospital-640.webp 640w, /saudi-hospital-1024.webp 1024w"
+              sizes="(min-width: 1024px) 55vw, 100vw"
+            />
+            <img
+              src="/saudi-hospital-1024.webp"
+              alt={t('common:hospital.imageAlt')}
+              width="1024"
+              height="1024"
+              className="h-full w-full object-cover object-center scale-105"
+            />
+          </picture>
           <div className="absolute inset-0 bg-gradient-to-t from-[#06131b]/96 via-[#083d48]/90 to-[#0b7285]/78 backdrop-blur-[1px]" />
         </div>
         <div className="relative z-10">
@@ -464,7 +475,7 @@ export default function ForgotPasswordPage() {
               </div>
 
               {/* OTP Form */}
-              <div className="card !p-5 space-y-5">
+              <div className="card space-y-5 !px-2.5 !py-5 sm:!p-5">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
                     <KeyRound className="h-5 w-5" />
@@ -481,30 +492,39 @@ export default function ForgotPasswordPage() {
 
                 <form onSubmit={handleOtpVerify} className="space-y-4">
                   {/* 6-digit boxes */}
-                  <div className="flex justify-center gap-2" dir="ltr" onPaste={handleOtpPaste}>
-                    {otpDigits.map((digit, i) => (
-                      <input
-                        key={i}
-                        ref={(el) => { otpRefs.current[i] = el; }}
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        value={digit}
-                        onChange={(e) => handleOtpChange(i, e.target.value)}
-                        onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                        className={cn(
-                          'h-12 w-10 rounded-xl border-2 text-center text-lg font-bold font-mono',
-                          'focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary',
-                          'bg-surface dark:bg-slate-900 text-text-primary transition-all duration-150',
-                          digit ? 'border-primary bg-primary/5' : 'border-border',
-                          otpError ? 'border-danger animate-shake' : ''
-                        )}
-                      />
-                    ))}
-                  </div>
+                  <fieldset className="m-0 border-0 p-0" aria-describedby={otpError ? otpErrorId : undefined}>
+                    <legend id={otpGroupId} className="sr-only">
+                      {isRtl ? 'رمز التحقق المكوّن من 6 أرقام' : '6-digit verification code'}
+                    </legend>
+                    <div className="flex justify-center gap-0.5 sm:gap-2" dir="ltr" onPaste={handleOtpPaste}>
+                      {otpDigits.map((digit, i) => (
+                        <input
+                          key={i}
+                          ref={(el) => { otpRefs.current[i] = el; }}
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete={i === 0 ? 'one-time-code' : 'off'}
+                          maxLength={6}
+                          value={digit}
+                          aria-label={isRtl ? `الرقم ${i + 1} من 6` : `Digit ${i + 1} of 6`}
+                          aria-invalid={otpError ? true : undefined}
+                          aria-describedby={otpError ? otpErrorId : undefined}
+                          onChange={(e) => handleOtpChange(i, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                          className={cn(
+                            'h-12 w-11 rounded-xl border-2 text-center text-lg font-bold font-mono',
+                            'focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary',
+                            'bg-surface dark:bg-slate-900 text-text-primary transition-all duration-150',
+                            digit ? 'border-primary bg-primary/5' : 'border-border',
+                            otpError ? 'border-danger animate-shake' : ''
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </fieldset>
 
                   {otpError && (
-                    <div className="flex items-start gap-2 rounded-lg border border-danger/20 bg-danger-50 px-3 py-2.5 text-xs text-danger">
+                    <div id={otpErrorId} role="alert" className="flex items-start gap-2 rounded-lg border border-danger/20 bg-danger-50 px-3 py-2.5 text-xs text-danger">
                       <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
                       <span>{otpError}</span>
                     </div>
@@ -563,7 +583,7 @@ export default function ForgotPasswordPage() {
                     type={showPw ? 'text' : 'password'}
                     placeholder="••••••••"
                     dir="ltr"
-                    className="!pe-10"
+                    className="!pe-11"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     autoFocus
@@ -571,9 +591,12 @@ export default function ForgotPasswordPage() {
                   <button
                     type="button"
                     onClick={() => setShowPw(!showPw)}
-                    className="absolute end-3.5 top-[37px] text-text-secondary hover:text-text-primary"
+                    className="absolute end-0 top-[1.75rem] inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary hover:bg-hover hover:text-text-primary"
+                    aria-label={showPw ? t('auth:login.hidePassword') : t('auth:login.showPassword')}
                   >
-                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPw
+                      ? <EyeOff className="h-4 w-4" aria-hidden="true" />
+                      : <Eye className="h-4 w-4" aria-hidden="true" />}
                   </button>
                 </div>
 
@@ -609,16 +632,19 @@ export default function ForgotPasswordPage() {
                     type={showConfirm ? 'text' : 'password'}
                     placeholder="••••••••"
                     dir="ltr"
-                    className="!pe-10"
+                    className="!pe-11"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirm(!showConfirm)}
-                    className="absolute end-3.5 top-[37px] text-text-secondary hover:text-text-primary"
+                    className="absolute end-0 top-[1.75rem] inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary hover:bg-hover hover:text-text-primary"
+                    aria-label={showConfirm ? t('auth:login.hidePassword') : t('auth:login.showPassword')}
                   >
-                    {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showConfirm
+                      ? <EyeOff className="h-4 w-4" aria-hidden="true" />
+                      : <Eye className="h-4 w-4" aria-hidden="true" />}
                   </button>
                 </div>
 

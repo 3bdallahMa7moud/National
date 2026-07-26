@@ -71,7 +71,7 @@ export default function EmployeeDashboardPage() {
           <Link to="/schedule/me" className="group flex min-h-[92px] items-center gap-3 rounded-card border border-border bg-surface p-4 shadow-card hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"><span className="flex h-11 w-11 items-center justify-center rounded-btn bg-primary-50 text-primary"><CalendarDays className="h-5 w-5" aria-hidden="true" /></span><span className="flex-1 font-semibold text-text-primary">{t('employee.links.mySchedule')}</span><ArrowUpRight className="h-4 w-4 text-primary rtl:-scale-x-100" aria-hidden="true" /></Link>
           {canViewDepartment && <Link to="/schedule/department" className="group flex min-h-[92px] items-center gap-3 rounded-card border border-border bg-surface p-4 shadow-card hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/30"><span className="flex h-11 w-11 items-center justify-center rounded-btn bg-primary-50 text-primary"><UsersRound className="h-5 w-5" aria-hidden="true" /></span><span className="flex-1 font-semibold text-text-primary">{t('employee.links.departmentSchedule')}</span><ArrowUpRight className="h-4 w-4 text-primary rtl:-scale-x-100" aria-hidden="true" /></Link>}
           <a
-            href="http://www.ctgate.cc"
+            href="https://www.ctgate.cc"
             target="_blank"
             rel="noopener noreferrer"
             className="group flex min-h-[92px] items-center gap-3 rounded-card border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-card transition-all hover:border-emerald-500/40 hover:bg-emerald-500/10 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
