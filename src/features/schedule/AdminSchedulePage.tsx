@@ -6,7 +6,16 @@
 // management, shift definition settings, bulk actions, undo/redo,
 // search, and cross-facility conflict verification.
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useScheduleMatrix } from '@/hooks/useScheduleMatrix';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
@@ -21,20 +30,21 @@ import MatrixToolbar from './MatrixToolbar';
 import MatrixStatsCards from './MatrixStatsCards';
 import ScheduleViewControls from './ScheduleViewControls';
 import AssignmentDrawer from './AssignmentDrawer';
-import FullscreenMatrixModal from './FullscreenMatrixModal';
-import VacationManagementPanel from './VacationManagementPanel';
-import ScheduleSettingsPanel from './ScheduleSettingsPanel';
-import ScheduleOrderPanel from './ScheduleOrderPanel';
-import ScheduleSettingsWorkspace from './ScheduleSettingsWorkspace';
-import CellContextMenu from './CellContextMenu';
 import { mergeBrushAssignments } from '@/lib/scheduleAssignments';
 import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
 import { useRole } from '@/hooks/useRole';
 import { useAuthStore } from '@/stores/authStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
-import EmployeeDetailedShiftsModal from './EmployeeDetailedShiftsModal';
 import ConflictPanel from './ConflictPanel';
 import type { MatrixCellRef, Assignment, ShiftColorKey, MatrixReorderCommand, MatrixReorderResult } from '@/types/scheduleMatrix';
+
+const CellContextMenu = lazy(() => import('./CellContextMenu'));
+const EmployeeDetailedShiftsModal = lazy(() => import('./EmployeeDetailedShiftsModal'));
+const FullscreenMatrixModal = lazy(() => import('./FullscreenMatrixModal'));
+const ScheduleOrderPanel = lazy(() => import('./ScheduleOrderPanel'));
+const ScheduleSettingsPanel = lazy(() => import('./ScheduleSettingsPanel'));
+const ScheduleSettingsWorkspace = lazy(() => import('./ScheduleSettingsWorkspace'));
+const VacationManagementPanel = lazy(() => import('./VacationManagementPanel'));
 
 export default function AdminSchedulePage() {
   const { t, i18n } = useTranslation(['schedule', 'common']);
@@ -812,6 +822,13 @@ export default function AdminSchedulePage() {
       </div>
 
       {/* ── Conditional Mode Views (Vacations / Settings / Matrix) ── */}
+      <Suspense
+        fallback={(
+          <div className="rounded-card border border-border bg-surface py-12 text-center text-sm text-text-secondary" role="status">
+            {t('common:loading')}
+          </div>
+        )}
+      >
       <ErrorBoundary level="section" invalidateQueries>
         {adminMode === 'vacations' ? (
           <div className="space-y-4">
@@ -1005,9 +1022,11 @@ export default function AdminSchedulePage() {
         </div>
       )}
       </ErrorBoundary>
+      </Suspense>
 
       {/* ── Right-Click Cell Context Menu ── */}
       {contextMenu && (
+        <Suspense fallback={null}>
         <CellContextMenu
           position={contextMenu.position}
           hasAssignments={
@@ -1046,6 +1065,7 @@ export default function AdminSchedulePage() {
             addToast({ type: 'success', title: t('schedule:toast.copyNextDayTitle'), message: t('schedule:toast.copyNextDayMsg') });
           }}
         />
+        </Suspense>
       )}
 
       {/* ── Assignment Drawer ── */}
@@ -1061,8 +1081,16 @@ export default function AdminSchedulePage() {
       />
 
       {/* ── Fullscreen Overlay Modal ── */}
+      {isFullscreenModalOpen && (
+      <Suspense
+        fallback={(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 text-sm text-text-secondary" role="status">
+            {t('common:loading')}
+          </div>
+        )}
+      >
       <FullscreenMatrixModal
-        isOpen={isFullscreenModalOpen}
+        isOpen
         onClose={() => setIsFullscreenModalOpen(false)}
         data={data}
         displayData={displayData}
@@ -1114,6 +1142,8 @@ export default function AdminSchedulePage() {
         onDrawerSave={handleSaveAssignment}
         onDrawerClear={clearCell}
       />
+      </Suspense>
+      )}
 
       {/* ── Safe Delete Confirmation Dialog (Policy 5) ── */}
       <Modal
@@ -1266,13 +1296,17 @@ export default function AdminSchedulePage() {
       </Modal>
 
       {/* ── Employee Detailed Shifts Modal ── */}
+      {detailedEmployee && (
+      <Suspense fallback={null}>
       <EmployeeDetailedShiftsModal
-        isOpen={Boolean(detailedEmployee)}
+        isOpen
         onClose={() => setDetailedEmployee(null)}
-        employeeId={detailedEmployee?.id ?? null}
-        employeeName={detailedEmployee?.name}
+        employeeId={detailedEmployee.id}
+        employeeName={detailedEmployee.name}
         data={data ?? null}
       />
+      </Suspense>
+      )}
     </div>
   );
 }

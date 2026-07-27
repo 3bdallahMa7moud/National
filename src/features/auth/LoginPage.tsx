@@ -228,6 +228,21 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
+
+          <div className="mt-3 text-center text-[10px] text-text-secondary/60 leading-5">
+            <p>Created by Eshraq Alrujaimi</p>
+            <p>
+              Technical Development by{' '}
+              <a
+                href="https://wa.me/201006513006"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-primary hover:underline"
+              >
+                Abdallah Mahmoud
+              </a>
+            </p>
+          </div>
         </div>
 
       </main>

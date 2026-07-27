@@ -6,7 +6,10 @@ import ScheduleMatrix from './ScheduleMatrix';
 afterEach(cleanup);
 
 describe('ScheduleMatrix arrange mode', () => {
-  it('renders direct unit and row handles on desktop plus a touch ordering surface on mobile', () => {
+  it('renders direct unit and row handles on desktop plus a touch ordering surface on mobile', async () => {
+    // Pre-transform the production-lazy DnD module so parallel Vitest workers do not
+    // turn chunk compilation time into a flaky Suspense timeout.
+    await import('./MatrixOrderDnd');
     const data = generateScheduleMatrixMock(2026, 6);
     const facility = data.facilities.find((item) => item.units.some((unit) => unit.rows.length > 0))!;
     const unit = facility.units.find((item) => item.rows.length > 0)!;
@@ -38,7 +41,11 @@ describe('ScheduleMatrix arrange mode', () => {
 
     expect(screen.getByTestId('mobile-matrix-order')).toBeInTheDocument();
     expect(screen.getByText(/right-side handle/i)).toBeInTheDocument();
-    expect(screen.getByTestId(`matrix-order-handle-unit-${unit.id}`)).toHaveClass('cursor-grab');
+    expect(await screen.findByTestId(
+      `matrix-order-handle-unit-${unit.id}`,
+      {},
+      { timeout: 5000 },
+    )).toHaveClass('cursor-grab');
     expect(screen.getByTestId(`matrix-order-handle-row-${row.id}`)).toHaveClass('cursor-grab');
     expect(screen.getAllByLabelText(`Drag unit ${unit.name}`).length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByLabelText(`Drag shift ${row.rowLabel || row.shiftLabel}`).length).toBeGreaterThanOrEqual(2);
@@ -46,7 +53,7 @@ describe('ScheduleMatrix arrange mode', () => {
     expect(within(emptyGroup).getByLabelText('Add row')).toBeInTheDocument();
   }, 30000);
 
-  it('adds the first unit directly from an empty facility on the mobile ordering surface', () => {
+  it('adds the first unit directly from an empty facility on the mobile ordering surface', async () => {
     const data = generateScheduleMatrixMock(2026, 6);
     const facility = data.facilities[0];
     facility.units = [];
@@ -64,7 +71,11 @@ describe('ScheduleMatrix arrange mode', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Add first unit/i }));
+    fireEvent.click(await screen.findByRole(
+      'button',
+      { name: /Add first unit/i },
+      { timeout: 5000 },
+    ));
     const dialog = screen.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'New CT Unit' } });
     fireEvent.click(within(dialog).getByRole('button', { name: /Add unit/i }));
@@ -73,7 +84,7 @@ describe('ScheduleMatrix arrange mode', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   }, 30000);
 
-  it('opens direct unit actions with the affected assignment count and delegates safe deletion', () => {
+  it('opens direct unit actions with the affected assignment count and delegates safe deletion', async () => {
     const data = generateScheduleMatrixMock(2026, 6);
     const facility = data.facilities.find((item) => item.units.some((candidate) => candidate.rows.length > 0))!;
     const unit = facility.units.find((candidate) => candidate.rows.length > 0)!;
@@ -99,7 +110,11 @@ describe('ScheduleMatrix arrange mode', () => {
       />,
     );
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Manage unit|Unit actions/i })[0]);
+    fireEvent.click((await screen.findAllByRole(
+      'button',
+      { name: /Manage unit|Unit actions/i },
+      { timeout: 5000 },
+    ))[0]);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText(new RegExp(`${affectedAssignments} assignments affected`, 'i'))).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete/i }));

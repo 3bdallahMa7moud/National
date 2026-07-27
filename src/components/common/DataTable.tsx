@@ -55,6 +55,7 @@ export default function DataTable<T>({ columns, data, keyExtractor, emptyMessage
                 'transition-colors hover:bg-hover',
                 onRowClick && 'cursor-pointer'
               )}
+              style={{ contentVisibility: 'auto', containIntrinsicSize: '48px' }}
               onClick={() => onRowClick?.(item)}
             >
               {columns.map((col) => (

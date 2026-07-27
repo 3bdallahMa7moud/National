@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArchiveRestore, BellRing, Edit3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/authStore';
@@ -9,18 +9,19 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import AdminMonthControl from '@/components/common/AdminMonthControl';
 import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
-import { exportLateScheduleExcel, exportLateSchedulePdf } from '@/lib/lateScheduleExport';
 import { isActiveLateScheduleRow, orderLateScheduleRows } from '@/lib/lateScheduleOrder';
+import useMediaQuery from '@/hooks/useMediaQuery';
 import type { OTShiftInput } from '@/types/lateSchedule';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import LateScheduleToolbar, { type OTViewMode } from './LateScheduleToolbar';
-import LateScheduleDesktopGrid from './LateScheduleDesktopGrid';
-import LateScheduleMobileWeek from './LateScheduleMobileWeek';
 import OTAssignmentPanel from './OTAssignmentPanel';
 import OTShiftFormModal from './OTShiftFormModal';
 import OTStructureControl from './OTStructureControl';
 import OTBulkActions from './OTBulkActions';
 import { isAdminOrSuperAdmin } from '@/types';
+
+const LateScheduleDesktopGrid = lazy(() => import('./LateScheduleDesktopGrid'));
+const LateScheduleMobileWeek = lazy(() => import('./LateScheduleMobileWeek'));
 
 interface ActiveCell {
   rowId: string;
@@ -68,6 +69,7 @@ export default function LateSchedulePage() {
   const storageError = useLateScheduleStore((state) => state.storageError);
   const setNotice = useLateScheduleStore((state) => state.setNotice);
   const [viewMode, setViewMode] = useState<OTViewMode>('auto');
+  const isDesktopViewport = useMediaQuery('(min-width: 1024px)');
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [isAddingRow, setIsAddingRow] = useState(false);
@@ -105,10 +107,20 @@ export default function LateSchedulePage() {
 
   const activeRow = activeCell ? rows.find((row) => row.id === activeCell.rowId) : undefined;
   const editingRow = editingRowId ? rows.find((row) => row.id === editingRowId) : undefined;
-  const monthLabel = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(year, month, 1));
-  const activeRows = orderedRows.filter((row) => isActiveLateScheduleRow(row, units));
-  const assignmentCount = activeRows.reduce((total, row) => total + Object.values(row.assignments).reduce((sum, assignments) => sum + assignments.length, 0), 0);
-  const totalHours = activeRows.reduce((total, row) => total + Object.values(row.assignments).reduce((sum, assignments) => sum + assignments.filter((assignment) => assignment.kind === 'employee').length * row.hours, 0), 0);
+  const monthLabel = useMemo(
+    () => new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(year, month, 1)),
+    [locale, month, year],
+  );
+  const activeRows = activeFilteredRows;
+  const assignmentCount = useMemo(
+    () => activeRows.reduce(
+      (total, row) => total + Object.values(row.assignments)
+        .reduce((rowTotal, assignments) => rowTotal + assignments.length, 0),
+      0,
+    ),
+    [activeRows],
+  );
+  const showDesktopGrid = viewMode === 'grid' || (viewMode === 'auto' && isDesktopViewport);
 
   const handleSaveAssignment = (employeeIds: string[], unresolvedLegacyCodes: string[]) => {
     if (!activeCell) return;
@@ -160,10 +172,12 @@ export default function LateSchedulePage() {
         onNextMonth={goToNextMonth}
         onExportExcel={async () => {
           const context = exportContext();
+          const { exportLateScheduleExcel } = await import('@/lib/lateScheduleExport');
           await exportLateScheduleExcel(activeRows, roster, context.title, year, month, context.days, notice);
         }}
-        onExportPdf={() => {
+        onExportPdf={async () => {
           const context = exportContext();
+          const { exportLateSchedulePdf } = await import('@/lib/lateScheduleExport');
           exportLateSchedulePdf(activeRows, roster, context.title, year, context.days, isRtl, notice);
         }}
         onAddShift={() => setIsAddingRow(true)}
@@ -266,8 +280,39 @@ export default function LateSchedulePage() {
 
       {archiveView === 'active' || !isAdmin ? (
         <ErrorBoundary level="section" invalidateQueries>
-          <LateScheduleDesktopGrid year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} notice={notice} canEdit={isAdmin} viewMode={viewMode} onAssign={(rowId, day) => setActiveCell({ rowId, day })} onEditRow={setEditingRowId} />
-          <LateScheduleMobileWeek year={year} month={month} rows={activeFilteredRows} units={units} roster={roster} canEdit={isAdmin} viewMode={viewMode} onAssign={(rowId, day) => setActiveCell({ rowId, day })} />
+          <Suspense
+            fallback={(
+              <div className="rounded-2xl border border-border bg-surface py-12 text-center text-sm text-text-secondary" role="status">
+                {isRtl ? 'جارٍ تحميل الجدول…' : 'Loading schedule…'}
+              </div>
+            )}
+          >
+            {showDesktopGrid ? (
+              <LateScheduleDesktopGrid
+                year={year}
+                month={month}
+                rows={activeFilteredRows}
+                units={units}
+                roster={roster}
+                notice={notice}
+                canEdit={isAdmin}
+                viewMode={viewMode}
+                onAssign={(rowId, day) => setActiveCell({ rowId, day })}
+                onEditRow={setEditingRowId}
+              />
+            ) : (
+              <LateScheduleMobileWeek
+                year={year}
+                month={month}
+                rows={activeFilteredRows}
+                units={units}
+                roster={roster}
+                canEdit={isAdmin}
+                viewMode={viewMode}
+                onAssign={(rowId, day) => setActiveCell({ rowId, day })}
+              />
+            )}
+          </Suspense>
         </ErrorBoundary>
       ) : (
         <section className="space-y-3 rounded-2xl border border-border bg-surface p-4" aria-label={isRtl ? 'صفوف OT المؤرشفة' : 'Archived OT rows'}>

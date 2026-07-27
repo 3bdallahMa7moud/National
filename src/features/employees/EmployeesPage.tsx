@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { lazy, Suspense, useDeferredValue, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import Card from '@/components/ui/Card';
@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { setEmployeePassword } from '@/mocks/mockPasswordStore';
 import { JOB_TITLE_OPTIONS, findJobTitleOption, type Employee, type UserRole } from '@/types';
-import EmployeePermissionsPanel from './EmployeePermissionsPanel';
 import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { effectivePermissions } from '@/types/employeeAccess';
@@ -28,6 +27,8 @@ import {
   getEmployeeDirectoryRecord,
   useEmployeeDirectoryStore,
 } from '@/stores/employeeDirectoryStore';
+
+const EmployeePermissionsPanel = lazy(() => import('./EmployeePermissionsPanel'));
 
 /* ─── helpers ─── */
 function generateId(): string {
@@ -80,6 +81,7 @@ export default function EmployeesPage() {
 
   /* ─── local state ─── */
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
@@ -100,11 +102,16 @@ export default function EmployeesPage() {
     () => allEmployees,
     [allEmployees],
   );
-  const filtered = employees.filter((e) => {
-    const matchesSearch = e.name.includes(search) || e.email.includes(search) || e.employeeNumber.includes(search);
-    const matchesDept = !deptIdFilter || e.departmentId === deptIdFilter;
-    return matchesSearch && matchesDept;
-  });
+  const filtered = useMemo(
+    () => employees.filter((employee) => {
+      const matchesSearch = employee.name.includes(deferredSearch)
+        || employee.email.includes(deferredSearch)
+        || employee.employeeNumber.includes(deferredSearch);
+      const matchesDept = !deptIdFilter || employee.departmentId === deptIdFilter;
+      return matchesSearch && matchesDept;
+    }),
+    [deferredSearch, deptIdFilter, employees],
+  );
 
   /* ─── form helpers ─── */
   const setField = (k: keyof AddForm, v: string) => {
@@ -777,29 +784,37 @@ export default function EmployeesPage() {
           const source = getEmployeeDirectoryRecord(permissionsEmployee.id);
           if (!source) return null;
           return (
-            <EmployeePermissionsPanel
-              employee={{
-                accountId: source.accountId,
-                name: permissionsEmployee.name,
-                departmentId: source.departmentId,
-                scheduleEmployeeId: source.scheduleEmployeeId,
-                active: source.active,
-              }}
-              roster={getOfficialEmployeeRoster().map((employee) => ({
-                employeeId: employee.employeeId,
-                code: employee.code,
-                fullName: employee.fullName,
-              }))}
-              actorName={actor?.name || 'Administrator'}
-              onSaved={() => {
-                addToast({ type: 'success', title: t('common:toast.saved') });
-              }}
-              onError={(message) => addToast({
-                type: 'error',
-                title: t('common:toast.error', 'Error'),
-                message,
-              })}
-            />
+            <Suspense
+              fallback={(
+                <div className="py-8 text-center text-sm text-text-secondary" role="status">
+                  {t('common:loading')}
+                </div>
+              )}
+            >
+              <EmployeePermissionsPanel
+                employee={{
+                  accountId: source.accountId,
+                  name: permissionsEmployee.name,
+                  departmentId: source.departmentId,
+                  scheduleEmployeeId: source.scheduleEmployeeId,
+                  active: source.active,
+                }}
+                roster={getOfficialEmployeeRoster().map((employee) => ({
+                  employeeId: employee.employeeId,
+                  code: employee.code,
+                  fullName: employee.fullName,
+                }))}
+                actorName={actor?.name || 'Administrator'}
+                onSaved={() => {
+                  addToast({ type: 'success', title: t('common:toast.saved') });
+                }}
+                onError={(message) => addToast({
+                  type: 'error',
+                  title: t('common:toast.error', 'Error'),
+                  message,
+                })}
+              />
+            </Suspense>
           );
         })()}
       </Modal>

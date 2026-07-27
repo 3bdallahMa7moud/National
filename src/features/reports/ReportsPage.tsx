@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useDeferredValue, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -26,11 +26,7 @@ import {
   Printer,
   RotateCcw,
 } from 'lucide-react';
-import {
-  exportEmployeeAnalysisExcel,
-  exportEmployeeAnalysisPdf,
-  type EmployeeWorkloadRow,
-} from '@/lib/employeeAnalysisExport';
+import type { EmployeeWorkloadRow } from '@/lib/employeeAnalysisExport';
 import { useToast } from '@/components/ui/Toast';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import { useLateScheduleStore } from '@/stores/lateScheduleStore';
@@ -68,6 +64,7 @@ export default function ReportsPage() {
   const [anchorDate, setAnchorDate] = useState(initialAnalysisAnchor);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
   const [stackMode, setStackMode] = useState<'stacked' | 'grouped'>('stacked');
 
@@ -149,8 +146,8 @@ export default function ReportsPage() {
   }, [selectedEmployee]);
 
   const analysisView = useMemo(
-    () => buildEmployeeAnalysisView(workloadRows, searchQuery),
-    [workloadRows, searchQuery],
+    () => buildEmployeeAnalysisView(workloadRows, deferredSearchQuery),
+    [deferredSearchQuery, workloadRows],
   );
   const filteredRows = analysisView.rows;
 
@@ -248,6 +245,7 @@ export default function ReportsPage() {
 
   const handleExportExcel = async () => {
     try {
+      const { exportEmployeeAnalysisExcel } = await import('@/lib/employeeAnalysisExport');
       await exportEmployeeAnalysisExcel(filteredRows, { period, coverage, isRtl });
       addToast({
         type: 'success',
@@ -261,7 +259,8 @@ export default function ReportsPage() {
     }
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
+    const { exportEmployeeAnalysisPdf } = await import('@/lib/employeeAnalysisExport');
     exportEmployeeAnalysisPdf(filteredRows, { period, coverage, isRtl });
     addToast({
       type: 'success',
@@ -1002,6 +1001,7 @@ export default function ReportsPage() {
                         key={row.id}
                         data-testid={`analysis-row-${row.employeeId}`}
                         className="hover:bg-hover/50 transition-colors"
+                        style={{ contentVisibility: 'auto', containIntrinsicSize: '48px' }}
                       >
                         <td className="px-4 py-3 font-semibold text-text-primary">
                           {row.name}

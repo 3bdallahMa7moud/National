@@ -4,7 +4,16 @@
 // Presentation-only. No fetch, no socket. Props + callbacks.
 // dir="rtl" shell with CSS Grid, frozen columns, scroll container.
 
-import { memo, useRef, useCallback, useMemo, useEffect, useState } from 'react';
+import {
+  lazy,
+  memo,
+  Suspense,
+  useRef,
+  useCallback,
+  useMemo,
+  useEffect,
+  useState,
+} from 'react';
 import { ListOrdered, Maximize2, Minimize2, Plus, Settings2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -18,13 +27,7 @@ import VacationBand from './VacationBand';
 import RowEditPopover, { type RowEditTarget } from './RowEditPopover';
 import UnitManagementPopover, { type UnitManagementTarget } from './UnitManagementPopover';
 import MobileWeeklySchedule from './MobileWeeklySchedule';
-import ManualTableOrder from '@/components/common/ManualTableOrder';
 import { getShiftChipStyle } from './getShiftChipClasses';
-import {
-  MatrixFacilityOrderContext,
-  SortableMatrixRow,
-  SortableMatrixUnit,
-} from './MatrixOrderDnd';
 import type { CellInteractionMeta } from './ShiftRowCells';
 import type {
   ScheduleMatrixData,
@@ -36,6 +39,17 @@ import type {
   ShiftRow,
   ShiftDefinition,
 } from '@/types/scheduleMatrix';
+
+const ManualTableOrder = lazy(() => import('@/components/common/ManualTableOrder'));
+const MatrixFacilityOrderContext = lazy(() => import('./MatrixOrderDnd').then((module) => ({
+  default: module.MatrixFacilityOrderContext,
+})));
+const SortableMatrixRow = lazy(() => import('./MatrixOrderDnd').then((module) => ({
+  default: module.SortableMatrixRow,
+})));
+const SortableMatrixUnit = lazy(() => import('./MatrixOrderDnd').then((module) => ({
+  default: module.SortableMatrixUnit,
+})));
 
 export interface ScheduleMatrixProps {
   data: ScheduleMatrixData;
@@ -133,6 +147,13 @@ function MobileMatrixOrder({
         return (
           <div key={facility.id} className="space-y-2">
             <h3 className="text-xs font-extrabold uppercase tracking-wide text-text-secondary">{facility.name}</h3>
+            <Suspense
+              fallback={(
+                <div className="rounded-xl border border-border bg-surface-muted px-4 py-8 text-center text-xs text-text-secondary" role="status">
+                  {t('common:loading')}
+                </div>
+              )}
+            >
             <ManualTableOrder
               units={units}
               onReorderUnit={(sourceUnitId, targetUnitId, position) => {
@@ -152,6 +173,7 @@ function MobileMatrixOrder({
               onAddRow={onAddRow ? (unitId, anchorRect) => onAddRow(facility.id, unitId, anchorRect) : undefined}
               onManageUnit={onManageUnit ? (unitId, anchorRect) => onManageUnit(facility.id, unitId, anchorRect) : undefined}
             />
+            </Suspense>
           </div>
         );
       })}
@@ -607,7 +629,14 @@ function ScheduleMatrix({
             {/* ── Facility Rows ── */}
             {isOrderMode && !!onReorder ? (
               /* Reorder Mode: Full hierarchical rendering for precise @dnd-kit drag and drop */
-              data.facilities.map((facility) => {
+              <Suspense
+                fallback={(
+                  <div className="flex min-h-48 w-full items-center justify-center text-sm text-text-secondary" role="status">
+                    {t('common:loading')}
+                  </div>
+                )}
+              >
+              {data.facilities.map((facility) => {
               const rowCount = facilityRowCounts.get(facility.id) || 1;
               const visibleUnits = facility.units.filter((unit) => !unit.archived);
               return (
@@ -822,7 +851,8 @@ function ScheduleMatrix({
                   </MatrixFacilityOrderContext>
                 </div>
               );
-            })
+            })}
+              </Suspense>
             ) : (
               /* Standard High-Performance Mode: Virtualized Flat Row Model (60 FPS) */
               <div
