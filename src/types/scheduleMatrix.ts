@@ -32,9 +32,34 @@ export type VacationType = 'annual' | 'sick' | 'emergency';
 
 export type ScheduleMonthStatus = 'draft' | 'published';
 
+export type MarkerColor =
+  | 'yellow'
+  | 'green'
+  | 'red'
+  | 'blue'
+  | 'orange'
+  | 'purple';
+
+export type CellMarkerTool = MarkerColor | 'remove';
+
+export type ScheduleCellMarkerMap = Record<string, MarkerColor>;
+
 export type ScheduleAdminMutationResult =
   | { ok: true; affected?: number; skipped?: number; vacations?: number; message?: string }
   | { ok: false; reason: 'not_found' | 'invalid_state' | 'storage_error'; message?: string };
+
+export type ScheduleCellMarkerMutationResult =
+  | { ok: true; affected: number }
+  | { ok: false; reason: 'no_selection' | 'storage_error'; message?: string };
+
+export type SchedulePublishResult =
+  | {
+      ok: true;
+      message: string;
+      conflictCount: number;
+      markerCount: number;
+    }
+  | { ok: false; message: string };
 
 export interface LegendEmployee {
   employeeId: string;
@@ -185,7 +210,8 @@ export interface AuditEntry {
     | 'unlock'
     | 'clone'
     | 'version-restore'
-    | 'reorder';
+    | 'reorder'
+    | 'marker';
   facilityId?: string;
   unitId?: string;
   rowId?: string;
@@ -208,6 +234,7 @@ export interface ScheduleMatrixData {
   holidays: HolidayRange[];
   settings: FacilitySettings[];
   auditLog: AuditEntry[];
+  cellMarkers: ScheduleCellMarkerMap;
 }
 
 export interface ScheduleMatrixVersion {

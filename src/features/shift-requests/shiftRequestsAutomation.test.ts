@@ -54,6 +54,7 @@ function sampleMatrix(): ScheduleMatrixData {
     holidays: [],
     settings: [],
     auditLog: [],
+    cellMarkers: {},
   };
 }
 

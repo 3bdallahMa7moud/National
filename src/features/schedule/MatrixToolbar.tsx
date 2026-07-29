@@ -18,9 +18,11 @@ import {
   Paintbrush,
   Pencil,
   Printer,
+  Save,
   Search,
   Settings2,
   Sparkles,
+  Tag,
   TimerReset,
   Undo2,
   X,
@@ -31,7 +33,8 @@ import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import Button from '@/components/ui/Button';
 import { getShiftChipStyle } from '@/components/schedule/ScheduleMatrix/getShiftChipClasses';
-import type { MatrixAdminMode, ShiftColorKey } from '@/types/scheduleMatrix';
+import { SCHEDULE_CELL_MARKER_SWATCHES } from '@/lib/scheduleCellMarkers';
+import type { CellMarkerTool, MatrixAdminMode, ShiftColorKey } from '@/types/scheduleMatrix';
 
 interface MatrixToolbarProps {
   adminMode: MatrixAdminMode;
@@ -44,6 +47,7 @@ interface MatrixToolbarProps {
   onNextMonth: () => void;
   isDirty: boolean;
   pendingDraftCount: number;
+  canPublish?: boolean;
   onPublish: () => void;
   onDiscard: () => void;
   conflictCount: number;
@@ -63,6 +67,8 @@ interface MatrixToolbarProps {
   onZoomReset?: () => void;
   onBulkAssign?: () => void;
   onBulkClear?: () => void;
+  activeCellMarkerTool?: CellMarkerTool | null;
+  onCellMarkerToolChange?: (tool: CellMarkerTool) => void;
   onOpenFullscreen?: () => void;
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
@@ -96,6 +102,7 @@ function MatrixToolbar({
   onNextMonth,
   isDirty,
   pendingDraftCount,
+  canPublish = isDirty,
   onPublish,
   onDiscard,
   highlightedEmployeeId,
@@ -112,6 +119,8 @@ function MatrixToolbar({
   onZoomReset,
   onBulkAssign,
   onBulkClear,
+  activeCellMarkerTool = null,
+  onCellMarkerToolChange,
   onOpenFullscreen,
   searchQuery,
   onSearchQueryChange,
@@ -187,6 +196,21 @@ function MatrixToolbar({
             </button>
           </div>
         </div>
+
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={onPublish}
+          disabled={!canPublish}
+          className="min-h-11 shrink-0 border-0 bg-primary-teal px-4 text-white shadow-sm hover:bg-primary-teal/90 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-text-muted"
+          aria-label={t('schedule:toolbar.publishToEmployees')}
+          title={canPublish
+            ? t('schedule:toolbar.publishToEmployees')
+            : t('schedule:toolbar.noDraftToPublish')}
+        >
+          <CheckCircle2 className="me-1 h-4 w-4" />
+          {t('schedule:toolbar.publishToEmployees')}
+        </Button>
 
         <div className="hidden items-center gap-2 flex-wrap md:flex">
 
@@ -352,20 +376,19 @@ function MatrixToolbar({
         </details>
       </div>
 
-      {isDirty && (
+      {(isDirty || canPublish) && (
         <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 shadow-soft sm:flex-row sm:flex-wrap sm:items-center">
-          <Undo2 className="h-4 w-4 shrink-0" />
-          <span className="font-bold">{t('schedule:toolbar.unpublishedDrafts')}</span>
-          <span>{t('schedule:toolbar.draftChanges', { count: pendingDraftCount })}</span>
-          <div className="flex flex-col gap-2 sm:ms-auto sm:flex-row sm:items-center">
-            <Button size="sm" variant="primary" onClick={onPublish} className="bg-primary-teal text-white border-0 hover:bg-primary-teal/90">
-              <CheckCircle2 className="me-1 h-3.5 w-3.5" />
-              {t('schedule:toolbar.publishUpdates')}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onDiscard} className="text-amber-800 hover:bg-hover">
+          <Save className="h-4 w-4 shrink-0" />
+          <span className="font-bold">{t('schedule:toolbar.draftSaved')}</span>
+          {pendingDraftCount > 0 && (
+            <span>{t('schedule:toolbar.draftChanges', { count: pendingDraftCount })}</span>
+          )}
+          <span>{t('schedule:toolbar.draftPrivateNotice')}</span>
+          {isDirty && (
+            <Button size="sm" variant="ghost" onClick={onDiscard} className="text-amber-800 hover:bg-hover sm:ms-auto">
               {t('schedule:toolbar.discardDraft')}
             </Button>
-          </div>
+          )}
         </div>
       )}
 
@@ -478,6 +501,65 @@ function MatrixToolbar({
           </Link>
         </div>
       </div>
+
+      <fieldset
+        className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2.5 shadow-soft sm:px-4"
+        disabled={adminMode !== 'edit' || !onCellMarkerToolChange}
+      >
+        <legend className="sr-only">{t('schedule:markers.controlLabel')}</legend>
+        <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
+          <Tag className="h-4 w-4 text-primary-teal" aria-hidden="true" />
+          <span>{t('schedule:markers.controlLabel')}</span>
+        </div>
+        <div className="flex max-w-full flex-wrap items-center gap-1.5" role="group" aria-label={t('schedule:markers.paletteLabel')}>
+          {SCHEDULE_CELL_MARKER_SWATCHES.map(({ color, hex }) => {
+            const colorLabel = t(`schedule:markers.colors.${color}`);
+            return (
+              <button
+                key={color}
+                type="button"
+                onClick={() => onCellMarkerToolChange?.(color)}
+                className={cn(
+                  'inline-flex min-h-11 items-center gap-1.5 rounded-md border px-2 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                  activeCellMarkerTool === color
+                    ? 'border-primary-teal bg-primary-teal/15 text-primary-teal ring-2 ring-primary-teal/25'
+                    : 'border-border bg-surface-muted text-text-secondary hover:bg-hover',
+                )}
+                aria-pressed={activeCellMarkerTool === color}
+                aria-label={t('schedule:markers.colorAction', { color: colorLabel })}
+                title={t('schedule:markers.colorAction', { color: colorLabel })}
+              >
+                <span
+                  className="h-3.5 w-3.5 rounded-sm border border-black/10"
+                  style={{ backgroundColor: hex }}
+                  aria-hidden="true"
+                />
+                <span className="hidden xl:inline">{colorLabel}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => onCellMarkerToolChange?.('remove')}
+            className={cn(
+              'min-h-11 rounded-md border px-2.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+              activeCellMarkerTool === 'remove'
+                ? 'border-primary-teal bg-primary-teal/15 text-primary-teal ring-2 ring-primary-teal/25'
+                : 'border-border bg-surface-muted text-text-secondary hover:bg-hover',
+            )}
+            aria-pressed={activeCellMarkerTool === 'remove'}
+          >
+            {t('schedule:markers.remove')}
+          </button>
+        </div>
+        <span className="text-[11px] text-text-muted">
+          {adminMode !== 'edit'
+            ? t('schedule:markers.editFirst')
+            : activeCellMarkerTool
+              ? t('schedule:markers.activeHint')
+              : t('schedule:markers.chooseFirst')}
+        </span>
+      </fieldset>
 
       {highlightedEmployeeId && (
         <div className="flex flex-col gap-2 rounded-lg border border-signal-cyan/20 bg-signal-cyan/10 px-3 py-2 text-xs font-medium text-primary-teal sm:flex-row sm:items-center">

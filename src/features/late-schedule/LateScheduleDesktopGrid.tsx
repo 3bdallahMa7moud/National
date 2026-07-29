@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { OTShiftRow, OTUnit } from '@/types/lateSchedule';
 import type { UnifiedEmployee } from '@/lib/unifiedEmployeeRoster';
 import { cn } from '@/lib/utils';
+import { scheduleCellMarkerBackground } from '@/lib/scheduleCellMarkers';
 
 interface LateScheduleDesktopGridProps {
   year: number;
@@ -14,6 +15,7 @@ interface LateScheduleDesktopGridProps {
   notice?: string;
   canEdit?: boolean;
   viewMode?: 'auto' | 'grid' | 'week';
+  markerToolActive?: boolean;
   onAssign?(rowId: string, day: number): void;
   onAssignmentClick?(rowId: string, day: number, employeeId: string): void;
   onEditRow?(rowId: string): void;
@@ -27,6 +29,7 @@ export default function LateScheduleDesktopGrid({
   roster,
   canEdit = false,
   viewMode = 'auto',
+  markerToolActive = false,
   onAssign,
   onAssignmentClick,
   onEditRow,
@@ -118,6 +121,7 @@ export default function LateScheduleDesktopGrid({
                 {days.map((day) => {
                   const assignments = row.assignments[day] ?? [];
                   const highlighted = row.highlightedDays?.includes(day) ?? false;
+                  const markerColor = row.cellMarkers?.[day];
                   const clickableAssignment = assignments.find((assignment) => assignment.kind === 'employee');
                   const date = new Date(year, month, day);
                   const weekend = date.getDay() === 5 || date.getDay() === 6;
@@ -125,10 +129,16 @@ export default function LateScheduleDesktopGrid({
                     <td
                       key={day}
                       data-testid={`ot-cell-${row.id}-${day}`}
+                      data-cell-marker-color={markerColor}
                       className={cn(
                         'min-w-[3.25rem] border-b border-e border-border p-1 align-top',
                         highlighted ? 'bg-warning-50' : weekend ? 'bg-surface-muted' : 'bg-surface',
                       )}
+                      style={{
+                        backgroundColor: markerColor
+                          ? scheduleCellMarkerBackground(markerColor)
+                          : undefined,
+                      }}
                     >
                       <button
                         type="button"
@@ -139,9 +149,21 @@ export default function LateScheduleDesktopGrid({
                             onAssignmentClick?.(row.id, day, clickableAssignment.employeeId);
                           }
                         }}
-                        className="flex min-h-11 w-full min-w-[3.25rem] flex-col items-stretch justify-center gap-1 rounded-lg bg-transparent px-1 py-1 text-start transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/40 disabled:cursor-default disabled:hover:bg-transparent"
-                        aria-label={`${isRtl ? 'تعيين موظفين إلى' : 'Assign employees to'} ${row.title}, ${day}`}
+                        className={cn(
+                          'flex min-h-11 w-full min-w-[3.25rem] flex-col items-stretch justify-center gap-1 rounded-lg bg-transparent px-1 py-1 text-start transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/40 disabled:cursor-default disabled:hover:bg-transparent',
+                          markerToolActive
+                            ? 'cursor-cell hover:outline hover:outline-2 hover:outline-primary'
+                            : 'hover:bg-hover',
+                        )}
+                        aria-label={`${markerToolActive
+                          ? (isRtl ? 'إضافة علامة إلى' : 'Mark')
+                          : (isRtl ? 'تعيين موظفين إلى' : 'Assign employees to')} ${row.title}, ${day}`}
                       >
+                        {markerColor && (
+                          <span className="sr-only" aria-label="Modified shift marker">
+                            Modified shift marker
+                          </span>
+                        )}
                         {assignments.length === 0 ? (
                           <span className="block text-center text-base font-medium text-text-muted" aria-hidden="true">·</span>
                         ) : assignments.slice(0, 2).map((assignment, index) => {

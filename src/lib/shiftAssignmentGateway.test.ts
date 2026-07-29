@@ -22,7 +22,7 @@ function matrix(): ScheduleMatrixData {
         }],
       }],
     }],
-    legend: [], vacations: [], holidays: [], settings: [], auditLog: [],
+    legend: [], vacations: [], holidays: [], settings: [], auditLog: [], cellMarkers: {},
   };
 }
 

@@ -1,5 +1,6 @@
 import { recalculateAllConflicts } from '@/lib/validateAssignment';
 import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
+import { pruneScheduleCellMarkers } from '@/lib/scheduleCellMarkers';
 import type {
   Assignment,
   ScheduleMatrixData,
@@ -38,6 +39,7 @@ export function structureOnly(
   copy.year = year;
   copy.month = month;
   clearScheduleContent(copy, true);
+  copy.cellMarkers = {};
   copy.auditLog = [];
   return copy;
 }
@@ -107,6 +109,14 @@ export function pasteMatrixIntoMonth(
       endDay: Math.min(daysInMonth, holiday.endDay),
     }));
 
+  const activeRowIds = data.facilities.flatMap((facility) =>
+    facility.units.flatMap((unit) => unit.rows.map((row) => row.id)));
+  data.cellMarkers = pruneScheduleCellMarkers(
+    data.cellMarkers,
+    activeRowIds,
+    daysInMonth,
+  );
+
   normalizeMatrix(data);
   recalculateAllConflicts(data);
   return { data, omittedAssignments };
@@ -123,6 +133,7 @@ export function deletedMonthShell(
     settings: [],
     vacations: [],
     holidays: [],
+    cellMarkers: {},
     auditLog: [],
   };
 }

@@ -12,6 +12,8 @@ describe('employee published table projections', () => {
     const employeeId = sourceRow.cellsByDay[firstAssignedDay][0].employeeId;
     sourceRow.cellsByDay[firstAssignedDay].push({ employeeId: 'draft-employee', employeeCode: 'DR', status: 'draft' });
     sourceUnit.rows.push({ ...sourceRow, id: 'archived-row', archived: true });
+    matrix.cellMarkers[`cell|${sourceRow.id}|${firstAssignedDay}`] = 'green';
+    matrix.cellMarkers[`cell|archived-row|${firstAssignedDay}`] = 'red';
 
     const projected = projectPublishedScheduleMatrix(matrix, 'dept-1', employeeId)!;
 
@@ -22,6 +24,9 @@ describe('employee published table projections', () => {
     expect(projected.facilities[0].units[0].rows[0].cellsByDay[firstAssignedDay])
       .toEqual(sourceRow.cellsByDay[firstAssignedDay].filter((assignment) => assignment.employeeId === employeeId && assignment.status !== 'draft'));
     expect(projected.legend.every((employee) => employee.employeeId === employeeId)).toBe(true);
+    expect(projected.cellMarkers).toEqual({
+      [`cell|${sourceRow.id}|${firstAssignedDay}`]: 'green',
+    });
   });
 
   it('keeps OT row order but exposes only the linked employee in My Schedule', () => {

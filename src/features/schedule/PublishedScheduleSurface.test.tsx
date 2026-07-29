@@ -83,6 +83,29 @@ describe('PublishedScheduleSurface employee interactions', () => {
     expect(screen.queryByText('Edit assignment')).not.toBeInTheDocument();
   });
 
+  it('renders published markers on read-only desktop cells and mobile assignment cards', () => {
+    const value = matrixAssignment();
+    value.row.cellsByDay[1] = [value.assignment];
+    value.day = 1;
+    value.matrix.cellMarkers[`cell|${value.row.id}|${value.day}`] = 'blue';
+
+    render(
+      <PublishedScheduleSurface
+        tab="schedule"
+        year={value.matrix.year}
+        month={value.matrix.month}
+        matrix={value.matrix}
+        otTable={null}
+        roster={[]}
+        emptyScheduleText="No schedule"
+        emptyOTText="No OT"
+      />,
+    );
+
+    expect(screen.getAllByLabelText('Modified shift marker').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText('Assign Employee')).not.toBeInTheDocument();
+  });
+
   it('forwards an OT employee cell click only when the My Schedule hook is supplied', () => {
     const employee = OFFICIAL_EMPLOYEE_ROSTER[0];
     const onOTAssignmentClick = vi.fn();
@@ -113,5 +136,38 @@ describe('PublishedScheduleSurface employee interactions', () => {
 
     fireEvent.click(screen.getByTestId('ot-cell-ot-row-a-4').querySelector('button')!);
     expect(onOTAssignmentClick).toHaveBeenCalledWith('ot-row-a', 4, employee.employeeId);
+  });
+
+  it('renders published OT markers across the full desktop cell and mobile card', () => {
+    const employee = OFFICIAL_EMPLOYEE_ROSTER[0];
+    render(
+      <PublishedScheduleSurface
+        tab="ot"
+        year={2027}
+        month={0}
+        matrix={null}
+        otTable={{
+          units: [{ id: 'unit-a', name: 'Unit A' }],
+          rows: [{
+            id: 'ot-row-marker',
+            unitId: 'unit-a',
+            title: 'OT Night',
+            location: 'KAMC',
+            timeRange: '17:00 - 21:00',
+            hours: 4,
+            cellMarkers: { 1: 'orange' },
+            assignments: { 1: [{ kind: 'employee', employeeId: employee.employeeId }] },
+          }],
+        }}
+        roster={[employee]}
+        emptyScheduleText="No schedule"
+        emptyOTText="No OT"
+      />,
+    );
+
+    const desktopCell = screen.getByTestId('ot-cell-ot-row-marker-1');
+    expect(desktopCell).toHaveAttribute('data-cell-marker-color', 'orange');
+    expect(desktopCell).toHaveStyle({ backgroundColor: '#EA580C4D' });
+    expect(screen.getAllByLabelText('Modified shift marker')).toHaveLength(2);
   });
 });

@@ -8,7 +8,15 @@ import { Maximize2, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import EmployeeChip from './EmployeeChip';
-import type { AuditEntry, ShiftRow, Assignment, MatrixCellRef, HolidayRange } from '@/types/scheduleMatrix';
+import { scheduleCellMarkerBackground, scheduleCellMarkerKey } from '@/lib/scheduleCellMarkers';
+import type {
+  AuditEntry,
+  ShiftRow,
+  Assignment,
+  MatrixCellRef,
+  HolidayRange,
+  ScheduleCellMarkerMap,
+} from '@/types/scheduleMatrix';
 
 export interface CellInteractionMeta {
   anchorRect?: DOMRect;
@@ -36,6 +44,8 @@ interface ShiftRowCellsProps {
   isBrushMode: boolean;
   brushEmployeeCodes: string[];
   holidays?: HolidayRange[];
+  cellMarkers?: ScheduleCellMarkerMap;
+  markerToolActive?: boolean;
   onCellClick: (ref: MatrixCellRef, meta?: CellInteractionMeta) => void;
   onChipClick?: (ref: MatrixCellRef, assignment: Assignment, meta?: CellInteractionMeta) => void;
   onCellContextMenu?: (ref: MatrixCellRef, position: { x: number; y: number }) => void;
@@ -76,6 +86,8 @@ function ShiftRowCells({
   isBrushMode,
   brushEmployeeCodes,
   holidays = [],
+  cellMarkers = {},
+  markerToolActive = false,
   onCellClick,
   onChipClick,
   onCellContextMenu,
@@ -131,6 +143,7 @@ function ShiftRowCells({
         const isFillTarget = fillTargetDay === day;
         const canEditCell = isEditable || isBrushMode;
         const isHoliday = holidays.some((holiday) => day >= holiday.startDay && day <= holiday.endDay);
+        const markerColor = cellMarkers[scheduleCellMarkerKey(row.id, day)];
 
         return (
           <div
@@ -139,6 +152,7 @@ function ShiftRowCells({
             data-matrix-day={day}
             data-row-id={row.id}
             data-holiday-day={isHoliday ? day : undefined}
+            data-cell-marker-color={markerColor}
             className={cn(
               'group relative flex flex-col items-center justify-center gap-1 px-[2px] overflow-hidden',
               'border-b border-e border-border outline-none',
@@ -150,7 +164,8 @@ function ShiftRowCells({
               !isWeekend && !isToday && !isHoliday && assignments.length > 0 && 'bg-surface',
               selected && 'ring-2 ring-inset ring-signal-cyan bg-signal-cyan/10',
               isFillTarget && 'ring-2 ring-inset ring-primary-teal bg-primary-teal/10',
-              canEditCell && 'cursor-pointer hover:bg-primary-teal/10',
+              canEditCell && !markerToolActive && 'cursor-pointer hover:bg-primary-teal/10',
+              markerToolActive && 'cursor-cell hover:bg-primary-teal/10 hover:outline hover:outline-2 hover:outline-primary-teal',
               brushEmployeeCodes.length > 0 && isBrushMode && 'hover:outline hover:outline-2 hover:outline-violet-400',
             )}
             style={{
@@ -158,6 +173,7 @@ function ShiftRowCells({
               width: 'var(--matrix-day-col)',
               minHeight: 'var(--matrix-row-height)',
               height: expandedCellsView ? 'auto' : 'var(--matrix-row-height)',
+              backgroundColor: markerColor ? scheduleCellMarkerBackground(markerColor) : undefined,
             }}
             onContextMenu={(event) => {
               if (readOnly || !onCellContextMenu) return;
@@ -176,7 +192,7 @@ function ShiftRowCells({
               longPressTimer.current = null;
             }}
             onMouseDown={(event) => {
-              if (!canEditCell || event.button !== 0) return;
+              if (!canEditCell || markerToolActive || event.button !== 0) return;
               rangeStartRef.current = cellRef;
               dragMovedRef.current = false;
             }}
@@ -248,7 +264,14 @@ function ShiftRowCells({
               }
             }}
           >
-            {assignments.length === 0 && canEditCell && (
+            {markerColor && (
+              <span
+                className="sr-only"
+                aria-label={t('schedule:markers.modifiedShiftMarker')}
+                title={t('schedule:markers.modifiedShiftMarker')}
+              />
+            )}
+            {assignments.length === 0 && canEditCell && !markerToolActive && (
               <span
                 className={cn(
                   'pointer-events-none flex h-5 w-5 items-center justify-center rounded-full',

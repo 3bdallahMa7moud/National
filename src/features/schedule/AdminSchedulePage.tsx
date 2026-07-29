@@ -36,7 +36,16 @@ import { useRole } from '@/hooks/useRole';
 import { useAuthStore } from '@/stores/authStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import ConflictPanel from './ConflictPanel';
-import type { MatrixCellRef, Assignment, ShiftColorKey, MatrixReorderCommand, MatrixReorderResult } from '@/types/scheduleMatrix';
+import SchedulePublishDialog from './SchedulePublishDialog';
+import { countScheduleCellMarkers } from '@/lib/scheduleCellMarkers';
+import type {
+  MatrixCellRef,
+  Assignment,
+  CellMarkerTool,
+  ShiftColorKey,
+  MatrixReorderCommand,
+  MatrixReorderResult,
+} from '@/types/scheduleMatrix';
 
 const CellContextMenu = lazy(() => import('./CellContextMenu'));
 const EmployeeDetailedShiftsModal = lazy(() => import('./EmployeeDetailedShiftsModal'));
@@ -54,6 +63,7 @@ export default function AdminSchedulePage() {
   const user = useAuthStore((state) => state.user);
   const {
     data,
+    matricesByMonth,
     month,
     year,
     adminMode,
@@ -65,6 +75,7 @@ export default function AdminSchedulePage() {
     selectedCells,
     selectCellRange,
     clearSelection,
+    setCellMarkers,
     brushEmployeeCodes,
     toggleBrushEmployeeCode,
     clearBrushEmployees,
@@ -114,11 +125,13 @@ export default function AdminSchedulePage() {
     generateConflictFreeMonth,
     currentMonthStatus,
     storageError,
+    recalculateConflicts,
   } = store;
 
   const { addToast } = useToast();
   const searchParams = useMemo(() => new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search), []);
   const deepLinkHandled = useRef(false);
+  const conflictPanelRef = useRef<HTMLDivElement>(null);
 
   // Local state for toolbar filtering & search
   const [isBulkSelecting, setIsBulkSelecting] = useState(false);
@@ -143,6 +156,21 @@ export default function AdminSchedulePage() {
   } | null>(null);
   const [detailedEmployee, setDetailedEmployee] = useState<{ id: string; name: string } | null>(null);
   const [colorblindMode, setColorblindMode] = useState(false);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  const [activeCellMarkerTool, setActiveCellMarkerTool] = useState<CellMarkerTool | null>(null);
+
+  useEffect(() => {
+    if (adminMode !== 'edit') setActiveCellMarkerTool(null);
+  }, [adminMode]);
+
+  useEffect(() => {
+    if (!activeCellMarkerTool) return;
+    const stopMarkerTool = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveCellMarkerTool(null);
+    };
+    window.addEventListener('keydown', stopMarkerTool);
+    return () => window.removeEventListener('keydown', stopMarkerTool);
+  }, [activeCellMarkerTool]);
 
   useEffect(() => {
     if (deepLinkHandled.current) return;
@@ -255,6 +283,23 @@ export default function AdminSchedulePage() {
     (cellRef: MatrixCellRef) => {
       if (!data) return;
 
+      if (adminMode === 'edit' && activeCellMarkerTool) {
+        const result = setCellMarkers(
+          [cellRef],
+          activeCellMarkerTool === 'remove' ? null : activeCellMarkerTool,
+        );
+        if (!result.ok) {
+          addToast({
+            type: result.reason === 'no_selection' ? 'info' : 'error',
+            title: t('schedule:markers.feedbackTitle'),
+            message: result.reason === 'no_selection'
+              ? t('schedule:markers.chooseFirst')
+              : result.message || t('schedule:markers.storageError'),
+          });
+        }
+        return;
+      }
+
       if (isBulkSelecting) {
         store.toggleCellSelection(cellRef);
         return;
@@ -338,7 +383,20 @@ export default function AdminSchedulePage() {
         defaultColorKey,
       });
     },
-    [data, isBulkSelecting, adminMode, brushEmployeeCodes, store, assignCell, openDrawer, addToast, t, getCellAssignments],
+    [
+      data,
+      adminMode,
+      activeCellMarkerTool,
+      setCellMarkers,
+      addToast,
+      t,
+      isBulkSelecting,
+      brushEmployeeCodes,
+      store,
+      assignCell,
+      openDrawer,
+      getCellAssignments,
+    ],
   );
 
   const handleChipClick = useCallback(
@@ -437,14 +495,28 @@ export default function AdminSchedulePage() {
     });
   }, [selectedCells, clearCell, clearSelection, addToast, t]);
 
+  const handleCellMarkerToolChange = useCallback((tool: CellMarkerTool) => {
+    setActiveCellMarkerTool((activeTool) => activeTool === tool ? null : tool);
+    setIsBulkSelecting(false);
+    clearSelection();
+  }, [clearSelection]);
+
   // Publish flow
   const handlePublish = useCallback(() => {
-    const res = publishDrafts();
+    recalculateConflicts();
+    setIsPublishDialogOpen(true);
+  }, [recalculateConflicts]);
+
+  const handleConfirmPublish = useCallback(() => {
+    const res = publishDrafts(user?.name || 'Administrator');
     if (res.ok) {
+      setIsPublishDialogOpen(false);
       addToast({
         type: 'success',
         title: t('schedule:toast.publishSuccessTitle'),
-        message: t('schedule:toast.publishSuccessMsg'),
+        message: `${res.conflictCount > 0
+          ? t('schedule:toast.publishSuccessWithConflicts', { count: res.conflictCount })
+          : t('schedule:toast.publishSuccessMsg')} ${t('schedule:toast.deferredEmailNotice')}`,
       });
     } else {
       addToast({
@@ -453,7 +525,17 @@ export default function AdminSchedulePage() {
         message: res.message,
       });
     }
-  }, [publishDrafts, addToast, t]);
+  }, [publishDrafts, addToast, t, user?.name]);
+
+  const handleReviewConflicts = useCallback(() => {
+    setIsPublishDialogOpen(false);
+    setAdminMode('view');
+    setConflictsOnly(true);
+    window.requestAnimationFrame(() => {
+      conflictPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      conflictPanelRef.current?.focus({ preventScroll: true });
+    });
+  }, [setAdminMode]);
 
   const handleGenerateSchedule = useCallback(() => {
     const result = generateConflictFreeMonth(user?.name);
@@ -735,6 +817,7 @@ export default function AdminSchedulePage() {
         onNextMonth={goToNextMonth}
         isDirty={isDirty}
         pendingDraftCount={pendingDraftCount}
+        canPublish={isDirty || !matricesByMonth[`${year}-${String(month + 1).padStart(2, '0')}`]}
         onPublish={handlePublish}
         onDiscard={discardDraft}
         conflictCount={conflictCount}
@@ -760,6 +843,8 @@ export default function AdminSchedulePage() {
         onZoomReset={handleZoomReset}
         onBulkAssign={handleBulkAssign}
         onBulkClear={handleBulkClear}
+        activeCellMarkerTool={activeCellMarkerTool}
+        onCellMarkerToolChange={handleCellMarkerToolChange}
         onOpenFullscreen={() => setIsFullscreenModalOpen(true)}
         onExportExcel={handleExportMatrix}
         onExportPDF={handleExportMatrixPdf}
@@ -948,23 +1033,25 @@ export default function AdminSchedulePage() {
       ) : (
         /* ── Main Schedule Matrix Grid ── */
         <div className="space-y-3">
-          <ConflictPanel
-            data={data}
-            onJumpToCell={(facilityId, rowId, day) => {
-              if (facilityId) setFacilityFilter(facilityId);
-              openDrawer({
-                facilityId,
-                unitId: '',
-                rowId,
-                day,
-                facilityName: '',
-                unitName: '',
-                shiftLabel: '',
-                timeRange: '',
-                defaultColorKey: 'morning',
-              });
-            }}
-          />
+          <div ref={conflictPanelRef} tabIndex={-1}>
+            <ConflictPanel
+              data={data}
+              onJumpToCell={(facilityId, rowId, day) => {
+                if (facilityId) setFacilityFilter(facilityId);
+                openDrawer({
+                  facilityId,
+                  unitId: '',
+                  rowId,
+                  day,
+                  facilityName: '',
+                  unitName: '',
+                  shiftLabel: '',
+                  timeRange: '',
+                  defaultColorKey: 'morning',
+                });
+              }}
+            />
+          </div>
           <ScheduleMatrix
             data={displayData}
           editable={adminMode === 'edit'}
@@ -977,6 +1064,7 @@ export default function AdminSchedulePage() {
           onToggleExpandedCellsView={() => setExpandedCellsView(!expandedCellsView)}
           zoomLevel={zoomLevel}
           colorblindMode={colorblindMode}
+          markerToolActive={adminMode === 'edit' && activeCellMarkerTool !== null}
           onCellClick={handleCellClick}
           onChipClick={handleChipClick}
           onCellContextMenu={(ref, position) => {
@@ -1136,6 +1224,7 @@ export default function AdminSchedulePage() {
         onArchiveUnit={archiveUnit}
         onDeleteUnit={handleRequestDeleteUnit}
         onReorder={handleReorder}
+        markerToolActive={adminMode === 'edit' && activeCellMarkerTool !== null}
         drawerCell={drawerCell}
         drawerCurrentAssignments={drawerCurrentAssignments}
         onDrawerClose={closeDrawer}
@@ -1296,6 +1385,19 @@ export default function AdminSchedulePage() {
       </Modal>
 
       {/* ── Employee Detailed Shifts Modal ── */}
+      <SchedulePublishDialog
+        isOpen={isPublishDialogOpen}
+        onClose={() => setIsPublishDialogOpen(false)}
+        onPublish={handleConfirmPublish}
+        onReviewConflicts={handleReviewConflicts}
+        monthLabel={months[month] || `Month ${month + 1}`}
+        year={year}
+        departmentLabel={user?.departmentName || data.departmentId}
+        markerCount={countScheduleCellMarkers(data.cellMarkers)}
+        draftChangeCount={pendingDraftCount}
+        conflictCount={conflictCount}
+      />
+
       {detailedEmployee && (
       <Suspense fallback={null}>
       <EmployeeDetailedShiftsModal

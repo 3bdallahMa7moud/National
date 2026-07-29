@@ -23,10 +23,13 @@ import type {
   MatrixReorderCommand,
   MatrixReorderResult,
   MatrixDeleteResult,
+  MarkerColor,
   ScheduleMatrixData,
   ScheduleAdminMutationResult,
+  ScheduleCellMarkerMutationResult,
   ScheduleMatrixVersion,
   ScheduleMonthStatus,
+  SchedulePublishResult,
   ShiftColorKey,
   ShiftDefinition,
   ShiftRow,
@@ -38,7 +41,16 @@ import type {
 } from '@/types/scheduleMatrix';
 import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
 import { recalculateAllConflicts, validateAssignmentsForCell } from '@/lib/validateAssignment';
-import { generateConflictFreeScheduleMonth } from '@/lib/conflictFreeScheduleGenerator';
+import {
+  countScheduleConflicts,
+  generateConflictFreeScheduleMonth,
+} from '@/lib/conflictFreeScheduleGenerator';
+import {
+  countScheduleCellMarkers,
+  normalizeScheduleCellMarkers,
+  removeScheduleCellMarkersForRows,
+  scheduleCellMarkerKey,
+} from '@/lib/scheduleCellMarkers';
 import { getOfficialEmployeeRoster, useEmployeeRosterStore } from './employeeRosterStore';
 import { useOperationalAuditStore } from './operationalAuditStore';
 import {
@@ -57,6 +69,7 @@ import {
   readAdminControl,
   readMonthlyState,
   readStoredMatrices,
+  SCHEDULE_MONTHLY_STORAGE_KEY,
 } from './scheduleMatrixPersistence';
 
 export {
@@ -77,11 +90,6 @@ interface UndoSnapshot {
   data: ScheduleMatrixData;
   draftCellKeys: string[];
   brushEmployeeCodes: string[];
-}
-
-interface PublishResult {
-  ok: boolean;
-  message: string;
 }
 
 interface ScheduleTableClipboard {
@@ -136,6 +144,11 @@ interface ScheduleMatrixState {
   toggleCellSelection: (ref: MatrixCellRef) => void;
   selectCellRange: (start: MatrixCellRef, end: MatrixCellRef) => void;
   clearSelection: () => void;
+  setCellMarkers: (
+    cells: MatrixCellRef[],
+    color: MarkerColor | null,
+  ) => ScheduleCellMarkerMutationResult;
+  setSelectedCellMarkers: (color: MarkerColor | null) => ScheduleCellMarkerMutationResult;
 
   brushEmployeeCodes: string[];
   toggleBrushEmployeeCode: (code: string) => { ok: true };
@@ -164,10 +177,11 @@ interface ScheduleMatrixState {
     code: string,
   ) => EmployeeIdentityUpdateResult;
 
-  publishDrafts: () => PublishResult;
+  publishDrafts: (publisherName?: string) => SchedulePublishResult;
   discardDraft: () => void;
   undoLastEdit: () => boolean;
   recalculateConflicts: () => void;
+  reloadFromStorage: () => void;
 
   addShiftDefinition: (facilityId: string, payload: Omit<ShiftDefinition, 'id' | 'facilityId'>) => void;
   updateShiftDefinition: (facilityId: string, shiftId: string, updates: Partial<ShiftDefinition>) => void;
@@ -224,7 +238,7 @@ function recordScheduleAdminAudit(
 }
 
 function cellKey(rowId: string, day: number) {
-  return `cell|${rowId}|${day}`;
+  return scheduleCellMarkerKey(rowId, day);
 }
 
 function draftWith(existing: string[], key: string) {
@@ -397,6 +411,7 @@ function synchronizeRowsWithShiftDefinitions(data: ScheduleMatrixData): void {
 }
 
 function prepareLegacyStoredMatrix(data: ScheduleMatrixData): void {
+  data.cellMarkers = normalizeScheduleCellMarkers(data.cellMarkers);
   linkShiftDefinitionIds(data);
   synchronizeRowsWithShiftDefinitions(data);
 }
@@ -461,6 +476,12 @@ function pushUndo(state: ScheduleMatrixState): UndoSnapshot[] {
 const now = new Date();
 const initialMonthlyState = readMonthlyState(normalizeStoredMatrix);
 const initialAdminControl = initialMonthlyState ?? readAdminControl();
+if (!initialMonthlyState) {
+  Object.values(initialAdminControl.versionsByMonth)
+    .flat()
+    .forEach((version) => normalizeStoredMatrix(version.data));
+}
+let isSchedulePersistenceRollback = false;
 
 export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => ({
   data: null,
@@ -533,6 +554,62 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       return { selectedCells: state.selectedCells.length ? selectedCells : selectedCells };
     }),
   clearSelection: () => set({ selectedCells: [] }),
+  setCellMarkers: (cells, color) => {
+    const state = get();
+    if (!state.data || cells.length === 0) {
+      return { ok: false, reason: 'no_selection' };
+    }
+
+    const data = cloneData(state.data);
+    data.cellMarkers = normalizeScheduleCellMarkers(data.cellMarkers);
+    const affectedKeys: string[] = [];
+
+    for (const cell of cells) {
+      const context = findRowContext(data, cell.rowId);
+      if (!context) continue;
+      const daysInMonth = new Date(data.year, data.month + 1, 0).getDate();
+      if (cell.day < 1 || cell.day > daysInMonth) continue;
+
+      const key = scheduleCellMarkerKey(cell.rowId, cell.day);
+      if (color === null) {
+        if (!(key in data.cellMarkers)) continue;
+        delete data.cellMarkers[key];
+      } else {
+        if (data.cellMarkers[key] === color) continue;
+        data.cellMarkers[key] = color;
+      }
+      affectedKeys.push(key);
+    }
+
+    if (affectedKeys.length === 0) return { ok: true, affected: 0 };
+
+    addAudit(data, state.locale, {
+      action: 'marker',
+      oldValue: `${affectedKeys.length} selected cells`,
+      newValue: color ? `${color} marker` : 'Marker removed',
+    });
+    set({
+      data,
+      draftCellKeys: affectedKeys.reduce(
+        (keys, key) => draftWith(keys, key),
+        state.draftCellKeys,
+      ),
+      undoStack: pushUndo(state),
+    });
+
+    if (get().data !== data || get().storageError) {
+      return {
+        ok: false,
+        reason: 'storage_error',
+        message: get().storageError || undefined,
+      };
+    }
+    return { ok: true, affected: affectedKeys.length };
+  },
+  setSelectedCellMarkers: (color) => {
+    const state = get();
+    return state.setCellMarkers(state.selectedCells, color);
+  },
 
   brushEmployeeCodes: [],
   toggleBrushEmployeeCode: (code) => {
@@ -640,8 +717,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       brushEmployeeCodes: [],
       monthStatuses: get().monthStatuses[key]
         ? get().monthStatuses
-        : { ...get().monthStatuses, [key]: stored ? 'published' : 'published' },
-      matricesByMonth: stored || isDeleted || draft ? get().matricesByMonth : { ...get().matricesByMonth, [key]: cloneData(data) },
+        : { ...get().monthStatuses, [key]: stored ? 'published' : 'draft' },
     });
   },
 
@@ -1036,44 +1112,23 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     get().addVacationRange(assignment.employeeId, day, day, 'emergency');
   },
 
-  publishDrafts: () => {
+  publishDrafts: (publisherName) => {
     const state = get();
     if (!state.data) {
       return { ok: false, message: 'Schedule is unavailable.' };
     }
     const currentKey = matrixMonthKey(state.data);
     if (state.draftCellKeys.length === 0 && state.matricesByMonth[currentKey]) {
-      return { ok: true, message: getMatrixStoreText(state.locale, 'noUnpublished') };
+      return {
+        ok: true,
+        message: getMatrixStoreText(state.locale, 'noUnpublished'),
+        conflictCount: countScheduleConflicts(state.data),
+        markerCount: countScheduleCellMarkers(state.data.cellMarkers),
+      };
     }
 
     const data = cloneData(state.data);
     recalculateAllConflicts(data);
-
-    const blocked = state.draftCellKeys.some((key) => {
-      if (key.startsWith('cell|')) {
-        const [, rowId, dayText] = key.split('|');
-        const context = findRowContext(data, rowId);
-        const assignments = context?.row.cellsByDay[Number(dayText)] || [];
-        return assignments.some((assignment) => assignment.hasConflict);
-      }
-      if (key.startsWith('vac|')) {
-        return data.facilities.some((facility) =>
-          facility.units.some((unit) =>
-            unit.rows.some((row) =>
-              Object.values(row.cellsByDay).some((assignments) =>
-                assignments.some((assignment) => assignment.hasConflict && assignment.conflictType === 'vacation'),
-              ),
-            ),
-          ),
-        );
-      }
-      return false;
-    });
-
-    if (blocked) {
-      set({ data });
-      return { ok: false, message: getMatrixStoreText(state.locale, 'resolveConflicts') };
-    }
 
     const identityEmployeeIds = state.draftCellKeys
       .filter((key) => key.startsWith('identity|'))
@@ -1106,10 +1161,14 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       for (const range of vacation.ranges || []) range.status = 'published';
     }
 
+    const actorName = publisherName?.trim() || 'Administrator';
+    const conflictCount = countScheduleConflicts(data);
+    const markerCount = countScheduleCellMarkers(data.cellMarkers);
     addAudit(data, state.locale, {
+      actorName,
       action: 'publish',
-      oldValue: `${state.draftCellKeys.length} draft changes`,
-      newValue: 'published batch + notifications queued',
+      oldValue: `Publisher: ${actorName} | ${state.draftCellKeys.length} draft changes`,
+      newValue: `Published | ${conflictCount} conflicts | ${markerCount} markers`,
     });
     recalculateAllConflicts(data);
 
@@ -1119,7 +1178,13 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       ...state.matricesByMonth,
       [key]: cloneData(data),
     };
-    const versionsByMonth = addMonthVersion(state.versionsByMonth, key, state.data, undefined, 'publish');
+    const versionsByMonth = addMonthVersion(
+      state.versionsByMonth,
+      key,
+      data,
+      actorName,
+      'publish',
+    );
     set({
       data,
       matricesByMonth,
@@ -1131,8 +1196,20 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       monthStatuses: { ...state.monthStatuses, [key]: 'published' },
     });
     if (get().storageError) return { ok: false, message: get().storageError! };
-    recordScheduleAdminAudit(undefined, 'publish', state, 'Publish schedule month', `${state.draftCellKeys.length} draft changes`, 'published');
-    return { ok: true, message: getMatrixStoreText(state.locale, 'publishedBatch') };
+    recordScheduleAdminAudit(
+      actorName,
+      'publish',
+      state,
+      'Publish schedule month',
+      `Publisher: ${actorName} | ${state.draftCellKeys.length} draft changes`,
+      `Published | ${conflictCount} conflicts | ${markerCount} markers`,
+    );
+    return {
+      ok: true,
+      message: getMatrixStoreText(state.locale, 'publishedBatch'),
+      conflictCount,
+      markerCount,
+    };
   },
 
   discardDraft: () => {
@@ -1174,6 +1251,35 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       recalculateAllConflicts(data);
       return { data };
     }),
+
+  reloadFromStorage: () => {
+    const stored = readMonthlyState(normalizeStoredMatrix);
+    if (!stored) return;
+    const state = get();
+    const activeKey = state.data ? matrixMonthKey(state.data) : null;
+    const publishedActive = activeKey ? stored.matricesByMonth[activeKey] : undefined;
+    const shouldRefreshActiveData = !!publishedActive
+      && state.draftCellKeys.length === 0;
+
+    isSchedulePersistenceRollback = true;
+    try {
+      set({
+        matricesByMonth: stored.matricesByMonth,
+        monthStatuses: stored.monthStatuses,
+        versionsByMonth: stored.versionsByMonth,
+        deletedMonths: stored.deletedMonths,
+        storageError: null,
+        ...(shouldRefreshActiveData
+          ? {
+              data: cloneData(publishedActive),
+              snapshot: JSON.stringify(publishedActive),
+            }
+          : {}),
+      });
+    } finally {
+      isSchedulePersistenceRollback = false;
+    }
+  },
 
   addShiftDefinition: (facilityId, payload) => {
     const state = get();
@@ -1428,6 +1534,10 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     const settings = data.settings.find((item) => item.facilityId === facilityId);
     const unit = facility?.units.find((item) => item.id === unitId);
     if (!facility || !settings || !unit) return { ok: false, reason: 'not_found' };
+    data.cellMarkers = removeScheduleCellMarkersForRows(
+      data.cellMarkers,
+      unit.rows.map((row) => row.id),
+    );
     facility.units = facility.units.filter((item) => item.id !== unitId);
     settings.units = settings.units.filter((item) => item.id !== unitId);
     addAudit(data, state.locale, {
@@ -1692,6 +1802,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       context.row.archived = true;
     } else {
       context.unit.rows = context.unit.rows.filter((row) => row.id !== rowId);
+      data.cellMarkers = removeScheduleCellMarkersForRows(data.cellMarkers, [rowId]);
     }
     addAudit(data, state.locale, {
       action: assignmentsCount > 0 && !removeAssignments ? 'archive' : 'delete',
@@ -1931,7 +2042,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
   },
 }));
 
-let isSchedulePersistenceRollback = false;
+let scheduleMatrixChannel: BroadcastChannel | null = null;
 
 useScheduleMatrixStore.subscribe((state, previousState) => {
   if (isSchedulePersistenceRollback) return;
@@ -1976,6 +2087,12 @@ useScheduleMatrixStore.subscribe((state, previousState) => {
       });
       isSchedulePersistenceRollback = false;
     }
+    if (
+      state.matricesByMonth !== previousState.matricesByMonth
+      && scheduleMatrixChannel
+    ) {
+      scheduleMatrixChannel.postMessage({ type: 'published-schedule-updated' });
+    }
     return;
   }
 
@@ -2007,4 +2124,24 @@ useEmployeeRosterStore.subscribe(() => {
   useScheduleMatrixStore.setState({ data });
 });
 
-export type { FacilitySettings, ShiftDefinition, UnitDefinition, ShiftColorKey };
+if (typeof window !== 'undefined') {
+  if ('BroadcastChannel' in window) {
+    scheduleMatrixChannel = new BroadcastChannel('ngh-schedule-matrix');
+    scheduleMatrixChannel.addEventListener('message', () => {
+      useScheduleMatrixStore.getState().reloadFromStorage();
+    });
+  }
+  window.addEventListener('storage', (event) => {
+    if (event.key === SCHEDULE_MONTHLY_STORAGE_KEY) {
+      useScheduleMatrixStore.getState().reloadFromStorage();
+    }
+  });
+}
+
+export type {
+  FacilitySettings,
+  MarkerColor,
+  ShiftDefinition,
+  UnitDefinition,
+  ShiftColorKey,
+};

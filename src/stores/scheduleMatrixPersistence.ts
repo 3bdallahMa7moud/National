@@ -6,6 +6,7 @@ import type {
 } from '@/types/scheduleMatrix';
 import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
 import { cloneScheduleMatrix } from './scheduleMatrixMonthOperations';
+import { normalizeScheduleCellMarkers } from '@/lib/scheduleCellMarkers';
 
 // v2 stores published snapshots only. The previous key auto-saved generated and
 // draft months, so reading it would reintroduce invented annual-analysis coverage.
@@ -154,6 +155,7 @@ function hydrateMatrixFromStorage(
 ): ScheduleMatrixData {
   const hydrated = cloneScheduleMatrix(data);
   hydrated.departmentId = hydrated.departmentId || 'dept-1';
+  hydrated.cellMarkers = normalizeScheduleCellMarkers(hydrated.cellMarkers);
   const daysInMonth = new Date(hydrated.year, hydrated.month + 1, 0).getDate();
   hydrated.auditLog = Array.isArray(hydrated.auditLog) ? hydrated.auditLog : [];
   for (const facility of hydrated.facilities) {

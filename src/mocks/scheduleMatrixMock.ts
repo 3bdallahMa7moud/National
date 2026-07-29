@@ -381,6 +381,7 @@ function buildMockData(year: number, month: number): ScheduleMatrixData {
       ? [{ id: 'eid-holiday-2026', label: 'Eid Holiday', labelAr: 'إجازة العيد', startDay: 24, endDay: 28 }]
       : [],
     settings,
+    cellMarkers: {},
     auditLog: [
       {
         id: 'audit-seed-1',

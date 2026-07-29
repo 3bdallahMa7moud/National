@@ -1,3 +1,5 @@
+import type { MarkerColor } from './scheduleMatrix';
+
 export interface OTEmployeeAssignment {
   kind: 'employee';
   employeeId: string;
@@ -33,6 +35,7 @@ export interface OTShiftRow {
   shortCode?: string;
   icon?: string;
   archived?: boolean;
+  cellMarkers?: Record<number, MarkerColor>;
   assignments: Record<number, OTCellAssignment[]>;
 }
 

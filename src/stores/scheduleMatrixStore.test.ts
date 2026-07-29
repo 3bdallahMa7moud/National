@@ -621,8 +621,339 @@ describe('scheduleMatrixStore administration', () => {
     expect(reloadedRow.cellsByDay[2]).toEqual([]);
   });
 
+  it('applies and removes one marker operation across multiple selected cells without changing assignments or conflicts', () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    const selectedCells = [1, 2].map((day) => ({
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day,
+    }));
+    const assignmentCount = state.data!.facilities
+      .flatMap((entry) => entry.units)
+      .flatMap((entry) => entry.rows)
+      .flatMap((entry) => Object.values(entry.cellsByDay))
+      .reduce((total, assignments) => total + assignments.length, 0);
+    const conflictCount = state.conflictCount();
+    selectedCells.forEach((cell) => state.toggleCellSelection(cell));
+
+    expect(useScheduleMatrixStore.getState().setSelectedCellMarkers('purple'))
+      .toEqual({ ok: true, affected: 2 });
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toMatchObject({
+      [`cell|${row.id}|1`]: 'purple',
+      [`cell|${row.id}|2`]: 'purple',
+    });
+    expect(useScheduleMatrixStore.getState().selectedCells).toEqual(selectedCells);
+    expect(useScheduleMatrixStore.getState().conflictCount()).toBe(conflictCount);
+    expect(useScheduleMatrixStore.getState().data!.facilities
+      .flatMap((entry) => entry.units)
+      .flatMap((entry) => entry.rows)
+      .flatMap((entry) => Object.values(entry.cellsByDay))
+      .reduce((total, assignments) => total + assignments.length, 0)).toBe(assignmentCount);
+    useScheduleMatrixStore.getState().archiveMatrixRow(row.id);
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers[`cell|${row.id}|1`]).toBe('purple');
+    useScheduleMatrixStore.getState().restoreMatrixRow(row.id);
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers[`cell|${row.id}|2`]).toBe('purple');
+
+    expect(useScheduleMatrixStore.getState().setSelectedCellMarkers(null))
+      .toEqual({ ok: true, affected: 2 });
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toEqual({});
+  });
+
+  it('returns no_selection and treats an unchanged marker color as a no-op', () => {
+    const state = useScheduleMatrixStore.getState();
+    expect(state.setSelectedCellMarkers('yellow')).toEqual({
+      ok: false,
+      reason: 'no_selection',
+    });
+
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    state.toggleCellSelection({
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day: 1,
+    });
+    expect(useScheduleMatrixStore.getState().setSelectedCellMarkers('yellow'))
+      .toEqual({ ok: true, affected: 1 });
+    const undoCount = useScheduleMatrixStore.getState().undoStack.length;
+    expect(useScheduleMatrixStore.getState().setSelectedCellMarkers('yellow'))
+      .toEqual({ ok: true, affected: 0 });
+    expect(useScheduleMatrixStore.getState().undoStack).toHaveLength(undoCount);
+  });
+
+  it('marks a supplied cell directly without requiring selection state', () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    const cell = {
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day: 3,
+    };
+
+    expect(state.selectedCells).toEqual([]);
+    expect(state.setCellMarkers([cell], 'blue')).toEqual({ ok: true, affected: 1 });
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers[`cell|${row.id}|3`]).toBe('blue');
+    expect(useScheduleMatrixStore.getState().selectedCells).toEqual([]);
+    expect(useScheduleMatrixStore.getState().setCellMarkers([cell], null))
+      .toEqual({ ok: true, affected: 1 });
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toEqual({});
+  });
+
+  it('undoes a multi-cell marker change in one step and discard restores the unpublished baseline', () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    [1, 2, 3].forEach((day) => state.toggleCellSelection({
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day,
+    }));
+    expect(useScheduleMatrixStore.getState().setSelectedCellMarkers('orange'))
+      .toEqual({ ok: true, affected: 3 });
+    expect(useScheduleMatrixStore.getState().undoLastEdit()).toBe(true);
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toEqual({});
+
+    expect(useScheduleMatrixStore.getState().setSelectedCellMarkers('orange'))
+      .toEqual({ ok: true, affected: 3 });
+    useScheduleMatrixStore.getState().discardDraft();
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toEqual({});
+  });
+
+  it('keeps marker drafts private until explicit publication and never auto-publishes a generated month', () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    state.toggleCellSelection({
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day: 1,
+    });
+
+    expect(state.matricesByMonth['2026-07']).toBeUndefined();
+    expect(useScheduleMatrixStore.getState().setSelectedCellMarkers('green'))
+      .toEqual({ ok: true, affected: 1 });
+    expect(useScheduleMatrixStore.getState().matricesByMonth['2026-07']).toBeUndefined();
+    expect(JSON.parse(localStorage.getItem(SCHEDULE_MONTHLY_STORAGE_KEY) || '{}')
+      .draftsByMonth['2026-07'].cellMarkers[`cell|${row.id}|1`]).toBe('green');
+    useScheduleMatrixStore.getState().loadMonth(6, 2026);
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers[`cell|${row.id}|1`]).toBe('green');
+
+    const published = useScheduleMatrixStore.getState().publishDrafts('Publisher Name');
+    expect(published).toMatchObject({ ok: true, markerCount: 1 });
+    expect(useScheduleMatrixStore.getState().matricesByMonth['2026-07']
+      .cellMarkers[`cell|${row.id}|1`]).toBe('green');
+    expect(JSON.parse(localStorage.getItem(SCHEDULE_MONTHLY_STORAGE_KEY) || '{}')
+      .draftsByMonth['2026-07']).toBeUndefined();
+
+    useScheduleMatrixStore.getState().loadMonth(10, 2031);
+    expect(useScheduleMatrixStore.getState().matricesByMonth['2031-11']).toBeUndefined();
+    expect(useScheduleMatrixStore.getState().currentMonthStatus()).toBe('draft');
+  });
+
+  it('preserves markers while generating assignments without consulting marker metadata', () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    state.toggleCellSelection({
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day: 4,
+    });
+    expect(state.setSelectedCellMarkers('orange')).toEqual({ ok: true, affected: 1 });
+
+    expect(useScheduleMatrixStore.getState().generateConflictFreeMonth('Admin').ok).toBe(true);
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toEqual({
+      [`cell|${row.id}|4`]: 'orange',
+    });
+  });
+
+  it('clears markers on reset, prunes out-of-month paste markers, and removes permanent row or unit markers', () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    [1, 31].forEach((day) => state.toggleCellSelection({
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day,
+    }));
+    expect(useScheduleMatrixStore.getState().setSelectedCellMarkers('blue'))
+      .toEqual({ ok: true, affected: 2 });
+    expect(useScheduleMatrixStore.getState().copyCurrentTable('Admin').ok).toBe(true);
+    useScheduleMatrixStore.getState().loadMonth(1, 2027);
+    expect(useScheduleMatrixStore.getState().pasteCopiedTable('Admin').ok).toBe(true);
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toEqual({
+      [`cell|${row.id}|1`]: 'blue',
+    });
+
+    expect(useScheduleMatrixStore.getState().resetCurrentMonth('Admin').ok).toBe(true);
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toEqual({});
+
+    const resetState = useScheduleMatrixStore.getState();
+    const resetFacility = resetState.data!.facilities[0];
+    const resetUnit = resetFacility.units[0];
+    const resetRow = resetUnit.rows[0];
+    resetState.toggleCellSelection({
+      facilityId: resetFacility.id,
+      unitId: resetUnit.id,
+      rowId: resetRow.id,
+      day: 1,
+    });
+    expect(useScheduleMatrixStore.getState().setSelectedCellMarkers('red'))
+      .toEqual({ ok: true, affected: 1 });
+    expect(useScheduleMatrixStore.getState().deleteUnit(
+      resetFacility.id,
+      resetUnit.id,
+      true,
+      'Admin',
+    ).ok).toBe(true);
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toEqual({});
+  });
+
+  it('rolls a marker operation back when monthly storage cannot be written', () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    state.toggleCellSelection({
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day: 1,
+    });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+
+    const result = useScheduleMatrixStore.getState().setSelectedCellMarkers('red');
+    setItem.mockRestore();
+
+    expect(result).toMatchObject({ ok: false, reason: 'storage_error' });
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers).toEqual({});
+    expect(useScheduleMatrixStore.getState().storageError).toBeTruthy();
+  });
+
+  it('publishes with conflicts, reports marker counts, audits the publisher, and preserves complete versions', () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    state.toggleCellSelection({
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day: 1,
+    });
+    expect(state.setSelectedCellMarkers('yellow')).toEqual({ ok: true, affected: 1 });
+    expect(useScheduleMatrixStore.getState().resetCurrentMonth('Version Admin').ok).toBe(true);
+    expect(useScheduleMatrixStore.getState().versionsByMonth['2026-07'][0]
+      .data.cellMarkers[`cell|${row.id}|1`]).toBe('yellow');
+
+    const reset = useScheduleMatrixStore.getState();
+    const targetFacility = reset.data!.facilities[0];
+    const targetUnit = targetFacility.units[0];
+    const targetRow = targetUnit.rows[0];
+    const day = 1;
+    const conflictEmployee = {
+      employeeId: 'conflict-employee',
+      employeeCode: 'CF',
+    };
+    const conflicted = JSON.parse(JSON.stringify(reset.data));
+    const conflictedRow = conflicted.facilities[0].units[0].rows[0];
+    conflictedRow.cellsByDay[day] = [{
+      ...conflictEmployee,
+      status: 'draft',
+    }];
+    conflicted.vacations = [{
+      ...conflictEmployee,
+      fullName: 'Conflict Employee',
+      daysOff: [day],
+      type: 'annual',
+      ranges: [{
+        id: 'conflict-vacation',
+        employeeId: conflictEmployee.employeeId,
+        startDay: day,
+        endDay: day,
+        type: 'annual',
+        status: 'draft',
+      }],
+    }];
+    conflicted.cellMarkers[`cell|${targetRow.id}|${day}`] = 'purple';
+    useScheduleMatrixStore.setState({
+      data: conflicted,
+      draftCellKeys: [`cell|${targetRow.id}|${day}`],
+    });
+
+    const result = useScheduleMatrixStore.getState().publishDrafts('Conflict Publisher');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.conflictCount).toBeGreaterThan(0);
+    expect(result.markerCount).toBe(1);
+    const published = useScheduleMatrixStore.getState().matricesByMonth['2026-07'];
+    const publishAudit = published.auditLog.find((entry) => entry.action === 'publish')!;
+    expect(publishAudit.actorName).toBe('Conflict Publisher');
+    expect(publishAudit.oldValue).toContain('Publisher: Conflict Publisher');
+    expect(publishAudit.newValue).toContain(`${result.conflictCount} conflicts`);
+    expect(publishAudit.newValue).toContain('1 markers');
+    expect(useScheduleMatrixStore.getState().versionsByMonth['2026-07'][0]
+      .data.cellMarkers[`cell|${targetRow.id}|${day}`]).toBe('purple');
+    expect(useScheduleMatrixStore.getState().versionsByMonth['2026-07'][1]
+      .data.cellMarkers[`cell|${row.id}|1`]).toBe('yellow');
+  });
+
+  it('reloads published matrices from storage without promoting a private draft', () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const unit = facility.units[0];
+    const row = unit.rows[0];
+    state.toggleCellSelection({
+      facilityId: facility.id,
+      unitId: unit.id,
+      rowId: row.id,
+      day: 1,
+    });
+    state.setSelectedCellMarkers('blue');
+    state.publishDrafts('Admin');
+
+    const persisted = JSON.parse(localStorage.getItem(SCHEDULE_MONTHLY_STORAGE_KEY) || '{}');
+    persisted.matricesByMonth['2026-07'].cellMarkers = {
+      [`cell|${row.id}|1`]: 'yellow',
+    };
+    persisted.draftsByMonth['2026-07'] = JSON.parse(JSON.stringify(
+      persisted.matricesByMonth['2026-07'],
+    ));
+    persisted.draftsByMonth['2026-07'].cellMarkers = {
+      [`cell|${row.id}|1`]: 'red',
+    };
+    localStorage.setItem(SCHEDULE_MONTHLY_STORAGE_KEY, JSON.stringify(persisted));
+
+    useScheduleMatrixStore.getState().reloadFromStorage();
+
+    expect(useScheduleMatrixStore.getState().matricesByMonth['2026-07'].cellMarkers)
+      .toEqual({ [`cell|${row.id}|1`]: 'yellow' });
+    expect(useScheduleMatrixStore.getState().data!.cellMarkers)
+      .toEqual({ [`cell|${row.id}|1`]: 'yellow' });
+  });
+
   it('migrates legacy published schedule and admin metadata into the monthly schema', async () => {
     const legacyMonth = JSON.parse(JSON.stringify(useScheduleMatrixStore.getState().data));
+    delete legacyMonth.cellMarkers;
     localStorage.clear();
     localStorage.setItem(SCHEDULE_MATRIX_HISTORY_STORAGE_KEY, JSON.stringify({ '2026-07': legacyMonth }));
     localStorage.setItem(SCHEDULE_ADMIN_CONTROL_STORAGE_KEY, JSON.stringify({
@@ -647,6 +978,7 @@ describe('scheduleMatrixStore administration', () => {
     reloadedModule.useScheduleMatrixStore.getState().loadMonth(6, 2026);
     const reloaded = reloadedModule.useScheduleMatrixStore.getState().data!;
     expect(reloaded.legend.length).toBeGreaterThan(0);
+    expect(reloaded.cellMarkers).toEqual({});
     expect(reloaded.facilities[0].units[0].rows[0].cellsByDay[1]).toBeDefined();
   });
 });

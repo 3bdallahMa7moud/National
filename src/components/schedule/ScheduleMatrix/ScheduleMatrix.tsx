@@ -85,6 +85,7 @@ export interface ScheduleMatrixProps {
   expandedCellsView?: boolean;
   onToggleExpandedCellsView?: () => void;
   colorblindMode?: boolean;
+  markerToolActive?: boolean;
 }
 
 function MobileMatrixOrder({
@@ -211,6 +212,7 @@ function ScheduleMatrix({
   expandedCellsView = false,
   onToggleExpandedCellsView,
   colorblindMode = false,
+  markerToolActive = false,
 }: ScheduleMatrixProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -829,6 +831,8 @@ function ScheduleMatrix({
                             isBrushMode={isBrushMode}
                             brushEmployeeCodes={readOnly ? [] : brushEmployeeCodes}
                             holidays={data.holidays}
+                            cellMarkers={data.cellMarkers}
+                            markerToolActive={markerToolActive}
                             onCellClick={handleCellClick}
                             onChipClick={onChipClick ? handleChipClick : undefined}
                             onCellContextMenu={readOnly ? undefined : onCellContextMenu}
@@ -1067,6 +1071,8 @@ function ScheduleMatrix({
                             isBrushMode={isBrushMode}
                             brushEmployeeCodes={readOnly ? [] : brushEmployeeCodes}
                             holidays={data.holidays}
+                            cellMarkers={data.cellMarkers}
+                            markerToolActive={markerToolActive}
                             onCellClick={handleCellClick}
                             onChipClick={onChipClick ? handleChipClick : undefined}
                             onCellContextMenu={readOnly ? undefined : onCellContextMenu}

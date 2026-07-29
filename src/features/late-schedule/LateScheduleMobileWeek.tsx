@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { OTShiftRow, OTUnit } from '@/types/lateSchedule';
 import type { UnifiedEmployee } from '@/lib/unifiedEmployeeRoster';
 import { cn } from '@/lib/utils';
+import { scheduleCellMarkerBackground } from '@/lib/scheduleCellMarkers';
 import { getLateScheduleIntlLocale } from './lateScheduleLocale';
 
 interface LateScheduleMobileWeekProps {
@@ -14,6 +15,7 @@ interface LateScheduleMobileWeekProps {
   roster: UnifiedEmployee[];
   canEdit?: boolean;
   viewMode?: 'auto' | 'grid' | 'week';
+  markerToolActive?: boolean;
   onAssign?(rowId: string, day: number): void;
   onAssignmentClick?(rowId: string, day: number, employeeId: string): void;
 }
@@ -32,6 +34,7 @@ export default function LateScheduleMobileWeek({
   roster,
   canEdit = false,
   viewMode = 'auto',
+  markerToolActive = false,
   onAssign,
   onAssignmentClick,
 }: LateScheduleMobileWeekProps) {
@@ -144,14 +147,26 @@ export default function LateScheduleMobileWeek({
         {activeRows.map((row) => {
           const assignments = row.assignments[selectedDay] ?? [];
           const highlighted = row.highlightedDays?.includes(selectedDay) ?? false;
+          const markerColor = row.cellMarkers?.[selectedDay];
           return (
             <article
               key={row.id}
+              data-cell-marker-color={markerColor}
               className={cn(
                 'relative min-w-0 max-w-full overflow-hidden rounded-2xl border bg-surface p-4 shadow-card',
                 highlighted ? 'border-warning/50' : 'border-border',
               )}
+              style={{
+                backgroundColor: markerColor
+                  ? scheduleCellMarkerBackground(markerColor)
+                  : undefined,
+              }}
             >
+              {markerColor && (
+                <span className="sr-only" aria-label="Modified shift marker">
+                  Modified shift marker
+                </span>
+              )}
               <span
                 className="absolute inset-y-0 start-0 w-1.5 bg-primary"
                 style={{ backgroundColor: row.backgroundColor }}
@@ -211,11 +226,18 @@ export default function LateScheduleMobileWeek({
               {canEdit && (
                 <button
                   type="button"
-                  className="mt-4 min-h-11 w-full rounded-xl bg-primary px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className={cn(
+                    'mt-4 min-h-11 w-full rounded-xl bg-primary px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary/30',
+                    markerToolActive && 'cursor-cell',
+                  )}
                   onClick={() => onAssign?.(row.id, selectedDay)}
-                  aria-label={`${isRtl ? 'تعيين موظفين إلى' : 'Assign employees to'} ${row.title}`}
+                  aria-label={`${markerToolActive
+                    ? (isRtl ? 'إضافة علامة إلى' : 'Mark')
+                    : (isRtl ? 'تعيين موظفين إلى' : 'Assign employees to')} ${row.title}`}
                 >
-                  {isRtl ? 'تعيين الموظفين' : 'Assign employees'}
+                  {markerToolActive
+                    ? (isRtl ? 'تطبيق العلامة' : 'Apply marker')
+                    : (isRtl ? 'تعيين الموظفين' : 'Assign employees')}
                 </button>
               )}
             </article>

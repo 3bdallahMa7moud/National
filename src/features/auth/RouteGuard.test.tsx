@@ -26,6 +26,15 @@ const superAdmin: AuthUser = {
   departmentName: 'CT',
 };
 
+const admin: AuthUser = {
+  id: 'account-admin',
+  name: 'Admin',
+  email: '',
+  role: 'admin',
+  departmentId: 'dept-1',
+  departmentName: 'CT',
+};
+
 function renderProtected(requiredPermission: 'schedule.own.view', allowedRoles: AuthUser['role'][] = ['employee']) {
   return render(
     <MemoryRouter initialEntries={['/protected']}>
@@ -69,6 +78,18 @@ describe('RouteGuard employee permissions', () => {
     renderProtected('schedule.own.view', ['admin']);
 
     expect(screen.getByText('protected content')).toBeInTheDocument();
+  });
+
+  it('allows admins and denies employees at the admin schedule guard', () => {
+    useAuthStore.setState({ user: admin, isAuthenticated: true });
+    const adminView = renderProtected('schedule.own.view', ['admin']);
+    expect(screen.getByText('protected content')).toBeInTheDocument();
+    adminView.unmount();
+
+    useAuthStore.setState({ user: employee, isAuthenticated: true });
+    renderProtected('schedule.own.view', ['admin']);
+    expect(screen.getByText('forbidden')).toBeInTheDocument();
+    expect(screen.queryByText('protected content')).not.toBeInTheDocument();
   });
 
   it('redirects the direct route when an employee override disables access', () => {

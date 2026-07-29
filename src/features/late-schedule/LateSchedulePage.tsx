@@ -8,10 +8,12 @@ import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import AdminMonthControl from '@/components/common/AdminMonthControl';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
 import { isActiveLateScheduleRow, orderLateScheduleRows } from '@/lib/lateScheduleOrder';
 import useMediaQuery from '@/hooks/useMediaQuery';
 import type { OTShiftInput } from '@/types/lateSchedule';
+import type { CellMarkerTool } from '@/types/scheduleMatrix';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import LateScheduleToolbar, { type OTViewMode } from './LateScheduleToolbar';
 import OTAssignmentPanel from './OTAssignmentPanel';
@@ -45,6 +47,7 @@ export default function LateSchedulePage() {
   const goToNextMonth = useLateScheduleStore((state) => state.goToNextMonth);
   const setMonth = useLateScheduleStore((state) => state.setMonth);
   const setCellAssignments = useLateScheduleStore((state) => state.setCellAssignments);
+  const setCellMarker = useLateScheduleStore((state) => state.setCellMarker);
   const clearCell = useLateScheduleStore((state) => state.clearCell);
   const setRangeAssignments = useLateScheduleStore((state) => state.setRangeAssignments);
   const clearRangeAssignments = useLateScheduleStore((state) => state.clearRangeAssignments);
@@ -66,9 +69,13 @@ export default function LateSchedulePage() {
   const clearAllAssignments = useLateScheduleStore((state) => state.clearAllAssignments);
   const resetCurrentMonth = useLateScheduleStore((state) => state.resetCurrentMonth);
   const currentMonthStatus = useLateScheduleStore((state) => state.currentMonthStatus);
+  const publishCurrentMonth = useLateScheduleStore((state) => state.publishCurrentMonth);
   const storageError = useLateScheduleStore((state) => state.storageError);
   const setNotice = useLateScheduleStore((state) => state.setNotice);
   const [viewMode, setViewMode] = useState<OTViewMode>('auto');
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [activeCellMarkerTool, setActiveCellMarkerTool] = useState<CellMarkerTool | null>(null);
+  const [isPublishConfirmOpen, setIsPublishConfirmOpen] = useState(false);
   const isDesktopViewport = useMediaQuery('(min-width: 1024px)');
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
@@ -78,6 +85,24 @@ export default function LateSchedulePage() {
   const [archiveView, setArchiveView] = useState<'active' | 'archived'>('active');
   const searchParams = useMemo(() => new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search), []);
   const deepLinkHandled = useRef(false);
+
+  useEffect(() => {
+    if (!isEditMode) setActiveCellMarkerTool(null);
+  }, [isEditMode]);
+
+  useEffect(() => {
+    setActiveCellMarkerTool(null);
+    setActiveCell(null);
+  }, [month, year]);
+
+  useEffect(() => {
+    if (!activeCellMarkerTool) return;
+    const stopMarkerTool = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveCellMarkerTool(null);
+    };
+    window.addEventListener('keydown', stopMarkerTool);
+    return () => window.removeEventListener('keydown', stopMarkerTool);
+  }, [activeCellMarkerTool]);
 
   useEffect(() => {
     if (deepLinkHandled.current) return;
@@ -121,6 +146,49 @@ export default function LateSchedulePage() {
     [activeRows],
   );
   const showDesktopGrid = viewMode === 'grid' || (viewMode === 'auto' && isDesktopViewport);
+  const monthStatus = currentMonthStatus();
+  const canPublish = isAdmin && monthStatus === 'draft';
+
+  const handleCellAction = (rowId: string, day: number) => {
+    if (isEditMode && activeCellMarkerTool) {
+      const result = setCellMarker(
+        rowId,
+        day,
+        activeCellMarkerTool === 'remove' ? null : activeCellMarkerTool,
+        user?.name,
+      );
+      if (!result.ok) {
+        addToast({
+          type: 'error',
+          title: isRtl ? 'تعذر حفظ العلامة' : 'Marker not saved',
+          message: result.reason,
+        });
+      }
+      return;
+    }
+    setActiveCell({ rowId, day });
+  };
+
+  const handlePublish = () => {
+    const result = publishCurrentMonth(user?.name);
+    if (result.ok) {
+      setIsPublishConfirmOpen(false);
+      setIsEditMode(false);
+      addToast({
+        type: 'success',
+        title: isRtl ? 'تم نشر جدول OT' : 'OT schedule published',
+        message: isRtl
+          ? 'أصبح الجدول المنشور متاحًا للموظفين.'
+          : 'The published OT schedule is now available to employees.',
+      });
+      return;
+    }
+    addToast({
+      type: 'error',
+      title: isRtl ? 'تعذر نشر جدول OT' : 'OT schedule not published',
+      message: result.message || result.reason,
+    });
+  };
 
   const handleSaveAssignment = (employeeIds: string[], unresolvedLegacyCodes: string[]) => {
     if (!activeCell) return;
@@ -166,6 +234,18 @@ export default function LateSchedulePage() {
       <LateScheduleToolbar
         monthLabel={monthLabel}
         canEdit={isAdmin}
+        isEditMode={isEditMode}
+        onToggleEdit={() => {
+          setIsEditMode((active) => !active);
+          setActiveCell(null);
+        }}
+        activeCellMarkerTool={activeCellMarkerTool}
+        onCellMarkerToolChange={(tool) => {
+          setActiveCellMarkerTool((activeTool) => activeTool === tool ? null : tool);
+          setActiveCell(null);
+        }}
+        canPublish={canPublish}
+        onPublish={() => setIsPublishConfirmOpen(true)}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onPreviousMonth={goToPreviousMonth}
@@ -185,7 +265,7 @@ export default function LateSchedulePage() {
 
       {isAdmin && (
         <AdminMonthControl
-          status={currentMonthStatus()}
+          status={monthStatus}
           monthLabel={monthLabel}
           assignmentCount={assignmentCount}
           tableClipboard={tableClipboard ? {
@@ -201,7 +281,7 @@ export default function LateSchedulePage() {
         />
       )}
 
-      {isAdmin && (
+      {isAdmin && isEditMode && (
         <OTStructureControl
           units={units}
           rows={rows}
@@ -217,7 +297,7 @@ export default function LateSchedulePage() {
         />
       )}
 
-      {isAdmin && (
+      {isAdmin && isEditMode && (
         <OTBulkActions
           rows={activeRows}
           roster={roster}
@@ -295,9 +375,10 @@ export default function LateSchedulePage() {
                 units={units}
                 roster={roster}
                 notice={notice}
-                canEdit={isAdmin}
+                canEdit={isAdmin && isEditMode}
+                markerToolActive={activeCellMarkerTool !== null}
                 viewMode={viewMode}
-                onAssign={(rowId, day) => setActiveCell({ rowId, day })}
+                onAssign={handleCellAction}
                 onEditRow={setEditingRowId}
               />
             ) : (
@@ -307,9 +388,10 @@ export default function LateSchedulePage() {
                 rows={activeFilteredRows}
                 units={units}
                 roster={roster}
-                canEdit={isAdmin}
+                canEdit={isAdmin && isEditMode}
+                markerToolActive={activeCellMarkerTool !== null}
                 viewMode={viewMode}
-                onAssign={(rowId, day) => setActiveCell({ rowId, day })}
+                onAssign={handleCellAction}
               />
             )}
           </Suspense>
@@ -365,6 +447,18 @@ export default function LateSchedulePage() {
       </Modal>
 
       <OTShiftFormModal isOpen={isAddingRow || !!editingRow} row={editingRow} units={units} onClose={() => { setIsAddingRow(false); setEditingRowId(null); }} onSave={handleSaveRow} onArchive={editingRow ? () => { archiveRow(editingRow.id, user?.name); setEditingRowId(null); } : undefined} />
+
+      <ConfirmDialog
+        isOpen={isPublishConfirmOpen}
+        onClose={() => setIsPublishConfirmOpen(false)}
+        onConfirm={handlePublish}
+        variant="warning"
+        title={isRtl ? 'نشر جدول OT للموظفين' : 'Publish OT Schedule to Employees'}
+        message={isRtl
+          ? 'سيتم استبدال النسخة التي يراها الموظفون بهذه المسودة.'
+          : 'This draft will replace the OT schedule currently visible to employees.'}
+        confirmText={isRtl ? 'النشر للموظفين' : 'Publish to Employees'}
+      />
 
       <Modal isOpen={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} title={isRtl ? 'تعديل تنبيه OT' : 'Edit OT notice'} size="sm">
         <div className="space-y-4">

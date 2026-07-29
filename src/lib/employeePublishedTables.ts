@@ -1,5 +1,6 @@
 import type { OTShiftRow, OTUnit } from '@/types/lateSchedule';
 import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
+import { pruneScheduleCellMarkers } from '@/lib/scheduleCellMarkers';
 
 export const DEFAULT_SCHEDULE_DEPARTMENT_ID = 'dept-1';
 
@@ -44,6 +45,13 @@ export function projectPublishedScheduleMatrix(
           })),
       })),
   }));
+  const activeRowIds = matrix.facilities.flatMap((facility) =>
+    facility.units.flatMap((unit) => unit.rows.map((row) => row.id)));
+  matrix.cellMarkers = pruneScheduleCellMarkers(
+    matrix.cellMarkers,
+    activeRowIds,
+    new Date(matrix.year, matrix.month + 1, 0).getDate(),
+  );
 
   matrix.vacations = matrix.vacations
     .filter((vacation) => !employeeId || vacation.employeeId === employeeId)
@@ -91,4 +99,3 @@ export function projectPublishedOTTable(
     }));
   return { rows: projectedRows, units: activeUnits };
 }
-

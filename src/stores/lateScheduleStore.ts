@@ -7,6 +7,8 @@ import {
 } from '@/data/lateScheduleSeed';
 import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import { migrateLateSchedulePayload, migrateRetiredOTEmployeeIds } from '@/lib/lateScheduleMigration';
+import { isMarkerColor } from '@/lib/scheduleCellMarkers';
+import type { MarkerColor } from '@/types/scheduleMatrix';
 import type {
   LateSchedulePersistedState,
   LateSchedulePersistedStateV2,
@@ -93,6 +95,7 @@ export interface LateScheduleState {
   setRangeAssignments(rowId: string, startDay: number, endDay: number, employeeIds: string[], actorName?: string): OTMutationResult;
   clearRangeAssignments(rowId: string, startDay: number, endDay: number, actorName?: string): OTMutationResult;
   clearCell(rowId: string, day: number, actorName?: string): OTMutationResult;
+  setCellMarker(rowId: string, day: number, color: MarkerColor | null, actorName?: string): OTMutationResult;
   copyCurrentTable(actorName?: string): OTTableOperationResult;
   pasteCopiedTable(actorName?: string): OTTableOperationResult;
   clearAllAssignments(actorName?: string): OTAdminMutationResult;
@@ -247,6 +250,7 @@ function copyOTRowsToMonth(
   let omittedAssignments = 0;
   const rows = cloneValue(sourceRows).map((row) => {
     const assignments: OTShiftRow['assignments'] = {};
+    const cellMarkers: NonNullable<OTShiftRow['cellMarkers']> = {};
     for (const [dayText, cellAssignments] of Object.entries(row.assignments)) {
       const day = Number(dayText);
       if (Number.isInteger(day) && day >= 1 && day <= daysInMonth) {
@@ -255,9 +259,16 @@ function copyOTRowsToMonth(
         omittedAssignments += cellAssignments.length;
       }
     }
+    for (const [dayText, color] of Object.entries(row.cellMarkers ?? {})) {
+      const day = Number(dayText);
+      if (Number.isInteger(day) && day >= 1 && day <= daysInMonth && isMarkerColor(color)) {
+        cellMarkers[day] = color;
+      }
+    }
     return {
       ...row,
       highlightedDays: row.highlightedDays?.filter((day) => day <= daysInMonth),
+      cellMarkers,
       assignments,
     };
   });
@@ -267,7 +278,7 @@ function copyOTRowsToMonth(
 function templateRows(rows: OTShiftRow[]): OTShiftRow[] {
   const copy = cloneValue(rows);
   clearOTAssignments(copy);
-  return copy.map((row) => ({ ...row, archived: false }));
+  return copy.map((row) => ({ ...row, archived: false, cellMarkers: {} }));
 }
 
 function deriveLateScheduleWarnings(
@@ -336,6 +347,13 @@ function isStoredRow(value: unknown): boolean {
   if (value.highlightedDays !== undefined && (
     !Array.isArray(value.highlightedDays)
     || !value.highlightedDays.every((day) => Number.isInteger(day) && day >= 1 && day <= 31)
+  )) return false;
+  if (value.cellMarkers !== undefined && (
+    !isRecord(value.cellMarkers)
+    || !Object.entries(value.cellMarkers).every(([dayText, color]) => {
+      const day = Number(dayText);
+      return Number.isInteger(day) && day >= 1 && day <= 31 && isMarkerColor(color);
+    })
   )) return false;
 
   return Object.entries(value.assignments).every(([dayText, assignments]) => {
@@ -1109,6 +1127,27 @@ function createLateScheduleState(
         return { ...row, assignments };
       }))) return { ok: false, reason: 'storage_error' };
       recordAudit(actorName, 'clear', existing, before, [], day);
+      return { ok: true };
+    },
+    setCellMarker: (rowId, day, color, actorName) => {
+      const state = get();
+      const daysInMonth = new Date(state.year, state.month + 1, 0).getDate();
+      if (!Number.isInteger(day) || day < 1 || day > daysInMonth) {
+        return { ok: false, reason: 'invalid_day' };
+      }
+      const existing = state.rows.find((row) => row.id === rowId);
+      if (!existing) return { ok: false, reason: 'row_not_found' };
+      const previousColor = existing.cellMarkers?.[day];
+      if (previousColor === color || (!previousColor && color === null)) return { ok: true };
+
+      const cellMarkers = { ...(existing.cellMarkers ?? {}) };
+      if (color === null) delete cellMarkers[day];
+      else cellMarkers[day] = color;
+      const updated = { ...existing, cellMarkers };
+      if (!commitRows(state.rows.map((row) => row.id === rowId ? updated : row))) {
+        return { ok: false, reason: 'storage_error' };
+      }
+      recordAudit(actorName, 'update', existing, previousColor ?? null, color, day);
       return { ok: true };
     },
     copyCurrentTable: (actorName) => {

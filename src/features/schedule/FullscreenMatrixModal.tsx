@@ -54,6 +54,7 @@ interface FullscreenMatrixModalProps {
   highlightedEmployeeId: string | null;
   selectedCells: MatrixCellRef[];
   brushEmployeeCodes: string[];
+  markerToolActive?: boolean;
 
   // Zoom
   zoomLevel: number;
@@ -112,6 +113,7 @@ function FullscreenMatrixModal({
   highlightedEmployeeId,
   selectedCells,
   brushEmployeeCodes,
+  markerToolActive = false,
   zoomLevel,
   onZoomIn,
   onZoomOut,
@@ -325,6 +327,7 @@ function FullscreenMatrixModal({
             highlightedEmployeeId={highlightedEmployeeId}
             selectedCells={selectedCells}
             brushEmployeeCodes={brushEmployeeCodes}
+            markerToolActive={markerToolActive}
             isExpanded
             zoomLevel={zoomLevel}
             onCellClick={onCellClick}

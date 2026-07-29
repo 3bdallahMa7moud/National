@@ -96,6 +96,7 @@ describe('validateAssignment - conflict detection engine', () => {
       holidays: [],
       settings: [],
       auditLog: [],
+      cellMarkers: {},
     };
 
     recalculateAllConflicts(mockData);
@@ -131,6 +132,7 @@ describe('validateAssignment - conflict detection engine', () => {
       holidays: [],
       settings: [],
       auditLog: [],
+      cellMarkers: {},
     };
 
     const res = validateAssignment(mockData, {

@@ -126,8 +126,8 @@ export function getMatrixStoreText(lang: Language, key: string): string {
     lastLocalEdit: { ar: 'آخر تعديل محلي', en: 'Last local edit' },
     revertedBeforePublish: { ar: 'تم التراجع قبل النشر', en: 'Reverted before publish' },
     noUnpublished: { ar: 'لا توجد تعديلات غير منشورة', en: 'No unpublished changes' },
-    resolveConflicts: { ar: 'راجع التعارضات الظاهرة قبل نشر التحديثات', en: 'Resolve visible conflicts before publishing' },
-    publishedBatch: { ar: 'تم نشر التحديثات وإرسالها كدفعة واحدة', en: 'Updates published and sent as one batch' },
+    resolveConflicts: { ar: 'راجع التعارضات الظاهرة قبل اتخاذ قرار النشر', en: 'Review visible conflicts before deciding whether to publish' },
+    publishedBatch: { ar: 'تم نشر الجدول للموظفين', en: 'Schedule published to employees' },
   };
 
   const entry = texts[key];

@@ -3,6 +3,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock3, UserRound } from 'luci
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { getShiftChipStyle } from './getShiftChipClasses';
+import { scheduleCellMarkerBackground, scheduleCellMarkerKey } from '@/lib/scheduleCellMarkers';
 import type { Assignment, MatrixCellRef, ScheduleMatrixData } from '@/types/scheduleMatrix';
 
 interface MobileWeeklyScheduleProps {
@@ -55,6 +56,7 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
             backgroundColor: row.backgroundColor,
             textColor: row.textColor,
             assignment,
+            markerColor: data.cellMarkers[scheduleCellMarkerKey(row.id, selectedDay)],
             code: assignment.employeeCode,
             employee: legendByCode.get(assignment.employeeCode)?.fullName || assignment.employeeCode,
           })),
@@ -162,14 +164,24 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
                   if (onAssignmentClick) onAssignmentClick(entry.ref, entry.assignment);
                   else onCellClick?.(entry.ref);
                 }}
-                className="flex min-h-14 w-full items-center gap-3 rounded-xl border p-3 text-start transition-transform active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-primary/30"
+                className="relative flex min-h-14 w-full items-center gap-3 overflow-hidden rounded-xl border p-3 text-start transition-transform active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-primary/30"
                 style={getShiftChipStyle(entry.colorKey, entry.backgroundColor, entry.textColor)}
-                aria-label={`${entry.employee}, ${entry.shift}, ${entry.facility}, ${entry.unit}, ${entry.time}`}
+                aria-label={`${entry.employee}, ${entry.shift}, ${entry.facility}, ${entry.unit}, ${entry.time}${entry.markerColor ? `, ${t('schedule:markers.modifiedShiftMarker')}` : ''}`}
               >
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-current/20 bg-surface/70 font-mono text-xs font-bold">
+                {entry.markerColor && (
+                  <span
+                    className="pointer-events-none absolute inset-0 z-0"
+                    style={{
+                      backgroundColor: scheduleCellMarkerBackground(entry.markerColor),
+                    }}
+                    aria-label={t('schedule:markers.modifiedShiftMarker')}
+                    title={t('schedule:markers.modifiedShiftMarker')}
+                  />
+                )}
+                <span className="relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-current/20 bg-surface/70 font-mono text-xs font-bold">
                   {entry.code}
                 </span>
-                <span className="min-w-0 flex-1">
+                <span className="relative z-[1] min-w-0 flex-1">
                   <span className="flex items-center gap-1.5 truncate text-sm font-bold">
                     <UserRound className="h-3.5 w-3.5 shrink-0" />
                     {entry.employee}

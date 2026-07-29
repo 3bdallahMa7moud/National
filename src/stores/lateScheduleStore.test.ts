@@ -103,6 +103,31 @@ describe('lateScheduleStore v5 administration', () => {
       .toEqual([{ kind: 'employee', employeeId: 'employee-2' }]);
   });
 
+  it('keeps full-cell OT markers in the draft until Publish creates a new employee snapshot', () => {
+    const storage = new MemoryStorage();
+    const store = createLateScheduleStore({
+      storage,
+      initialYear: 2026,
+      initialMonth: 6,
+      initialRowsByMonth: { '2026-07': [row()] },
+    });
+
+    expect(store.getState().publishedRowsByMonth['2026-07'][0].cellMarkers).toBeUndefined();
+    expect(store.getState().setCellMarker('row-1', 2, 'purple', 'Admin').ok).toBe(true);
+    expect(store.getState().rows[0].cellMarkers?.[2]).toBe('purple');
+    expect(store.getState().monthStatuses['2026-07']).toBe('draft');
+    expect(store.getState().publishedRowsByMonth['2026-07'][0].cellMarkers).toBeUndefined();
+    expect(JSON.parse(storage.getItem(LATE_SCHEDULE_STORAGE_KEY) || '{}')
+      .rowsByMonth['2026-07'][0].cellMarkers['2']).toBe('purple');
+
+    expect(store.getState().publishCurrentMonth('Admin').ok).toBe(true);
+    expect(store.getState().publishedRowsByMonth['2026-07'][0].cellMarkers?.[2]).toBe('purple');
+
+    expect(store.getState().setCellMarker('row-1', 2, null, 'Admin').ok).toBe(true);
+    expect(store.getState().rows[0].cellMarkers?.[2]).toBeUndefined();
+    expect(store.getState().publishedRowsByMonth['2026-07'][0].cellMarkers?.[2]).toBe('purple');
+  });
+
   it('reloads a published OT snapshot for another tab without changing that tab month', () => {
     const storage = new MemoryStorage();
     const firstTab = createLateScheduleStore({
