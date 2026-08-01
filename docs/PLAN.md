@@ -66,7 +66,7 @@ Important build sizes:
 
 - **Severity:** Critical
 - **Category:** Security / Architecture
-- **File and line:** [authStore.ts](/D:/National/src/stores/authStore.ts:80), [mockData.ts](/D:/National/src/mocks/mockData.ts:65), [mockPasswordStore.ts](/D:/National/src/mocks/mockPasswordStore.ts:21), [RouteGuard.tsx](/D:/National/src/features/auth/RouteGuard.tsx:17), [ForgotPasswordPage.tsx](/D:/National/src/features/auth/ForgotPasswordPage.tsx:130)
+- **File and line:** [authStore.ts](/D:/National/frontend/src/stores/authStore.ts:80), [mockData.ts](/D:/National/frontend/src/mocks/mockData.ts:65), [mockPasswordStore.ts](/D:/National/frontend/src/mocks/mockPasswordStore.ts:21), [RouteGuard.tsx](/D:/National/frontend/src/features/auth/RouteGuard.tsx:17), [ForgotPasswordPage.tsx](/D:/National/frontend/src/features/auth/ForgotPasswordPage.tsx:130)
 - **Problem:** Authentication accepts any stored token, user roles and permissions come from editable browser data, passwords are stored in plaintext, all accounts default to `123456`, and the reset OTP is generated and displayed by the same client.
 - **Evidence:** `isAuthenticated` checks only token presence; login returns `mock-jwt-token-*`; the login page publishes administrative credentials; the reset page displays `generatedOtp`.
 - **Impact:** A visitor can impersonate employees, elevate privileges, reset passwords, alter schedules, and modify audit records. Real employee and scheduling data cannot safely use this model.
@@ -79,7 +79,7 @@ Important build sizes:
 
 - **Severity:** High
 - **Category:** React correctness
-- **File and line:** [EmployeeJustificationPage.tsx](/D:/National/src/features/employee-justification/EmployeeJustificationPage.tsx:245), [ShiftRequestCreateWizard.tsx](/D:/National/src/features/shift-requests/components/ShiftRequestCreateWizard.tsx:190)
+- **File and line:** [EmployeeJustificationPage.tsx](/D:/National/frontend/src/features/employee-justification/EmployeeJustificationPage.tsx:245), [ShiftRequestCreateWizard.tsx](/D:/National/frontend/src/features/shift-requests/components/ShiftRequestCreateWizard.tsx:190)
 - **Problem:** Both components return before later `useEffect`, `useCallback`, or `useMemo` calls.
 - **Evidence:** ESLint reports nine conditional-hook errors in the justification page and one in the request wizard.
 - **Impact:** Changes in authentication or props can produce “Rendered more/fewer hooks than expected” crashes.
@@ -92,7 +92,7 @@ Important build sizes:
 
 - **Severity:** High
 - **Category:** Security / Privacy / Functionality
-- **File and line:** [CalendarSyncPage.tsx](/D:/National/src/features/calendar-sync/CalendarSyncPage.tsx:10)
+- **File and line:** [CalendarSyncPage.tsx](/D:/National/frontend/src/features/calendar-sync/CalendarSyncPage.tsx:10)
 - **Problem:** The feed URL contains only a predictable employee ID and fixed department path.
 - **Evidence:** `https://hospital.sa/.../${user.id}/ct-department.ics` is shown and copied without an unguessable token or server request.
 - **Impact:** If the endpoint serves data, employee schedules may be enumerable. If it requires ordinary authentication, Google/Apple/Outlook subscriptions cannot consume it and the feature is nonfunctional.
@@ -105,7 +105,7 @@ Important build sizes:
 
 - **Severity:** High
 - **Category:** Dependency security
-- **File and line:** [package.json](/D:/National/package.json:26), [package.json](/D:/National/package.json:34), [package.json](/D:/National/package.json:54)
+- **File and line:** [package.json](/D:/National/frontend/package.json:26), [package.json](/D:/National/frontend/package.json:34), [package.json](/D:/National/frontend/package.json:54)
 - **Problem:** The production audit reports vulnerable `brace-expansion`, `react-router`, `react-router-dom`, `uuid`, and `exceljs`. Full audit additionally reports vulnerable PostCSS.
 - **Evidence:** Production audit: one high and four moderate vulnerabilities. Installed React Router DOM is 6.30.4, within the reported open-redirect/XSS advisory range.
 - **Impact:** Denial of service in dependency tooling/export paths and potentially unsafe navigation handling.
@@ -118,7 +118,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** Code quality / Release process
-- **File and line:** [package.json](/D:/National/package.json:9), [routes.tsx](/D:/National/src/app/routes.tsx:24), [AdminShiftRequestsPage.tsx](/D:/National/src/features/shift-requests/AdminShiftRequestsPage.tsx:199)
+- **File and line:** [package.json](/D:/National/frontend/package.json:9), [routes.tsx](/D:/National/frontend/src/app/routes.tsx:24), [AdminShiftRequestsPage.tsx](/D:/National/frontend/src/features/shift-requests/AdminShiftRequestsPage.tsx:199)
 - **Problem:** ESLint reports 70 errors and 2 warnings.
 - **Evidence:** Besides conditional hooks, results include unused imports/state, eleven explicit `any` usages, and two missing memo dependencies.
 - **Impact:** Defects are hidden among accumulated warnings, and CI cannot use lint as a reliable release gate.
@@ -131,7 +131,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** UI / Styling / Dark mode
-- **File and line:** [tailwind.config.js](/D:/National/tailwind.config.js:1), [ShiftRequestCreateWizard.tsx](/D:/National/src/features/shift-requests/components/ShiftRequestCreateWizard.tsx:292), [ScheduleSettingsPanel.tsx](/D:/National/src/features/schedule/ScheduleSettingsPanel.tsx:416)
+- **File and line:** [tailwind.config.js](/D:/National/frontend/tailwind.config.js:1), [ShiftRequestCreateWizard.tsx](/D:/National/frontend/src/features/shift-requests/components/ShiftRequestCreateWizard.tsx:292), [ScheduleSettingsPanel.tsx](/D:/National/frontend/src/features/schedule/ScheduleSettingsPanel.tsx:416)
 - **Problem:** Active pages use `bg-surface-card`, `bg-surface-hover`, `border-border-subtle`, `border-border-strong`, `text-error`, `bg-error`, and undefined success shades. `h-8.5` and `mt-7.5` are also unsupported.
 - **Evidence:** The generated CSS contains zero matching rules for these utilities.
 - **Impact:** Conflict warnings, card backgrounds, borders, hover states, control heights, and dark-mode separation are silently lost.
@@ -144,7 +144,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** API integration
-- **File and line:** [axios.ts](/D:/National/src/lib/axios.ts:10), [authStore.ts](/D:/National/src/stores/authStore.ts:47), [socket.ts](/D:/National/src/lib/socket.ts:3), [useSocket.ts](/D:/National/src/hooks/useSocket.ts:4)
+- **File and line:** [axios.ts](/D:/National/frontend/src/lib/axios.ts:10), [authStore.ts](/D:/National/frontend/src/stores/authStore.ts:47), [socket.ts](/D:/National/frontend/src/lib/socket.ts:3), [useSocket.ts](/D:/National/frontend/src/hooks/useSocket.ts:4)
 - **Problem:** Axios reads a token from `localStorage`, while authentication migrates it to `sessionStorage`. Axios, socket helpers, and `useSocket` have no active consumers.
 - **Evidence:** Static import search found no API calls or socket-hook usage.
 - **Impact:** Turning on the existing client would send unauthenticated requests, while production UI continues to use mocks and browser storage.
@@ -157,7 +157,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** Performance / Resilience
-- **File and line:** [main.tsx](/D:/National/src/main.tsx:7), [i18n/index.ts](/D:/National/src/i18n/index.ts:46)
+- **File and line:** [main.tsx](/D:/National/frontend/src/main.tsx:7), [i18n/index.ts](/D:/National/frontend/src/i18n/index.ts:46)
 - **Problem:** Rendering waits for all 14 namespaces for the selected language. A rejected import prevents React and the error boundary from mounting.
 - **Evidence:** `Promise.all(NAMESPACES.map(...))` completes before `createRoot`.
 - **Impact:** Fourteen module requests precede the login screen, and a chunk/network failure produces a blank page.
@@ -170,7 +170,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** Accessibility
-- **File and line:** [Modal.tsx](/D:/National/src/components/ui/Modal.tsx:33), [NotificationCenter.tsx](/D:/National/src/components/common/NotificationCenter.tsx:57), [NotificationsPage.tsx](/D:/National/src/features/notifications/NotificationsPage.tsx:73)
+- **File and line:** [Modal.tsx](/D:/National/frontend/src/components/ui/Modal.tsx:33), [NotificationCenter.tsx](/D:/National/frontend/src/components/common/NotificationCenter.tsx:57), [NotificationsPage.tsx](/D:/National/frontend/src/features/notifications/NotificationsPage.tsx:73)
 - **Problem:** Modal focus is initialized and restored but not trapped. Notification rows are clickable `div` elements without keyboard semantics, and popovers lack complete menu/focus behavior.
 - **Evidence:** Tab wrapping is absent; notification activation exists only in `onClick`.
 - **Impact:** Keyboard and assistive-technology users can escape dialogs or cannot open notifications.
@@ -183,7 +183,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** Accessibility / UX
-- **File and line:** [Input.tsx](/D:/National/src/components/ui/Input.tsx:24), [ForgotPasswordPage.tsx](/D:/National/src/features/auth/ForgotPasswordPage.tsx:486), [EmployeeJustificationPage.tsx](/D:/National/src/features/employee-justification/EmployeeJustificationPage.tsx:1210), [schedule-tokens.css](/D:/National/src/styles/schedule-tokens.css:13)
+- **File and line:** [Input.tsx](/D:/National/frontend/src/components/ui/Input.tsx:24), [ForgotPasswordPage.tsx](/D:/National/frontend/src/features/auth/ForgotPasswordPage.tsx:486), [EmployeeJustificationPage.tsx](/D:/National/frontend/src/features/employee-justification/EmployeeJustificationPage.tsx:1210), [schedule-tokens.css](/D:/National/frontend/src/styles/schedule-tokens.css:13)
 - **Problem:** Errors and hints are not connected with `aria-describedby`; invalid fields lack `aria-invalid`; six OTP inputs have no accessible names; multiple icon-only buttons lack labels and are about 20–22 px. Light `text-muted` is 3.82:1, danger 3.73:1, and warning 2.15:1 on white.
 - **Evidence:** `text-text-muted` appears 83 times, including 10–12 px content.
 - **Impact:** Screen-reader context is incomplete, touch controls are difficult to activate, and normal-size text can fail WCAG AA.
@@ -196,7 +196,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** Performance
-- **File and line:** [LoginPage.tsx](/D:/National/src/features/auth/LoginPage.tsx:64), [EmployeeJustificationPage.tsx](/D:/National/src/features/employee-justification/EmployeeJustificationPage.tsx:35), [saudi-hospital.webp](/D:/National/public/saudi-hospital.webp)
+- **File and line:** [LoginPage.tsx](/D:/National/frontend/src/features/auth/LoginPage.tsx:64), [EmployeeJustificationPage.tsx](/D:/National/frontend/src/features/employee-justification/EmployeeJustificationPage.tsx:35), [saudi-hospital.webp](/D:/National/frontend/public/saudi-hospital.webp)
 - **Problem:** The `.webp` hero is actually an 894,817-byte JPEG and is byte-identical to `saudi-hospital.png`. Two 1080×1080 logos consume 985,620 and 807,498 bytes but display at 68 px. DOCX code is statically imported into the 418 kB justification route.
 - **Evidence:** File magic identifies both hospital assets as JPEG. Build reports 115.79 kB gzip for the justification route before its images.
 - **Impact:** Slow login and justification loading, especially on mobile or hospital networks.
@@ -209,7 +209,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** Architecture / Maintainability
-- **File and line:** [ScheduleManagementPage.tsx](/D:/National/src/features/schedule-management/ScheduleManagementPage.tsx:20), [routes.tsx](/D:/National/src/app/routes.tsx:24), [scheduleMatrixStore.ts](/D:/National/src/stores/scheduleMatrixStore.ts:1), [ShiftRequestCreateWizard.tsx](/D:/National/src/features/shift-requests/components/ShiftRequestCreateWizard.tsx:65)
+- **File and line:** [ScheduleManagementPage.tsx](/D:/National/frontend/src/features/schedule-management/ScheduleManagementPage.tsx:20), [routes.tsx](/D:/National/frontend/src/app/routes.tsx:24), [scheduleMatrixStore.ts](/D:/National/frontend/src/stores/scheduleMatrixStore.ts:1), [ShiftRequestCreateWizard.tsx](/D:/National/frontend/src/features/shift-requests/components/ShiftRequestCreateWizard.tsx:65)
 - **Problem:** An unreferenced parallel `schedule-management` feature remains beside the active schedule implementation. Register, old shift-request, placeholder app, mock-worker, API, and socket files are unreachable or unused. Major files range from 1,199 to 2,302 lines.
 - **Evidence:** The old shift-request page is lazy-declared but never routed; the legacy schedule feature has no external consumer.
 - **Impact:** Dependency scans and lint include abandoned code, ownership is unclear, and large modules make hooks, persistence, and UI behavior hard to change safely.
@@ -222,7 +222,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** Testing
-- **File and line:** [package.json](/D:/National/package.json:10), [RouteGuard.test.tsx](/D:/National/src/features/auth/RouteGuard.test.tsx:1)
+- **File and line:** [package.json](/D:/National/frontend/package.json:10), [RouteGuard.test.tsx](/D:/National/frontend/src/features/auth/RouteGuard.test.tsx:1)
 - **Problem:** Store/domain coverage is strong, but there are no E2E tests, coverage metrics, or focused tests for login, password recovery, calendar sync, notifications, justification, route chunk failures, responsive layouts, or accessibility.
 - **Evidence:** 29 test files cover 215 non-test TS/TSX files; the conditional-hook violations were not caught.
 - **Impact:** Critical flows can regress while the 137-test suite stays green.
@@ -235,7 +235,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** Security / Deployment
-- **File and line:** [vercel.json](/D:/National/vercel.json:13), [Sidebar.tsx](/D:/National/src/layouts/Sidebar.tsx:35)
+- **File and line:** [vercel.json](/D:/National/frontend/vercel.json:13), [Sidebar.tsx](/D:/National/frontend/src/layouts/Sidebar.tsx:35)
 - **Problem:** Deployment defines only asset caching. It lacks CSP, `X-Content-Type-Options`, `Referrer-Policy`, framing restrictions, and `Permissions-Policy`. CT Gate links use plain HTTP.
 - **Evidence:** The external links correctly use `noopener noreferrer`, but transport remains insecure.
 - **Impact:** Reduced defense against injected content, clickjacking, referrer leakage, and network tampering.
@@ -248,7 +248,7 @@ Important build sizes:
 
 - **Severity:** Medium
 - **Category:** Routing / Functionality
-- **File and line:** [routes.tsx](/D:/National/src/app/routes.tsx:42), [LoginPage.tsx](/D:/National/src/features/auth/LoginPage.tsx:24)
+- **File and line:** [routes.tsx](/D:/National/frontend/src/app/routes.tsx:42), [LoginPage.tsx](/D:/National/frontend/src/features/auth/LoginPage.tsx:24)
 - **Problem:** `/` always redirects to `/login`, and the login page does not redirect an existing session.
 - **Evidence:** The root route uses a static `Navigate`.
 - **Impact:** Bookmarks and base-domain navigation show login even when the session is still active.
@@ -261,7 +261,7 @@ Important build sizes:
 
 - **Severity:** Low
 - **Category:** TypeScript / Tooling
-- **File and line:** [tsconfig.json](/D:/National/tsconfig.json:3), [tsconfig.node.json](/D:/National/tsconfig.node.json:22), [tsconfig.app.json](/D:/National/tsconfig.app.json:14)
+- **File and line:** [tsconfig.json](/D:/National/frontend/tsconfig.json:3), [tsconfig.node.json](/D:/National/frontend/tsconfig.node.json:22), [tsconfig.app.json](/D:/National/frontend/tsconfig.app.json:14)
 - **Problem:** The root references only the application config. The node config includes only Vite, not Vitest, and `@types/node` is not direct. Application unused checks are disabled, and ESLint is not type-aware.
 - **Evidence:** `tsc -b` can pass without checking either build/test config.
 - **Impact:** Configuration errors and unsafe typed patterns can escape the build gate.
@@ -274,7 +274,7 @@ Important build sizes:
 
 - **Severity:** Low
 - **Category:** SEO / Privacy / Accessibility
-- **File and line:** [index.html](/D:/National/index.html:6)
+- **File and line:** [index.html](/D:/National/frontend/index.html:6)
 - **Problem:** Every route shares one title and description. There is no robots policy, canonical policy, or route-specific title.
 - **Evidence:** Public assets contain neither `robots.txt` nor a sitemap.
 - **Impact:** Public login/recovery URLs may be indexed, and browser/history titles do not identify the active screen.
@@ -287,7 +287,7 @@ Important build sizes:
 
 - **Severity:** Low
 - **Category:** UI / Accessibility
-- **File and line:** [HospitalLogo.tsx](/D:/National/src/components/common/HospitalLogo.tsx:52), [LoginPage.tsx](/D:/National/src/features/auth/LoginPage.tsx:76)
+- **File and line:** [HospitalLogo.tsx](/D:/National/frontend/src/components/common/HospitalLogo.tsx:52), [LoginPage.tsx](/D:/National/frontend/src/features/auth/LoginPage.tsx:76)
 - **Problem:** Every logo instance defines `shieldGrad`, `crossGrad`, and other fixed document IDs. Login renders white and colored logo instances together.
 - **Evidence:** SVG fragment IDs are document-scoped.
 - **Impact:** A logo can resolve another instance’s gradient and display incorrect colors.
@@ -300,7 +300,7 @@ Important build sizes:
 
 - **Severity:** Suggestion
 - **Category:** Documentation / Project structure
-- **File and line:** [README.md](/D:/National/README.md:1), [providers.tsx](/D:/National/src/app/providers.tsx:1), [firebase-messaging-sw.js](/D:/National/public/firebase-messaging-sw.js:1)
+- **File and line:** [README.md](/D:/National/frontend/README.md:1), [providers.tsx](/D:/National/frontend/src/app/providers.tsx:1), [firebase-messaging-sw.js](/D:/National/frontend/public/firebase-messaging-sw.js:1)
 - **Problem:** README is still the Vite template and incorrectly claims React Compiler is enabled. Several no-op placeholder modules and an unused Firebase worker remain.
 - **Impact:** New maintainers receive incorrect setup and architecture guidance.
 - **Recommended fix:** Document architecture, scripts, environment variables, demo accounts, security limitations, test strategy, and deployment. Delete placeholders and unused public files after reachability verification.
