@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, ChevronDown, Check, X, AlertTriangle } from 'lucide-react';
+import { Search, ChevronDown, Check, X, AlertTriangle, CalendarOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { isBlockingAssignmentConflict } from '@/lib/validateAssignment';
 import type { LegendEmployee, ValidateResult } from '@/types/scheduleMatrix';
 
 interface EmployeeComboboxProps {
@@ -77,10 +78,12 @@ export function EmployeeCombobox({
   useEffect(() => {
     if (!isOpen || !listRef.current) return;
     const item = listRef.current.children[highlightedIndex] as HTMLElement | undefined;
-    item?.scrollIntoView({ block: 'nearest' });
+    item?.scrollIntoView?.({ block: 'nearest' });
   }, [highlightedIndex, isOpen]);
 
   const handleSelect = (code: string) => {
+    const validation = onValidate(code);
+    if (isBlockingAssignmentConflict(validation)) return;
     onChange(code);
     setIsOpen(false);
   };
@@ -199,13 +202,17 @@ export function EmployeeCombobox({
         {/* Conflict warning */}
         {hasConflict && (
           <div className="mt-2 flex items-start gap-1.5 rounded-md border border-danger/25 bg-danger-500/10 px-2 py-1.5 text-[11px] font-semibold text-danger">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {currentConflict.conflict.type === 'vacation'
+              ? <CalendarOff className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
             <span>
-              {t('schedule:assignment.conflictWith', {
-                facility: currentConflict.conflict.facility,
-                unit: currentConflict.conflict.unit,
-                shift: currentConflict.conflict.shiftLabel,
-              })}
+              {currentConflict.conflict.type === 'vacation'
+                ? t('schedule:assignment.vacation')
+                : t('schedule:assignment.conflictWith', {
+                  facility: currentConflict.conflict.facility,
+                  unit: currentConflict.conflict.unit,
+                  shift: currentConflict.conflict.shiftLabel,
+                })}
             </span>
           </div>
         )}
@@ -219,12 +226,15 @@ export function EmployeeCombobox({
               const isSelected = value === employee.code;
               const isHighlighted = idx === highlightedIndex;
               const result = onValidate(employee.code);
-              const hasIssue = result ? !result.ok : false;
+              const conflict = result && !result.ok ? result.conflict : null;
+              const hasIssue = conflict !== null;
+              const isVacation = conflict?.type === 'vacation';
 
               return (
                 <button
                   key={employee.code}
                   type="button"
+                  disabled={isVacation}
                   onMouseEnter={() => setHighlightedIndex(idx)}
                   onClick={() => handleSelect(employee.code)}
                   className={cn(
@@ -234,8 +244,10 @@ export function EmployeeCombobox({
                       : isHighlighted
                         ? 'bg-hover'
                         : 'hover:bg-hover',
-                    hasIssue && !isSelected && 'opacity-70',
+                    hasIssue && !isSelected && 'bg-danger-500/5',
+                    isVacation && 'cursor-not-allowed opacity-75',
                   )}
+                  title={conflict?.reason}
                 >
                   <span
                     className={cn(
@@ -252,8 +264,14 @@ export function EmployeeCombobox({
                       {employee.fullName}
                     </span>
                   </span>
+                  {isVacation && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                      <CalendarOff className="h-3.5 w-3.5" aria-hidden="true" />
+                      {t('schedule:assignment.vacation')}
+                    </span>
+                  )}
                   {isSelected && <Check className="h-4 w-4 shrink-0 text-primary-teal" />}
-                  {hasIssue && !isSelected && (
+                  {hasIssue && !isSelected && !isVacation && (
                     <AlertTriangle className="h-4 w-4 shrink-0 text-danger" />
                   )}
                 </button>

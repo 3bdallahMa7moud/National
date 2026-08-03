@@ -314,7 +314,7 @@ export interface ConflictDetail {
   shiftLabel?: string;
   day: number;
   timeRange?: string;
-  type: 'crossFacility' | 'vacation' | 'storage';
+  type: 'crossFacility' | 'vacation' | 'timeOverlap' | 'storage';
   reason: string;
 }
 

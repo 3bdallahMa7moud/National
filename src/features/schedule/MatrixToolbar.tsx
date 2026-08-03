@@ -2,7 +2,7 @@
 // MatrixToolbar - Admin modes, filters, draft publishing
 // ============================================================
 
-import { memo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CalendarOff,
@@ -56,6 +56,8 @@ interface MatrixToolbarProps {
   selectedCellCount: number;
   onClearSelection: () => void;
   brushEmployeeCodes: string[];
+  brushEmployees?: Array<{ code: string; fullName: string }>;
+  onToggleBrushEmployee?: (code: string) => void;
   onClearBrush: () => void;
   isBulkSelecting?: boolean;
   onToggleBulkSelect?: () => void;
@@ -110,6 +112,8 @@ function MatrixToolbar({
   selectedCellCount,
   onClearSelection,
   brushEmployeeCodes,
+  brushEmployees = [],
+  onToggleBrushEmployee,
   onClearBrush,
   isBulkSelecting = false,
   onToggleBulkSelect,
@@ -142,6 +146,16 @@ function MatrixToolbar({
   const isRtl = i18n.dir() === 'rtl';
   const PrevIcon = isRtl ? ChevronRight : ChevronLeft;
   const NextIcon = isRtl ? ChevronLeft : ChevronRight;
+  const [brushSearchQuery, setBrushSearchQuery] = useState('');
+
+  const filteredBrushEmployees = useMemo(() => {
+    const query = brushSearchQuery.trim().toLowerCase();
+    if (!query) return brushEmployees;
+    return brushEmployees.filter((employee) =>
+      employee.code.toLowerCase().includes(query)
+      || employee.fullName.toLowerCase().includes(query),
+    );
+  }, [brushEmployees, brushSearchQuery]);
 
   const months = (t('schedule:months', { returnObjects: true }) as string[]) || [];
   const modeConfig = [
@@ -212,7 +226,7 @@ function MatrixToolbar({
           {t('schedule:toolbar.publishToEmployees')}
         </Button>
 
-        <div className="hidden items-center gap-2 flex-wrap md:flex">
+        <div className="hidden w-full flex-wrap items-center justify-end gap-2 border-t border-border/70 pt-3 md:flex">
 
           <button
             onClick={onToggleColorblindMode}
@@ -571,19 +585,63 @@ function MatrixToolbar({
       )}
 
       {adminMode === 'brush' && (
-        <div className="flex flex-col gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700 sm:flex-row sm:items-center">
-          <Paintbrush className="h-3.5 w-3.5" />
-          <span>{t('schedule:matrix.brushSelectionCount', { count: brushEmployeeCodes.length })}</span>
-          {brushEmployeeCodes.length > 0 && (
-            <span dir="ltr" className="font-bold" style={{ unicodeBidi: 'isolate' }}>
-              {brushEmployeeCodes.join(' + ')}
+        <div className="space-y-3 rounded-lg border border-violet-300 bg-violet-50 px-3 py-3 text-xs font-medium text-violet-800 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-200 sm:px-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 font-bold">
+              <Paintbrush className="h-4 w-4" />
+              {t('schedule:matrix.brushSelectionCount', { count: brushEmployeeCodes.length })}
             </span>
-          )}
-          {brushEmployeeCodes.length > 0 && (
-            <button onClick={onClearBrush} className="flex min-h-11 items-center gap-1 text-[11px] hover:text-ink sm:ms-auto">
-              <X className="h-3 w-3" /> {t('schedule:matrix.cancelBrush')}
-            </button>
-          )}
+            {brushEmployeeCodes.length > 0 && (
+              <span dir="ltr" className="rounded-full bg-violet-100 px-2.5 py-1 font-bold text-violet-800 dark:bg-violet-900 dark:text-violet-100" style={{ unicodeBidi: 'isolate' }}>
+                {brushEmployeeCodes.join(' + ')}
+              </span>
+            )}
+            {brushEmployeeCodes.length > 0 && (
+              <button onClick={onClearBrush} className="ms-auto flex min-h-9 items-center gap-1 rounded-lg px-2 text-[11px] font-bold hover:bg-violet-100 dark:hover:bg-violet-900">
+                <X className="h-3.5 w-3.5" /> {t('schedule:matrix.cancelBrush')}
+              </button>
+            )}
+          </div>
+
+          <div className="grid gap-2 lg:grid-cols-[minmax(220px,0.35fr)_1fr]">
+            <label className="relative block">
+              <span className="sr-only">{t('schedule:assignment.searchPlaceholder')}</span>
+              <Search className="absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-violet-500" />
+              <input
+                value={brushSearchQuery}
+                onChange={(event) => setBrushSearchQuery(event.target.value)}
+                placeholder={t('schedule:assignment.searchPlaceholder')}
+                className="h-11 w-full rounded-lg border border-violet-200 bg-white ps-9 pe-3 text-xs font-semibold text-ink outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 dark:border-violet-800 dark:bg-surface"
+              />
+            </label>
+            <div className="flex max-h-32 flex-wrap content-start gap-1.5 overflow-y-auto rounded-lg border border-violet-200 bg-white/70 p-2 dark:border-violet-800 dark:bg-surface/70">
+              {filteredBrushEmployees.map((employee) => {
+                const selected = brushEmployeeCodes.includes(employee.code);
+                return (
+                  <button
+                    key={employee.code}
+                    type="button"
+                    onClick={() => onToggleBrushEmployee?.(employee.code)}
+                    aria-pressed={selected}
+                    aria-label={`${employee.code} ${employee.fullName}`}
+                    className={cn(
+                      'inline-flex min-h-9 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-start transition-colors',
+                      selected
+                        ? 'border-violet-600 bg-violet-600 text-white shadow-sm'
+                        : 'border-border bg-surface text-text-primary hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/50',
+                    )}
+                  >
+                    <span dir="ltr" className="font-black" style={{ unicodeBidi: 'isolate' }}>{employee.code}</span>
+                    <span className="max-w-40 truncate font-semibold">{employee.fullName}</span>
+                    {selected && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                  </button>
+                );
+              })}
+              {filteredBrushEmployees.length === 0 && (
+                <span className="px-2 py-1.5 text-text-muted">{t('schedule:assignment.noResults')}</span>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

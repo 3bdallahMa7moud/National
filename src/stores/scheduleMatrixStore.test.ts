@@ -36,6 +36,82 @@ describe('scheduleMatrixStore administration', () => {
     expect(updated.cellsByDay[1]).toHaveLength(50);
   });
 
+  it('refuses to assign an employee on an approved vacation day', () => {
+    const data = structuredClone(useScheduleMatrixStore.getState().data!);
+    const employee = data.legend[0];
+    const row = data.facilities[0].units[0].rows[0];
+    const day = 15;
+    row.cellsByDay[day] = [];
+    data.vacations = data.vacations.filter((vacation) => vacation.employeeId !== employee.employeeId);
+    data.vacations.push({
+      employeeId: employee.employeeId,
+      employeeCode: employee.code,
+      fullName: employee.fullName,
+      daysOff: [day],
+    });
+    useScheduleMatrixStore.setState({ data });
+
+    const result = useScheduleMatrixStore.getState().assignCell(row.id, day, [{
+      employeeId: employee.employeeId,
+      employeeCode: employee.code,
+    }]);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.conflict.type).toBe('vacation');
+    expect(useScheduleMatrixStore.getState().data!.facilities[0].units[0].rows[0].cellsByDay[day]).toEqual([]);
+  });
+
+  it('allows a shift conflict and records its warning flags', () => {
+    const data = structuredClone(useScheduleMatrixStore.getState().data!);
+    const rows = data.facilities.flatMap((facility) =>
+      facility.units.flatMap((unit) => unit.rows.map((row) => ({ facility, unit, row }))),
+    );
+    const source = rows[0];
+    const target = rows[1];
+    const day = 16;
+    const employee = { employeeId: 'conflict-employee', employeeCode: 'CF1' };
+    source.row.cellsByDay[day] = [employee];
+    target.row.cellsByDay[day] = [];
+    target.row.timeRange = source.row.timeRange;
+    data.vacations = data.vacations.filter((vacation) => vacation.employeeId !== employee.employeeId);
+    useScheduleMatrixStore.setState({ data });
+
+    const result = useScheduleMatrixStore.getState().assignCell(target.row.id, day, [employee]);
+
+    expect(result).toEqual({ ok: true });
+    const updated = useScheduleMatrixStore.getState().data!;
+    const updatedSource = updated.facilities
+      .flatMap((facility) => facility.units)
+      .flatMap((unit) => unit.rows)
+      .find((row) => row.id === source.row.id)!;
+    const updatedTarget = updated.facilities
+      .flatMap((facility) => facility.units)
+      .flatMap((unit) => unit.rows)
+      .find((row) => row.id === target.row.id)!;
+    expect(updatedSource.cellsByDay[day][0].hasConflict).toBe(true);
+    expect(updatedTarget.cellsByDay[day][0].hasConflict).toBe(true);
+  });
+
+  it('refuses to copy an assignment onto an approved vacation day', () => {
+    const data = structuredClone(useScheduleMatrixStore.getState().data!);
+    const employee = data.legend[0];
+    const row = data.facilities[0].units[0].rows[0];
+    row.cellsByDay[1] = [{ employeeId: employee.employeeId, employeeCode: employee.code }];
+    row.cellsByDay[2] = [];
+    data.vacations = data.vacations.filter((vacation) => vacation.employeeId !== employee.employeeId);
+    data.vacations.push({
+      employeeId: employee.employeeId,
+      employeeCode: employee.code,
+      fullName: employee.fullName,
+      daysOff: [2],
+    });
+    useScheduleMatrixStore.setState({ data });
+
+    useScheduleMatrixStore.getState().duplicateToNextDay(row.id, 1);
+
+    expect(useScheduleMatrixStore.getState().data!.facilities[0].units[0].rows[0].cellsByDay[2]).toEqual([]);
+  });
+
   it('allows the brush to select an unlimited employee group', () => {
     const store = useScheduleMatrixStore.getState();
     Array.from({ length: 50 }, (_, index) => `E${index + 1}`).forEach((code) => {

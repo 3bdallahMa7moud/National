@@ -6,7 +6,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CalendarOff, Check, Search, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-import { validateAssignmentsForCell } from '@/lib/validateAssignment';
+import { isBlockingAssignmentConflict, validateAssignmentsForCell } from '@/lib/validateAssignment';
 import type { Assignment, MatrixCellRef, ScheduleMatrixData, ShiftColorKey, ValidateResult } from '@/types/scheduleMatrix';
 
 interface AssignmentPopoverProps {
@@ -84,11 +84,12 @@ function AssignmentPopover({
       assignments: selectedAssignments,
     });
   }, [cell, data, selectedAssignments]);
+  const isBlockedByVacation = isBlockingAssignmentConflict(validation);
 
   const handleSave = useCallback(() => {
-    if (!validation.ok) return;
+    if (isBlockedByVacation) return;
     onSave(cell.rowId, cell.day, selectedAssignments);
-  }, [validation.ok, onSave, cell.rowId, cell.day, selectedAssignments]);
+  }, [isBlockedByVacation, onSave, cell.rowId, cell.day, selectedAssignments]);
 
   const handleRemove = useCallback(() => {
     const originalCodes = currentAssignments.map((assignment) => assignment.employeeCode).slice(0, 2);
@@ -243,10 +244,10 @@ function AssignmentPopover({
         <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 sm:flex sm:flex-wrap">
           <button
             onClick={handleSave}
-            disabled={!validation.ok}
+            disabled={isBlockedByVacation}
             className={cn(
               'flex-1 rounded-lg px-3 py-2 text-xs font-bold text-white transition-colors',
-              !validation.ok ? 'bg-surface-muted text-text-muted' : 'bg-primary-teal hover:bg-primary-teal/90',
+              isBlockedByVacation ? 'bg-surface-muted text-text-muted' : 'bg-primary-teal hover:bg-primary-teal/90',
             )}
           >
             {hasCurrentAssignments ? t('schedule:assignment.reassign') : t('schedule:assignment.save')}

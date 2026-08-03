@@ -202,6 +202,16 @@ export function validateAssignment(
   for (const facility of data.facilities) {
     for (const unit of facility.units) {
       for (const row of unit.rows) {
+        // The target cell is replaced when saving, so its current contents must
+        // not conflict with the proposed replacement assignments.
+        if (
+          facility.id === proposed.facilityId
+          && unit.id === proposed.unitId
+          && row.id === proposed.rowId
+        ) {
+          continue;
+        }
+
         const assignments = row.cellsByDay[proposed.day] || [];
         for (const a of assignments) {
           if (a.employeeId === proposed.employeeId) {
@@ -215,7 +225,7 @@ export function validateAssignment(
                 shiftLabel: row.shiftLabel,
                 day: proposed.day,
                 timeRange: row.timeRange,
-                type: isCrossFacility ? 'crossFacility' : 'vacation',
+                type: isCrossFacility ? 'crossFacility' : 'timeOverlap',
                 reason: isCrossFacility
                   ? `Double booking conflict with facility ${facility.name}`
                   : `Overlapping time with shift ${row.shiftLabel} (${row.timeRange})`,
@@ -242,6 +252,7 @@ export function validateAssignmentsForCell(
     assignments: Assignment[];
   },
 ): ValidateResult {
+  let firstScheduleConflict: ValidateResult | null = null;
   for (const a of proposed.assignments) {
     const result = validateAssignment(data, {
       facilityId: proposed.facilityId,
@@ -251,8 +262,17 @@ export function validateAssignmentsForCell(
       employeeId: a.employeeId,
       timeRange: proposed.timeRange,
     });
-    if (!result.ok) return result;
+    if (!result.ok) {
+      // Vacation is the only hard block. Keep checking after ordinary shift
+      // conflicts so a later vacation assignment cannot slip through.
+      if (result.conflict.type === 'vacation') return result;
+      firstScheduleConflict ??= result;
+    }
   }
-  return { ok: true };
+  return firstScheduleConflict ?? { ok: true };
 }
 
+/** Approved vacation is the only assignment conflict that blocks saving. */
+export function isBlockingAssignmentConflict(result: ValidateResult | null | undefined): boolean {
+  return !!result && !result.ok && result.conflict.type === 'vacation';
+}

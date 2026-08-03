@@ -1,6 +1,10 @@
 import { spawn } from 'node:child_process';
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+<<<<<<< HEAD
+=======
+const npmCliPath = process.env.npm_execpath;
+>>>>>>> a346e90 (first commit)
 const children = [];
 let shuttingDown = false;
 
@@ -18,7 +22,15 @@ function terminateAll(signal = 'SIGTERM') {
 }
 
 function runScript(scriptName) {
+<<<<<<< HEAD
   const child = spawn(npmCommand, ['run', scriptName], {
+=======
+  const command = npmCliPath ? process.execPath : npmCommand;
+  const args = npmCliPath
+    ? [npmCliPath, 'run', scriptName]
+    : ['run', scriptName];
+  const child = spawn(command, args, {
+>>>>>>> a346e90 (first commit)
     cwd: process.cwd(),
     env: process.env,
     stdio: 'inherit',

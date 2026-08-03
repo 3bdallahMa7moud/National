@@ -279,6 +279,31 @@ export default function AdminSchedulePage() {
     [data],
   );
 
+  const openAssignmentDrawerForCell = useCallback(
+    (cellRef: MatrixCellRef) => {
+      if (!data) return;
+
+      for (const facility of data.facilities) {
+        if (facility.id !== cellRef.facilityId) continue;
+        for (const unit of facility.units) {
+          if (unit.id !== cellRef.unitId) continue;
+          const row = unit.rows.find((candidate) => candidate.id === cellRef.rowId);
+          if (!row) return;
+          openDrawer({
+            ...cellRef,
+            facilityName: facility.name,
+            unitName: unit.name,
+            shiftLabel: row.shiftLabel || row.rowLabel,
+            timeRange: row.timeRange,
+            defaultColorKey: row.colorKey,
+          });
+          return;
+        }
+      }
+    },
+    [data, openDrawer],
+  );
+
   const handleCellClick = useCallback(
     (cellRef: MatrixCellRef) => {
       if (!data) return;
@@ -305,7 +330,16 @@ export default function AdminSchedulePage() {
         return;
       }
 
-      if (adminMode === 'brush' && brushEmployeeCodes.length > 0) {
+      if (adminMode === 'brush') {
+        if (brushEmployeeCodes.length === 0) {
+          addToast({
+            type: 'info',
+            title: t('schedule:toolbar.modes.brush'),
+            message: t('schedule:assignment.emptySlot'),
+          });
+          return;
+        }
+
         const current = getCellAssignments(cellRef);
         const selectedEmployees = brushEmployeeCodes.flatMap((code) => {
           const employee = data.legend.find((entry) => entry.code === code);
@@ -346,42 +380,7 @@ export default function AdminSchedulePage() {
         return;
       }
 
-      // Find facility, unit, and row names for drawer title
-      let facilityName = '';
-      let unitName = '';
-      let shiftLabel = '';
-      let timeRange = '';
-      let defaultColorKey: ShiftColorKey = 'morning';
-
-      for (const f of data.facilities) {
-        if (f.id === cellRef.facilityId) {
-          facilityName = f.name;
-          for (const u of f.units) {
-            if (u.id === cellRef.unitId) {
-              unitName = u.name;
-              for (const r of u.rows) {
-                if (r.id === cellRef.rowId) {
-                  shiftLabel = r.shiftLabel || r.rowLabel;
-                  timeRange = r.timeRange;
-                  defaultColorKey = r.colorKey;
-                  break;
-                }
-              }
-              break;
-            }
-          }
-          break;
-        }
-      }
-
-      openDrawer({
-        ...cellRef,
-        facilityName,
-        unitName,
-        shiftLabel,
-        timeRange,
-        defaultColorKey,
-      });
+      openAssignmentDrawerForCell(cellRef);
     },
     [
       data,
@@ -394,7 +393,7 @@ export default function AdminSchedulePage() {
       brushEmployeeCodes,
       store,
       assignCell,
-      openDrawer,
+      openAssignmentDrawerForCell,
       getCellAssignments,
     ],
   );
@@ -479,8 +478,9 @@ export default function AdminSchedulePage() {
   const handleBulkAssign = useCallback(() => {
     if (selectedCells.length === 0) return;
     const firstCell = selectedCells[0];
-    handleCellClick(firstCell);
-  }, [selectedCells, handleCellClick]);
+    setIsBulkSelecting(false);
+    openAssignmentDrawerForCell(firstCell);
+  }, [selectedCells, openAssignmentDrawerForCell]);
 
   const handleBulkClear = useCallback(() => {
     selectedCells.forEach((c) => {
@@ -559,23 +559,31 @@ export default function AdminSchedulePage() {
     });
   }, [addToast, generateConflictFreeMonth, t, user?.name]);
 
+  const handleBrushEmployeeToggle = useCallback(
+    (code: string) => {
+      const employee = data?.legend.find((entry) => entry.code === code);
+      if (!employee) return;
+
+      const wasSelected = brushEmployeeCodes.includes(employee.code);
+      toggleBrushEmployeeCode(employee.code);
+
+      if (wasSelected) {
+        const remaining = brushEmployeeCodes.filter((selectedCode) => selectedCode !== employee.code);
+        const nextCode = remaining[remaining.length - 1];
+        const nextEmployee = nextCode ? data?.legend.find((entry) => entry.code === nextCode) : null;
+        setHighlightedEmployeeId(nextEmployee?.employeeId ?? null);
+      } else {
+        setHighlightedEmployeeId(employee.employeeId);
+      }
+    },
+    [brushEmployeeCodes, data?.legend, setHighlightedEmployeeId, toggleBrushEmployeeCode],
+  );
+
   const handleLegendEmployeeClick = useCallback(
     (empId: string) => {
       if (adminMode === 'brush') {
-        const emp = data?.legend.find((e) => e.employeeId === empId || e.code === empId);
-        if (!emp) return;
-
-        const wasSelected = brushEmployeeCodes.includes(emp.code);
-        toggleBrushEmployeeCode(emp.code);
-
-        if (wasSelected) {
-          const remaining = brushEmployeeCodes.filter((code) => code !== emp.code);
-          const nextCode = remaining[remaining.length - 1];
-          const nextEmp = nextCode ? data?.legend.find((e) => e.code === nextCode) : null;
-          setHighlightedEmployeeId(nextEmp?.employeeId ?? null);
-        } else {
-          setHighlightedEmployeeId(emp.employeeId);
-        }
+        const employee = data?.legend.find((entry) => entry.employeeId === empId || entry.code === empId);
+        if (employee) handleBrushEmployeeToggle(employee.code);
         return;
       }
 
@@ -584,8 +592,7 @@ export default function AdminSchedulePage() {
     [
       adminMode,
       data?.legend,
-      brushEmployeeCodes,
-      toggleBrushEmployeeCode,
+      handleBrushEmployeeToggle,
       highlightedEmployeeId,
       setHighlightedEmployeeId,
     ],
@@ -826,6 +833,8 @@ export default function AdminSchedulePage() {
         selectedCellCount={selectedCells.length}
         onClearSelection={clearSelection}
         brushEmployeeCodes={brushEmployeeCodes}
+        brushEmployees={data.legend}
+        onToggleBrushEmployee={handleBrushEmployeeToggle}
         onClearBrush={clearBrushEmployees}
         isBulkSelecting={isBulkSelecting || selectedCells.length > 0}
         onToggleBulkSelect={() => {

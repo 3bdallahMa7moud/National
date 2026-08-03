@@ -9,7 +9,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Clock3, MapPin, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-import { validateAssignment } from '@/lib/validateAssignment';
+import { isBlockingAssignmentConflict, validateAssignment } from '@/lib/validateAssignment';
 import { getShiftChipStyle } from '@/components/schedule/ScheduleMatrix/getShiftChipClasses';
 import { EmployeeCombobox } from './EmployeeCombobox';
 import type {
@@ -109,8 +109,10 @@ function AssignmentDrawer({
 
   // ── Derived ──────────────────────────────────────────────────
   const filledCodes = slots.filter((s): s is string => s !== null);
-  const hasConflict = filledCodes.some((c) => !validate(c).ok);
-  const canSave = filledCodes.length > 0 && !hasConflict;
+  const assignmentValidations = filledCodes.map(validate);
+  const hasConflict = assignmentValidations.some((result) => !result.ok);
+  const hasBlockingVacation = assignmentValidations.some(isBlockingAssignmentConflict);
+  const canSave = filledCodes.length > 0 && !hasBlockingVacation;
   const selectedCount = filledCodes.length;
 
   // ── Build assignments array ──────────────────────────────────
@@ -280,7 +282,11 @@ function AssignmentDrawer({
           {/* Conflict banner */}
           {hasConflict && (
             <div className="flex items-center gap-2 rounded-xl border border-danger/25 bg-danger-500/10 px-3 py-2.5 text-xs font-bold text-danger">
-              <span>{t('schedule:assignment.cannotSaveConflict')}</span>
+              <span>
+                {hasBlockingVacation
+                  ? t('schedule:assignment.vacation')
+                  : t('schedule:assignment.saveOverrideTitle')}
+              </span>
             </div>
           )}
 
@@ -353,8 +359,10 @@ function AssignmentDrawer({
                   : 'cursor-not-allowed bg-surface-muted text-text-muted',
               )}
               title={
-                hasConflict
+                hasBlockingVacation
                   ? t('schedule:assignment.cannotSaveConflict')
+                  : hasConflict
+                    ? t('schedule:assignment.saveOverrideTitle')
                   : t('schedule:assignment.saveTitle')
               }
             >

@@ -40,7 +40,11 @@ import type {
   ValidateResult,
 } from '@/types/scheduleMatrix';
 import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
-import { recalculateAllConflicts, validateAssignmentsForCell } from '@/lib/validateAssignment';
+import {
+  isBlockingAssignmentConflict,
+  recalculateAllConflicts,
+  validateAssignmentsForCell,
+} from '@/lib/validateAssignment';
 import {
   countScheduleConflicts,
   generateConflictFreeScheduleMonth,
@@ -737,7 +741,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       assignments,
     });
 
-    if (!validation.ok) return validation;
+    if (isBlockingAssignmentConflict(validation)) return validation;
 
     const oldAssignments = context.row.cellsByDay[day] || [];
     setCellAssignments(context.row, day, assignments);
@@ -807,6 +811,16 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     if (day >= daysInMonth) return;
 
     const sourceAssignments = context.row.cellsByDay[day] || [];
+    const validation = validateAssignmentsForCell(data, {
+      facilityId: context.facility.id,
+      unitId: context.unit.id,
+      rowId,
+      day: day + 1,
+      timeRange: context.row.timeRange,
+      assignments: sourceAssignments,
+    });
+    if (isBlockingAssignmentConflict(validation)) return;
+
     setCellAssignments(context.row, day + 1, sourceAssignments);
     addAudit(data, state.locale, {
       action: 'assign',
@@ -844,6 +858,16 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
 
     for (let day = from; day <= to; day += 1) {
       if (day === source.day) continue;
+      const validation = validateAssignmentsForCell(data, {
+        facilityId: context.facility.id,
+        unitId: context.unit.id,
+        rowId: source.rowId,
+        day,
+        timeRange: context.row.timeRange,
+        assignments: sourceAssignments,
+      });
+      if (isBlockingAssignmentConflict(validation)) continue;
+
       setCellAssignments(context.row, day, sourceAssignments);
       draftCellKeys = draftWith(draftCellKeys, cellKey(source.rowId, day));
     }

@@ -137,4 +137,43 @@ describe('MatrixToolbar', () => {
 
     expect(screen.getByRole('button', { name: 'Publish to Employees' })).toBeDisabled();
   });
+
+  it('lets brush mode select multiple employees from the toolbar', () => {
+    const onToggleBrushEmployee = vi.fn();
+    render(
+      <MemoryRouter>
+        <MatrixToolbar
+          {...baseProps}
+          adminMode="brush"
+          brushEmployeeCodes={['EMP1']}
+          brushEmployees={[
+            { code: 'EMP1', fullName: 'Employee One' },
+            { code: 'EMP2', fullName: 'Employee Two' },
+          ]}
+          onToggleBrushEmployee={onToggleBrushEmployee}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('button', { name: 'EMP1 Employee One' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'EMP2 Employee Two' }));
+    expect(onToggleBrushEmployee).toHaveBeenCalledWith('EMP2');
+  });
+
+  it('exposes assignment for a selected cell range', () => {
+    const onBulkAssign = vi.fn();
+    render(
+      <MemoryRouter>
+        <MatrixToolbar
+          {...baseProps}
+          adminMode="edit"
+          selectedCellCount={4}
+          onBulkAssign={onBulkAssign}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Assign employee/i }));
+    expect(onBulkAssign).toHaveBeenCalledTimes(1);
+  });
 });
