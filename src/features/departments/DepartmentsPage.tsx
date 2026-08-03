@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import Card from '@/components/ui/Card';
@@ -7,28 +7,79 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Badge from '@/components/ui/Badge';
-import { useMockData } from '@/hooks/useMockData';
 import { useToast } from '@/components/ui/Toast';
+import api from '@/lib/axios';
+import { mapApiDepartmentToMockSource, type ApiDepartment } from '@/lib/backendAdapters';
+import { useDepartmentStore } from '@/stores/departmentStore';
+import { directoryRecordToMockSource, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
+import { useLanguage } from '@/hooks/useLanguage';
+import { resolveDepartment, resolveEmployee } from '@/mocks/resolveMockData';
 import { Building2, Users, UserCheck, Plus, Edit2 } from 'lucide-react';
 import type { Department } from '@/types';
 
 export default function DepartmentsPage() {
   const { t } = useTranslation(['departments', 'common', 'forms']);
   const navigate = useNavigate();
-  const { departments, employees } = useMockData();
   const [editModal, setEditModal] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const { addToast } = useToast();
+  const { language } = useLanguage();
+  const departmentRecords = useDepartmentStore((state) => state.records);
+  const employeeRecords = useEmployeeDirectoryStore((state) => state.records);
+  const setDepartmentRecords = useDepartmentStore((state) => state.setRecords);
+  const departments = useMemo(
+    () => departmentRecords.map((record) => resolveDepartment(record, language)),
+    [departmentRecords, language],
+  );
+  const employees = useMemo(
+    () => employeeRecords.map((record) => resolveEmployee(directoryRecordToMockSource(record), language)),
+    [employeeRecords, language],
+  );
 
   const handleEdit = (dept: Department) => {
     setEditingDept(dept);
     setEditModal(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setEditModal(false);
-    addToast({ type: 'success', title: t('common:toast.saved'), message: t('departments:updateSuccess') });
+    const formData = new FormData(e.currentTarget);
+    const name = String(formData.get('name') || '').trim();
+    const description = String(formData.get('description') || '').trim();
+    const managerIdValue = String(formData.get('managerId') || '').trim();
+
+    if (!name) {
+      addToast({ type: 'error', title: t('common:toast.error'), message: t('forms:validation.nameMin') });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = editingDept
+        ? await api.patch<{ department: ApiDepartment }>(`/departments/${editingDept.id}`, {
+            name,
+            description,
+            managerId: managerIdValue || null,
+          })
+        : await api.post<{ department: ApiDepartment }>('/departments', {
+            name,
+            description,
+            managerId: managerIdValue || null,
+          });
+
+      const updated = mapApiDepartmentToMockSource(response.data.department);
+      const nextRecords = editingDept
+        ? departmentRecords.map((record) => record.id === updated.id ? updated : record)
+        : [...departmentRecords, updated];
+      setDepartmentRecords(nextRecords);
+      setEditModal(false);
+      addToast({ type: 'success', title: t('common:toast.saved'), message: t('departments:updateSuccess') });
+    } catch {
+      addToast({ type: 'error', title: t('common:toast.error'), message: t('common:errorState.sectionMessage') });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -111,11 +162,11 @@ export default function DepartmentsPage() {
         title={editingDept ? t('departments:editDepartment') : t('departments:addDepartment')}
       >
         <form onSubmit={handleSave} className="space-y-4">
-          <Input label={t('forms:labels.departmentName')} defaultValue={editingDept?.name} required placeholder={t('departments:namePlaceholder')} />
-          <Input label={t('forms:labels.departmentDescription')} defaultValue={editingDept?.description} placeholder={t('departments:descriptionPlaceholder')} />
+          <Input name="name" label={t('forms:labels.departmentName')} defaultValue={editingDept?.name} required placeholder={t('departments:namePlaceholder')} />
+          <Input name="description" label={t('forms:labels.departmentDescription')} defaultValue={editingDept?.description} placeholder={t('departments:descriptionPlaceholder')} />
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1.5">{t('forms:labels.departmentHead')}</label>
-            <select className="input-field" defaultValue={editingDept?.managerId || ''}>
+            <select name="managerId" className="input-field" defaultValue={editingDept?.managerId || ''}>
               <option value="">{t('forms:labels.selectSupervisor')}</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>{emp.name} ({emp.position})</option>
@@ -124,7 +175,7 @@ export default function DepartmentsPage() {
           </div>
           <div className="flex gap-3 justify-end pt-4 border-t border-border/50">
             <Button variant="secondary" type="button" onClick={() => setEditModal(false)}>{t('common:actions.cancel')}</Button>
-            <Button type="submit">{t('forms:actions.saveChanges')}</Button>
+            <Button type="submit" loading={isSaving}>{t('forms:actions.saveChanges')}</Button>
           </div>
         </form>
       </Modal>

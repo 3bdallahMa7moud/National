@@ -1,29 +1,24 @@
 import axios from 'axios';
 
+type ApiBaseUrlEnv = {
+  DEV: boolean;
+  VITE_API_URL?: string;
+};
+
+export function resolveApiBaseUrl(env: ApiBaseUrlEnv) {
+  if (env.DEV) {
+    return '/api';
+  }
+
+  return env.VITE_API_URL || '/api';
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+  baseURL: resolveApiBaseUrl(import.meta.env),
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
 
 export default api;

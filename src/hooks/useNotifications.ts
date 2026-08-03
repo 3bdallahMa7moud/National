@@ -1,5 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import api from '@/lib/axios';
+import { fetchAndHydrateBootstrap } from '@/lib/backendBootstrap';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import { notificationForUser, useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
@@ -9,13 +11,6 @@ export function useNotifications() {
   const user = useAuthStore((state) => state.user);
   const directory = useEmployeeDirectoryStore((state) => state.records);
   const targeted = useTargetedNotificationStore((state) => state.notifications);
-  const markTargetedRead = useTargetedNotificationStore((state) => state.markRead);
-  const markAllTargetedRead = useTargetedNotificationStore((state) => state.markAllRead);
-  const removeTargeted = useTargetedNotificationStore((state) => state.remove);
-
-  useEffect(() => {
-    useTargetedNotificationStore.getState().reloadFromStorage();
-  }, [user]);
 
   const notifications = useMemo(
     () => (user ? targeted
@@ -46,15 +41,18 @@ export function useNotifications() {
   const unreadCount = notifications.filter((notification) => !notification.isRead).length;
 
   const markRead = (id: string) => {
-    if (user) markTargetedRead(id, user);
+    if (!user) return;
+    void api.post(`/notifications/${id}/read`).then(() => fetchAndHydrateBootstrap()).catch(() => undefined);
   };
 
   const markAllRead = () => {
-    if (user) markAllTargetedRead(user);
+    if (!user) return;
+    void api.post('/notifications/read-all').then(() => fetchAndHydrateBootstrap()).catch(() => undefined);
   };
 
   const deleteNotification = (id: string) => {
-    if (user) removeTargeted(id, user);
+    if (!user) return;
+    void api.delete(`/notifications/${id}`).then(() => fetchAndHydrateBootstrap()).catch(() => undefined);
   };
 
   return { notifications, unreadCount, markRead, markAllRead, deleteNotification };

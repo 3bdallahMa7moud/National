@@ -1,13 +1,57 @@
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CalendarSyncCard from '@/components/common/CalendarSyncCard';
 import { useAuthStore } from '@/stores/authStore';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
+import api from '@/lib/axios';
+import ErrorState from '@/components/common/ErrorState';
+import LoadingSkeleton from '@/components/common/LoadingSkeleton';
 
 export default function CalendarSyncPage() {
   const { t } = useTranslation(['calendar']);
   const user = useAuthStore((s) => s.user);
+  const [icalUrl, setIcalUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const icalUrl = `https://hospital.sa/api/v1/schedule/sync/ical/${user?.id || 'emp-001'}/ct-department.ics`;
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFeedUrl() {
+      setIsLoading(true);
+      setError('');
+      try {
+        const response = await api.get<{ feedUrl: string }>('/calendar-sync');
+        if (!cancelled) {
+          setIcalUrl(response.data.feedUrl);
+        }
+      } catch {
+        if (!cancelled) {
+          setError(t('common:errorState.sectionMessage'));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadFeedUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t, user?.id]);
+
+  const retry = () => {
+    setIcalUrl('');
+    setError('');
+    setIsLoading(true);
+    void api.get<{ feedUrl: string }>('/calendar-sync')
+      .then((response) => setIcalUrl(response.data.feedUrl))
+      .catch(() => setError(t('common:errorState.sectionMessage')))
+      .finally(() => setIsLoading(false));
+  };
 
   return (
     <div className="max-w-3xl space-y-5">
@@ -29,7 +73,7 @@ export default function CalendarSyncPage() {
         </div>
       </div>
 
-      <CalendarSyncCard icalUrl={icalUrl} />
+      {isLoading ? <LoadingSkeleton lines={4} /> : error ? <ErrorState message={error} onRetry={retry} /> : <CalendarSyncCard icalUrl={icalUrl} />}
     </div>
   );
 }

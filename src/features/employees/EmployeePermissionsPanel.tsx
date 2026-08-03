@@ -1,14 +1,18 @@
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ShieldCheck } from 'lucide-react';
+import { isAxiosError } from 'axios';
 import {
   EMPLOYEE_PERMISSIONS,
   EMPLOYEE_PERMISSION_TEMPLATES,
   effectivePermissions,
-  type EmployeeAccessSubject,
   type EmployeePermission,
   type EmployeePermissionTemplateId,
+  type EmployeeAccessProfile,
+  type EmployeeAccessSubject,
 } from '@/types/employeeAccess';
+import api from '@/lib/axios';
+import { fetchAndHydrateBootstrap } from '@/lib/backendBootstrap';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 
 export interface EmployeePermissionsRosterOption {
@@ -34,25 +38,45 @@ export default function EmployeePermissionsPanel({
 }: EmployeePermissionsPanelProps) {
   const { t } = useTranslation(['access']);
   const profile = useEmployeeAccessStore((state) => state.profiles[employee.accountId]);
-  const ensureProfile = useEmployeeAccessStore((state) => state.ensureProfile);
-  const setTemplate = useEmployeeAccessStore((state) => state.setTemplate);
-  const setOverride = useEmployeeAccessStore((state) => state.setOverride);
-  const setRosterLink = useEmployeeAccessStore((state) => state.setRosterLink);
+  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (profile) return;
-    ensureProfile(employee, actorName);
-  }, [actorName, employee, ensureProfile, profile]);
-
-  if (!profile) return null;
-
-  const effective = effectivePermissions(profile.templateId, profile.overrides);
-  const complete = (result: ReturnType<typeof setTemplate>) => {
-    if (result.ok) onSaved?.();
-    else onError?.(result.reason === 'duplicate_roster_link'
-      ? t('access:permissions.duplicateLink')
-      : t('access:permissions.storageError'));
+  const resolvedProfile: EmployeeAccessProfile = profile ?? {
+    accountId: employee.accountId,
+    departmentId: employee.departmentId,
+    scheduleEmployeeId: employee.scheduleEmployeeId,
+    templateId: 'standard',
+    overrides: {},
+    active: employee.active !== false,
+    updatedAt: new Date(0).toISOString(),
+    updatedBy: actorName,
   };
+
+  const persistProfile = async (nextProfile: EmployeeAccessProfile) => {
+    setIsSaving(true);
+    try {
+      await api.patch(`/employees/${employee.accountId}/access`, {
+        templateId: nextProfile.templateId,
+        overrides: nextProfile.overrides,
+        scheduleEmployeeId: nextProfile.scheduleEmployeeId ?? null,
+        active: nextProfile.active,
+      });
+      await fetchAndHydrateBootstrap();
+      onSaved?.();
+    } catch (error) {
+      if (isAxiosError(error)) {
+        const message = error.response?.data?.error?.code === 'ROSTER_LINK_TAKEN'
+          ? t('access:permissions.duplicateLink')
+          : error.response?.data?.error?.message;
+        onError?.(message || t('access:permissions.storageError'));
+      } else {
+        onError?.(t('access:permissions.storageError'));
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const effective = effectivePermissions(resolvedProfile.templateId, resolvedProfile.overrides);
 
   return (
     <section className="space-y-4" aria-labelledby={`employee-access-${employee.accountId}`}>
@@ -71,12 +95,14 @@ export default function EmployeePermissionsPanel({
           <span className="mb-1.5 block">{t('access:permissions.template')}</span>
           <select
             className="input-field w-full"
-            value={profile.templateId}
-            onChange={(event) => complete(setTemplate(
-              employee.accountId,
-              event.target.value as EmployeePermissionTemplateId,
-              actorName,
-            ))}
+            value={resolvedProfile.templateId}
+            disabled={isSaving}
+            onChange={(event) => {
+              void persistProfile({
+                ...resolvedProfile,
+                templateId: event.target.value as EmployeePermissionTemplateId,
+              });
+            }}
           >
             {(Object.keys(EMPLOYEE_PERMISSION_TEMPLATES) as EmployeePermissionTemplateId[]).map((templateId) => (
               <option key={templateId} value={templateId}>{t(`access:permissions.templates.${templateId}`)}</option>
@@ -88,8 +114,14 @@ export default function EmployeePermissionsPanel({
           <span className="mb-1.5 block">{t('access:permissions.rosterLink')}</span>
           <select
             className="input-field w-full"
-            value={profile.scheduleEmployeeId ?? ''}
-            onChange={(event) => complete(setRosterLink(employee.accountId, event.target.value || undefined, actorName))}
+            value={resolvedProfile.scheduleEmployeeId ?? ''}
+            disabled={isSaving}
+            onChange={(event) => {
+              void persistProfile({
+                ...resolvedProfile,
+                scheduleEmployeeId: event.target.value || undefined,
+              });
+            }}
           >
             <option value="">{t('access:permissions.unlinked')}</option>
             {roster.map((option) => (
@@ -99,7 +131,7 @@ export default function EmployeePermissionsPanel({
         </label>
       </div>
 
-      {!profile.scheduleEmployeeId && (
+      {!resolvedProfile.scheduleEmployeeId && (
         <div className="flex gap-2 rounded-card border border-warning/30 bg-warning-50 p-3 text-xs leading-5 text-text-primary">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <p>{t('access:permissions.unlinkedWarning')}</p>
@@ -111,14 +143,22 @@ export default function EmployeePermissionsPanel({
           <PermissionRow
             key={permission}
             permission={permission}
-            inherited={EMPLOYEE_PERMISSION_TEMPLATES[profile.templateId].permissions[permission]}
+            inherited={EMPLOYEE_PERMISSION_TEMPLATES[resolvedProfile.templateId].permissions[permission]}
             effective={effective[permission]}
-            override={profile.overrides[permission]}
+            override={resolvedProfile.overrides[permission]}
             label={t(`access:permissions.items.${permission}`)}
             inheritLabel={t('access:permissions.inherit')}
             enabledLabel={t('access:permissions.enabled')}
             disabledLabel={t('access:permissions.disabled')}
-            onChange={(value) => complete(setOverride(employee.accountId, permission, value, actorName))}
+            onChange={(value) => {
+              const overrides = { ...resolvedProfile.overrides };
+              if (value === undefined) delete overrides[permission];
+              else overrides[permission] = value;
+              void persistProfile({
+                ...resolvedProfile,
+                overrides,
+              });
+            }}
           />
         ))}
       </div>

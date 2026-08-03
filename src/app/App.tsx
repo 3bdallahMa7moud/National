@@ -5,6 +5,7 @@ import ToastProvider from '@/components/ui/Toast';
 import { ThemeProvider } from '@/hooks/useTheme';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { router } from './routes';
+import BackendSessionBootstrap from './BackendSessionBootstrap';
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <ErrorBoundary level="global" invalidateQueries>
+            <BackendSessionBootstrap />
             <RouterProvider router={router} />
           </ErrorBoundary>
         </ToastProvider>

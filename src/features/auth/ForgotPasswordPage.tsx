@@ -6,7 +6,7 @@
 // ============================================================
 
 import { useState, useRef, useEffect, useCallback, useId } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Mail, KeyRound, Lock, Eye, EyeOff, CheckCircle2,
@@ -19,17 +19,15 @@ import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
-import { setEmployeePassword } from '@/mocks/mockPasswordStore';
+import api from '@/lib/axios';
 import AuthSplitLayout, {
   AUTH_FORM_COLUMN_CLASS,
   AUTH_HERO_COLUMN_CLASS,
   AUTH_MAIN_COLUMN_CLASS,
 } from './AuthSplitLayout';
-import { directoryRecordToMockSource, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
-import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
 
 /* ─── Types ─── */
-type Step = 1 | 2 | 3 | 'success' | 'no-email' | 'no-email-success';
+type Step = 1 | 2 | 3 | 'success' | 'no-email';
 
 /* ─── Password strength helper ─── */
 function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
@@ -48,29 +46,26 @@ function getPasswordStrength(pw: string): { score: number; label: string; color:
   return levels[score - 1] ?? { score: 0, label: '', color: '' };
 }
 
-/* ─── Generate 6-digit OTP ─── */
-function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
 /* ─── Main Component ─── */
 export default function ForgotPasswordPage() {
   const { t, i18n } = useTranslation(['auth', 'common']);
   const isRtl = i18n.language === 'ar';
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const prefilledIdentifier = searchParams.get('identifier')?.trim() ?? '';
+  const startsReady = searchParams.get('ready') === '1' && prefilledIdentifier.length > 0;
 
   /* ─── State ─── */
-  const [step, setStep] = useState<Step>(1);
-  const [identifier, setIdentifier] = useState('');
+  const [step, setStep] = useState<Step>(startsReady ? 2 : 1);
+  const [identifier, setIdentifier] = useState(prefilledIdentifier);
   const [identifierError, setIdentifierError] = useState('');
   const [isChecking, setIsChecking] = useState(false);
-  const [foundEmployeeId, setFoundEmployeeId] = useState('');
   const [foundEmployeeName, setFoundEmployeeName] = useState('');
-  const [foundEmail, setFoundEmail] = useState('');
+  const [foundEmail, setFoundEmail] = useState(prefilledIdentifier.includes('@') ? prefilledIdentifier : '');
   const [generatedOtp, setGeneratedOtp] = useState('');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [otpError, setOtpError] = useState('');
-  const [countdown, setCountdown] = useState(120);
+  const [countdown, setCountdown] = useState(startsReady ? 0 : 120);
   const [isResending, setIsResending] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -78,7 +73,6 @@ export default function ForgotPasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [pwError, setPwError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [isRequestingReset, setIsRequestingReset] = useState(false);
 
   /* ─── OTP input refs ─── */
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -103,42 +97,49 @@ export default function ForgotPasswordPage() {
       return;
     }
     setIsChecking(true);
-    await new Promise((r) => setTimeout(r, 900));
 
-    const found = useEmployeeDirectoryStore.getState().records.map(directoryRecordToMockSource).find(
-      (emp) =>
-        emp.email?.toLowerCase() === val.toLowerCase() ||
-        emp.employeeNumber.toLowerCase() === val.toLowerCase()
-    );
+    try {
+      const response = await api.post<{
+        ok: true;
+        accountFound?: boolean;
+        hasEmail?: boolean;
+        maskedEmail?: string | null;
+        userId?: string;
+        displayName?: { en: string; ar: string };
+        devCode?: string;
+      }>('/auth/forgot-password/request', { identifier: val });
 
-    setIsChecking(false);
+      if (!response.data.accountFound) {
+        setIdentifierError(
+          isRtl
+            ? 'لم يتم العثور على حساب بهذا الرقم الوظيفي أو البريد الإلكتروني.'
+            : 'No account found with this employee number or email.'
+        );
+        return;
+      }
 
-    if (!found) {
+      if (!response.data.hasEmail) {
+        setFoundEmployeeName(isRtl ? response.data.displayName?.ar || '' : response.data.displayName?.en || '');
+        setStep('no-email');
+        return;
+      }
+
+      setGeneratedOtp(response.data.devCode || '');
+      setFoundEmployeeName(isRtl ? response.data.displayName?.ar || '' : response.data.displayName?.en || '');
+      setFoundEmail(response.data.maskedEmail || '');
+      setOtpDigits(['', '', '', '', '', '']);
+      setOtpError('');
+      setCountdown(120);
+      setStep(2);
+    } catch {
       setIdentifierError(
         isRtl
           ? 'لم يتم العثور على حساب بهذا الرقم الوظيفي أو البريد الإلكتروني.'
           : 'No account found with this employee number or email.'
       );
-      return;
+    } finally {
+      setIsChecking(false);
     }
-
-    if (!found.email) {
-      setFoundEmployeeId(found.id);
-      setFoundEmployeeName(typeof found.name === 'string' ? found.name : isRtl ? found.name.ar : found.name.en);
-      setStep('no-email');
-      return;
-    }
-
-    const otp = generateOtp();
-    setGeneratedOtp(otp);
-    setFoundEmployeeId(found.id);
-    setFoundEmployeeName(typeof found.name === 'string' ? found.name : isRtl ? found.name.ar : found.name.en);
-    setFoundEmail(found.email);
-    setOtpDigits(['', '', '', '', '', '']);
-    setOtpError('');
-    setCountdown(120);
-    setStep(2);
-    // Show the OTP in the "mock email card"
   };
 
   /* ─── Step 2: Verify OTP ─── */
@@ -177,37 +178,46 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  const handleOtpVerify = (e: React.FormEvent) => {
+  const handleOtpVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     const entered = otpDigits.join('');
     if (entered.length < 6) {
       setOtpError(isRtl ? 'الرجاء إدخال الكود المكون من 6 أرقام كاملاً' : 'Please enter the full 6-digit code');
       return;
     }
-    if (entered !== generatedOtp) {
+    try {
+      await api.post('/auth/forgot-password/verify', { identifier, code: entered });
+      setOtpError('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPwError('');
+      setStep(3);
+    } catch {
       setOtpError(isRtl ? 'الكود غير صحيح. يرجى التحقق من بريدك الإلكتروني والمحاولة مجدداً.' : 'Incorrect code. Please check your email and try again.');
       setOtpDigits(['', '', '', '', '', '']);
       otpRefs.current[0]?.focus();
-      return;
     }
-    setOtpError('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setPwError('');
-    setStep(3);
   };
 
   const handleResendOtp = useCallback(async () => {
     setIsResending(true);
-    await new Promise((r) => setTimeout(r, 700));
-    const otp = generateOtp();
-    setGeneratedOtp(otp);
-    setOtpDigits(['', '', '', '', '', '']);
-    setOtpError('');
-    setCountdown(120);
-    setIsResending(false);
-    otpRefs.current[0]?.focus();
-  }, []);
+    try {
+      const response = await api.post<{ devCode?: string }>('/auth/forgot-password/request', { identifier });
+      setGeneratedOtp(response.data.devCode || '');
+      setOtpDigits(['', '', '', '', '', '']);
+      setOtpError('');
+      setCountdown(120);
+      otpRefs.current[0]?.focus();
+    } catch {
+      setOtpError(
+        isRtl
+          ? 'تعذر إرسال كود جديد حالياً. حاول مرة أخرى بعد قليل.'
+          : 'Unable to send a new code right now. Please try again shortly.',
+      );
+    } finally {
+      setIsResending(false);
+    }
+  }, [identifier, isRtl]);
 
   /* ─── Step 3: Save new password ─── */
   const handleSavePassword = async (e: React.FormEvent) => {
@@ -222,33 +232,15 @@ export default function ForgotPasswordPage() {
       return;
     }
     setIsSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setEmployeePassword(foundEmployeeId, newPassword);
+    try {
+      await api.post('/auth/forgot-password/reset', { identifier, code: otpDigits.join(''), password: newPassword });
+    } catch {
+      setIsSaving(false);
+      setPwError(isRtl ? 'تعذر حفظ كلمة المرور الجديدة' : 'Unable to save the new password');
+      return;
+    }
     setIsSaving(false);
     setStep('success');
-  };
-
-  const handleRequestAdminReset = async () => {
-    setIsRequestingReset(true);
-    await new Promise((r) => setTimeout(r, 800));
-
-    const employee = useEmployeeDirectoryStore.getState().records.find((record) => record.accountId === foundEmployeeId);
-    useTargetedNotificationStore.getState().push({
-      audience: { kind: 'departmentRole', role: 'admin', departmentId: employee?.departmentId || 'dept-1' },
-      recipientRole: 'admin',
-      departmentId: employee?.departmentId || 'dept-1',
-      type: 'general',
-      title: 'Password reset request',
-      message: `Employee ${foundEmployeeName} requested a password reset.`,
-      titleKey: 'notifications:passwordReset.title',
-      messageKey: 'notifications:passwordReset.message',
-      params: { employee: foundEmployeeName },
-      isUrgent: true,
-      actionUrl: '/admin/employees',
-    });
-
-    setIsRequestingReset(false);
-    setStep('no-email-success');
   };
 
   /* ─── Password strength ─── */
@@ -452,8 +444,9 @@ export default function ForgotPasswordPage() {
           {/* ═══ STEP 2: OTP ═══ */}
           {step === 2 && (
             <div className="space-y-4">
-              {/* Mock email preview card */}
-              <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent p-4 shadow-sm">
+              {/* Development code preview card */}
+              {generatedOtp && (
+                <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500 text-white text-[10px] font-bold">G</div>
                   <div>
@@ -472,7 +465,8 @@ export default function ForgotPasswordPage() {
                     {isRtl ? 'صالح لمدة دقيقتين فقط' : 'Valid for 2 minutes only'}
                   </p>
                 </div>
-              </div>
+                </div>
+              )}
 
               {/* OTP Form */}
               <div className="card space-y-5 !px-2.5 !py-5 sm:!p-5">
@@ -485,7 +479,9 @@ export default function ForgotPasswordPage() {
                       {isRtl ? 'أدخل كود التحقق' : 'Enter Verification Code'}
                     </p>
                     <p className="text-xs text-text-secondary">
-                      {isRtl ? `أرسلنا الكود إلى ${maskedEmail}` : `Sent to ${maskedEmail}`}
+                      {maskedEmail
+                        ? (isRtl ? `أرسلنا الكود إلى ${maskedEmail}` : `Sent to ${maskedEmail}`)
+                        : (isRtl ? 'أدخل الكود الذي وصلك عبر البريد الإلكتروني.' : 'Enter the code that was sent to your email.')}
                     </p>
                   </div>
                 </div>
@@ -720,62 +716,26 @@ export default function ForgotPasswordPage() {
                 </h2>
                 <p className="mt-2 text-sm text-text-secondary leading-6">
                   {isRtl
-                    ? `مرحباً ${foundEmployeeName}، حسابك غير مرتبط ببريد إلكتروني حالياً. يمكنك طلب إعادة تعيين كلمة المرور من مسؤول النظام، وسيقوم بإعادتها للرقم الافتراضي (123456).`
-                    : `Hi ${foundEmployeeName}, your account is not linked to an email. You can request a password reset from your admin, who will reset it to the default (123456).`}
+                    ? `مرحباً ${foundEmployeeName || ''}، هذا الحساب غير مرتبط ببريد إلكتروني حالياً. اطلب من مسؤول النظام إضافة بريد إلكتروني أولاً، ثم أعد محاولة استعادة كلمة المرور.`
+                    : `Hi ${foundEmployeeName || ''}, this account does not have an email address on file. Ask an administrator to add an email address first, then try password recovery again.`}
                 </p>
               </div>
 
               <div className="flex flex-col gap-3 pt-2">
                 <Button
-                  className="w-full"
-                  onClick={handleRequestAdminReset}
-                  loading={isRequestingReset}
-                  icon={<ShieldCheck className="h-4 w-4" />}
-                >
-                  {isRtl ? 'إرسال طلب لمسؤول النظام' : 'Send Request to Admin'}
-                </Button>
-                <Button
                   variant="secondary"
                   className="w-full"
                   onClick={() => setStep(1)}
-                  disabled={isRequestingReset}
                 >
                   {isRtl ? 'رجوع' : 'Back'}
                 </Button>
+                <Button
+                  className="w-full"
+                  onClick={() => navigate('/login')}
+                >
+                  {isRtl ? 'العودة لتسجيل الدخول' : 'Back to Login'}
+                </Button>
               </div>
-            </div>
-          )}
-
-          {/* ═══ STEP: No Email Success ═══ */}
-          {step === 'no-email-success' && (
-            <div className="card !p-8 text-center space-y-5">
-              <div className="flex justify-center">
-                <div className="relative flex h-20 w-20 items-center justify-center">
-                  <div className="absolute inset-0 rounded-full bg-emerald-500/10 animate-ping" />
-                  <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/30">
-                    <CheckCircle2 className="h-8 w-8 text-white" />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h2 className="text-xl font-bold text-text-primary">
-                  {isRtl ? 'تم إرسال الطلب بنجاح!' : 'Request Sent Successfully!'}
-                </h2>
-                <p className="mt-2 text-sm text-text-secondary leading-6">
-                  {isRtl
-                    ? 'تم إرسال إشعار إلى مسؤول النظام. يرجى المتابعة معه أو المحاولة لاحقاً باستخدام كلمة المرور الافتراضية (123456) بعد إعادة تعيينها.'
-                    : 'A notification has been sent to the admin. Please follow up or try logging in later with the default password (123456) after it is reset.'}
-                </p>
-              </div>
-
-              <Button
-                className="w-full mt-4"
-                icon={<ArrowLeft className="h-4 w-4" />}
-                onClick={() => navigate('/login')}
-              >
-                {isRtl ? 'العودة لتسجيل الدخول' : 'Back to Login'}
-              </Button>
             </div>
           )}
         </div>

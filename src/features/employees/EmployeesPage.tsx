@@ -9,72 +9,51 @@ import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import Badge from '@/components/ui/Badge';
-import { useMockData } from '@/hooks/useMockData';
 import { useToast } from '@/components/ui/Toast';
 import { useLanguage } from '@/hooks/useLanguage';
-import type { MockEmployeeSource } from '@/mocks/types';
 import {
   Plus, Edit2, Trash2, Search, CheckCircle2, Copy, UserPlus,
-  Hash, KeyRound, Mail, RotateCcw, ShieldCheck,
+  Hash, Mail, RotateCcw, ShieldCheck,
 } from 'lucide-react';
-import { setEmployeePassword } from '@/mocks/mockPasswordStore';
 import { JOB_TITLE_OPTIONS, findJobTitleOption, type Employee, type UserRole } from '@/types';
+import api from '@/lib/axios';
+import { fetchAndHydrateBootstrap } from '@/lib/backendBootstrap';
 import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { effectivePermissions } from '@/types/employeeAccess';
 import { useAuthStore } from '@/stores/authStore';
-import {
-  getEmployeeDirectoryRecord,
-  useEmployeeDirectoryStore,
-} from '@/stores/employeeDirectoryStore';
+import { directoryRecordToMockSource, getEmployeeDirectoryRecord, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
+import { resolveEmployee } from '@/mocks/resolveMockData';
 
 const EmployeePermissionsPanel = lazy(() => import('./EmployeePermissionsPanel'));
-
-/* ─── helpers ─── */
-function generateId(): string {
-  return 'emp-' + Date.now();
-}
-function generateEmpNumber(): string {
-  const nums = useEmployeeDirectoryStore.getState().records
-    .map((employee) => parseInt(employee.employeeNumber.replace(/\D/g, ''), 10))
-    .filter(Boolean);
-  const max = nums.length ? Math.max(...nums) : 0;
-  return 'EMP-' + String(max + 1).padStart(3, '0');
-}
-
-const DEFAULT_DEPT_ID = 'dept-1';
-const DEFAULT_DEPT_NAME = { ar: 'قسم الأشعة المقطعية', en: 'CT Scan Department' };
 
 interface AddForm {
   name: string;
   bn: string;
   code: string;
+  email: string;
   jobTitleId: string;
   phone: string;
   role: 'employee' | 'admin';
 }
 const emptyForm = (): AddForm => ({
-  name: '', bn: '', code: '', jobTitleId: JOB_TITLE_OPTIONS[0].id, phone: '', role: 'employee',
+  name: '', bn: '', code: '', email: '', jobTitleId: JOB_TITLE_OPTIONS[0].id, phone: '', role: 'employee',
 });
 
-interface AddedInfo { empNumber: string; name: string }
+interface AddedInfo { empNumber: string; name: string; email: string }
 
 export default function EmployeesPage() {
   const { t } = useTranslation(['employees', 'common', 'forms', 'access']);
   const { language } = useLanguage();
-  const { employees: allEmployees } = useMockData();
+  const employeeRecords = useEmployeeDirectoryStore((state) => state.records);
   const { addToast } = useToast();
   const user = useAuthStore((state) => state.user);
-  const actor = user;
   const roleLabels: Record<UserRole, string> = {
     super_admin: t('common:role.superAdmin', 'Super Admin'),
     admin: t('common:role.admin', 'Admin'),
     employee: t('common:role.employee', 'Employee'),
   };
   const accessProfiles = useEmployeeAccessStore((state) => state.profiles);
-  const addDirectoryEmployee = useEmployeeDirectoryStore((state) => state.addEmployee);
-  const updateDirectoryEmployee = useEmployeeDirectoryStore((state) => state.updateEmployee);
-  const setDirectoryActive = useEmployeeDirectoryStore((state) => state.setActive);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const deptIdFilter = searchParams.get('departmentId') || '';
@@ -89,18 +68,23 @@ export default function EmployeesPage() {
   const [editName, setEditName] = useState<string>('');
   const [editBn, setEditBn] = useState<string>('');
   const [editCode, setEditCode] = useState<string>('');
+  const [editEmail, setEditEmail] = useState<string>('');
   const [editJobTitleId, setEditJobTitleId] = useState<string>(JOB_TITLE_OPTIONS[0].id);
   const [addedInfo, setAddedInfo] = useState<AddedInfo | null>(null);  // confirmation screen
   const [form, setForm] = useState<AddForm>(emptyForm());
   const [formErrors, setFormErrors] = useState<Partial<AddForm>>({});
-  const [copied, setCopied] = useState<'num' | 'pw' | null>(null);
+  const [copied, setCopied] = useState<'num' | null>(null);
   const [resetPasswordDialog, setResetPasswordDialog] = useState<Employee | null>(null);
   const [permissionsEmployee, setPermissionsEmployee] = useState<Employee | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [busyEmployeeId, setBusyEmployeeId] = useState<string | null>(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   /* ─── derived data ─── */
   const employees = useMemo(
-    () => allEmployees,
-    [allEmployees],
+    () => employeeRecords.map((record) => resolveEmployee(directoryRecordToMockSource(record), language)),
+    [employeeRecords, language],
   );
   const filtered = useMemo(
     () => employees.filter((employee) => {
@@ -124,39 +108,45 @@ export default function EmployeesPage() {
     if (!form.name.trim()) errs.name = t('forms:validation.nameMin');
     if (!form.bn.trim()) errs.bn = t('forms:validation.nameMin', { defaultValue: 'BN required' });
     if (!form.code.trim()) errs.code = t('forms:validation.nameMin');
+    if (!form.email.trim()) errs.email = t('forms:validation.emailRequired', { defaultValue: 'Email is required' });
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = t('forms:validation.invalidEmail', { defaultValue: 'Enter a valid email address' });
     if (!form.jobTitleId) errs.jobTitleId = t('forms:validation.positionMin');
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   /* ─── handlers ─── */
-  const handleAdd = () => {
+  const refreshEmployees = async () => {
+    await fetchAndHydrateBootstrap();
+  };
+
+  const handleAdd = async () => {
     if (!validateForm()) return;
-    const empNumber = form.bn.trim() || generateEmpNumber();
+    const empNumber = form.bn.trim();
     const employeeName = form.name.trim();
     const selectedTitle = JOB_TITLE_OPTIONS.find((t) => t.id === form.jobTitleId) ?? JOB_TITLE_OPTIONS[0];
-    const newSource: MockEmployeeSource = {
-      id: generateId(),
-      name: { ar: employeeName, en: employeeName },
-      email: '',
-      phone: form.phone.trim(),
-      role: 'employee',
-      departmentId: DEFAULT_DEPT_ID,
-      departmentName: DEFAULT_DEPT_NAME,
-      position: { ar: selectedTitle.ar, en: selectedTitle.en },
-      employeeNumber: empNumber,
-      code: form.code.trim().toUpperCase(),
-      isActive: true,
-      createdAt: new Date().toISOString().split('T')[0],
-    };
-    const result = addDirectoryEmployee(newSource, actor?.name);
-    if (!result.ok) {
-      addToast({ type: 'error', title: t('common:toast.error'), message: result.message || result.reason });
-      return;
+    setIsAdding(true);
+    try {
+      await api.post('/employees', {
+        name: employeeName,
+        employeeNumber: empNumber,
+        code: form.code.trim().toUpperCase(),
+        email: form.email.trim(),
+        position: language === 'ar' ? selectedTitle.ar : selectedTitle.en,
+        phone: form.phone.trim(),
+        role: form.role,
+        departmentId: deptIdFilter || undefined,
+      });
+      await refreshEmployees();
+      setAddedInfo({ empNumber, name: employeeName, email: form.email.trim() });
+      setForm(emptyForm());
+      setFormErrors({});
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('common:errorState.sectionMessage');
+      addToast({ type: 'error', title: t('common:toast.error'), message });
+    } finally {
+      setIsAdding(false);
     }
-    setAddedInfo({ empNumber, name: employeeName });
-    setForm(emptyForm());
-    setFormErrors({});
   };
 
   const handleCloseAdd = () => {
@@ -171,21 +161,27 @@ export default function EmployeesPage() {
     setEditName(emp.name || '');
     setEditBn(emp.employeeNumber || '');
     setEditCode(emp.code || '');
+    setEditEmail(emp.email || '');
     setEditJobTitleId(findJobTitleOption(emp.position).id);
     setEditOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    const result = setDirectoryActive(id, false, actor?.name);
-    if (!result.ok) {
-      addToast({ type: 'error', title: t('common:toast.error'), message: result.message || result.reason });
-      return;
+  const handleDelete = async (id: string) => {
+    setBusyEmployeeId(id);
+    try {
+      await api.patch(`/employees/${id}`, { active: false });
+      await refreshEmployees();
+      setDeleteDialog(null);
+      addToast({ type: 'success', title: t('common:toast.deleted'), message: t('employees:management.deleteSuccess') });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('common:errorState.sectionMessage');
+      addToast({ type: 'error', title: t('common:toast.error'), message });
+    } finally {
+      setBusyEmployeeId(null);
     }
-    setDeleteDialog(null);
-    addToast({ type: 'success', title: t('common:toast.deleted'), message: t('employees:management.deleteSuccess') });
   };
 
-  const handleCopy = (text: string, kind: 'num' | 'pw') => {
+  const handleCopy = (text: string, kind: 'num') => {
     navigator.clipboard.writeText(text).catch(() => { });
     setCopied(kind);
     setTimeout(() => setCopied(null), 2000);
@@ -195,12 +191,21 @@ export default function EmployeesPage() {
     setResetPasswordDialog(emp);
   };
 
-  const confirmResetPassword = () => {
+  const confirmResetPassword = async () => {
     if (!resetPasswordDialog) return;
-    setEmployeePassword(resetPasswordDialog.id, '123456');
-    setResetPasswordDialog(null);
-    setEditOpen(false);
-    addToast({ type: 'success', title: t('employees:management.resetPasswordSuccess') });
+    setIsResettingPassword(true);
+    try {
+      await api.post(`/employees/${resetPasswordDialog.id}/reset-password`);
+      await refreshEmployees();
+      setResetPasswordDialog(null);
+      setEditOpen(false);
+      addToast({ type: 'success', title: t('employees:management.resetPasswordSuccess') });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('common:errorState.sectionMessage');
+      addToast({ type: 'error', title: t('common:toast.error'), message });
+    } finally {
+      setIsResettingPassword(false);
+    }
   };
 
   /* ─── table columns ─── */
@@ -286,24 +291,32 @@ export default function EmployeesPage() {
                 value={currentRole}
                 onChange={(e) => {
                   const newRole = e.target.value as UserRole;
-                  const res = useEmployeeDirectoryStore.getState().setRole(emp.id, newRole, user.name);
-                  if (res.ok) {
-                    addToast({
-                      type: 'success',
-                      title: t('common:toast.updated', 'Updated'),
-                      message: t('employees:management.roleUpdated', {
-                        name: emp.name,
-                        role: roleLabels[newRole],
-                      }),
+                  setBusyEmployeeId(emp.id);
+                  void api.patch(`/employees/${emp.id}`, { role: newRole })
+                    .then(async () => {
+                      await refreshEmployees();
+                      addToast({
+                        type: 'success',
+                        title: t('common:toast.updated', 'Updated'),
+                        message: t('employees:management.roleUpdated', {
+                          name: emp.name,
+                          role: roleLabels[newRole],
+                        }),
+                      });
+                    })
+                    .catch((error: unknown) => {
+                      const message = error instanceof Error ? error.message : t('common:errorState.sectionMessage');
+                      addToast({
+                        type: 'error',
+                        title: t('common:toast.error'),
+                        message,
+                      });
+                    })
+                    .finally(() => {
+                      setBusyEmployeeId(null);
                     });
-                  } else {
-                    addToast({
-                      type: 'error',
-                      title: t('common:toast.error'),
-                      message: res.message || res.reason,
-                    });
-                  }
                 }}
+                disabled={busyEmployeeId === emp.id}
                 className="input-field text-xs font-semibold py-1 px-2 h-9 bg-surface-card border-border-subtle hover:border-primary/50 text-text-primary rounded-btn cursor-pointer"
                 title={t('employees:management.changeRole', 'Change user role')}
               >
@@ -316,6 +329,7 @@ export default function EmployeesPage() {
               <button
                 type="button"
                 onClick={() => setPermissionsEmployee(emp)}
+                disabled={busyEmployeeId === emp.id}
                 className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-primary transition-colors hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary/30"
                 aria-label={t('access:permissions.title')}
                 title={t('access:permissions.title')}
@@ -323,21 +337,23 @@ export default function EmployeesPage() {
                 <ShieldCheck className="h-4 w-4" />
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => handleEdit(emp)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
-              aria-label={t('employees:management.editEmployeeAria', { name: emp.name })}
-              title={t('employees:management.editEmployeeAria', { name: emp.name })}
+              <button
+                type="button"
+                onClick={() => handleEdit(emp)}
+                disabled={busyEmployeeId === emp.id}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
+                aria-label={t('employees:management.editEmployeeAria', { name: emp.name })}
+                title={t('employees:management.editEmployeeAria', { name: emp.name })}
             >
               <Edit2 className="w-4 h-4" />
             </button>
-            <button
-              type="button"
-              onClick={() => setDeleteDialog(emp.id)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-danger transition-colors hover:bg-danger-50 focus:outline-none focus:ring-2 focus:ring-danger/30"
-              aria-label={t('employees:management.deleteEmployeeAria', { name: emp.name })}
-              title={t('employees:management.deleteEmployeeAria', { name: emp.name })}
+              <button
+                type="button"
+                onClick={() => setDeleteDialog(emp.id)}
+                disabled={busyEmployeeId === emp.id}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-danger transition-colors hover:bg-danger-50 focus:outline-none focus:ring-2 focus:ring-danger/30"
+                aria-label={t('employees:management.deleteEmployeeAria', { name: emp.name })}
+                title={t('employees:management.deleteEmployeeAria', { name: emp.name })}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -455,17 +471,25 @@ export default function EmployeesPage() {
             value={currentRole}
             onChange={(e) => {
               const newRole = e.target.value as UserRole;
-              const res = useEmployeeDirectoryStore.getState().setRole(emp.id, newRole, user.name);
-              if (res.ok) {
-                addToast({
-                  type: 'success',
-                  title: t('common:toast.updated', 'Updated'),
-                  message: t('employees:management.roleUpdated', { name: emp.name, role: roleLabels[newRole] }),
+              setBusyEmployeeId(emp.id);
+              void api.patch(`/employees/${emp.id}`, { role: newRole })
+                .then(async () => {
+                  await refreshEmployees();
+                  addToast({
+                    type: 'success',
+                    title: t('common:toast.updated', 'Updated'),
+                    message: t('employees:management.roleUpdated', { name: emp.name, role: roleLabels[newRole] }),
+                  });
+                })
+                .catch((error: unknown) => {
+                  const message = error instanceof Error ? error.message : t('common:errorState.sectionMessage');
+                  addToast({ type: 'error', title: t('common:toast.error'), message });
+                })
+                .finally(() => {
+                  setBusyEmployeeId(null);
                 });
-              } else {
-                addToast({ type: 'error', title: t('common:toast.error'), message: res.message || res.reason });
-              }
             }}
+            disabled={busyEmployeeId === emp.id}
             className="input-field text-xs font-semibold py-1 px-2 h-9 bg-surface-card border-border-subtle hover:border-primary/50 text-text-primary rounded-btn cursor-pointer w-full"
             title={t('employees:management.changeRole', 'Change user role')}
           >
@@ -581,19 +605,11 @@ export default function EmployeesPage() {
 
               {/* Default password */}
               <div className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
-                <KeyRound className="w-4 h-4 text-text-secondary flex-shrink-0" />
+                <Mail className="w-4 h-4 text-text-secondary flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-text-secondary">{t('employees:management.defaultPassword')}</p>
-                  <p className="text-sm font-bold text-text-primary font-mono tracking-widest" dir="ltr">123456</p>
+                  <p className="text-xs text-text-secondary">{t('employees:management.setupEmail')}</p>
+                  <p className="text-sm font-semibold text-text-primary" dir="ltr">{addedInfo.email}</p>
                 </div>
-                <button
-                  onClick={() => handleCopy('123456', 'pw')}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  title={t('common:actions.copy', 'Copy')}
-                  aria-label={t('common:actions.copy', 'Copy')}
-                >
-                  {copied === 'pw' ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
-                </button>
               </div>
             </div>
 
@@ -611,7 +627,10 @@ export default function EmployeesPage() {
           /* ── Add form ── */
           <form
             className="space-y-4"
-            onSubmit={(e) => { e.preventDefault(); handleAdd(); }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleAdd();
+            }}
           >
             {/* Name & BN */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -665,19 +684,30 @@ export default function EmployeesPage() {
               />
             </div>
 
-            {/* Default password notice */}
-            <div className="flex items-center gap-2.5 rounded-lg bg-primary-50 border border-primary/20 px-3 py-2.5">
-              <KeyRound className="w-4 h-4 text-primary flex-shrink-0" />
-              <p className="text-xs text-primary font-medium">
-                {t('employees:management.defaultPasswordNotice')}
-              </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input
+                label={t('forms:labels.email', 'Email')}
+                placeholder="employee@hospital.sa"
+                type="email"
+                value={form.email}
+                onChange={(e) => setField('email', e.target.value)}
+                error={formErrors.email}
+                dir="ltr"
+              />
+              <Input
+                label={t('employees:management.columns.phone')}
+                placeholder="0501000000"
+                value={form.phone}
+                onChange={(e) => setField('phone', e.target.value)}
+                dir="ltr"
+              />
             </div>
 
             <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:justify-end">
               <Button variant="secondary" type="button" onClick={handleCloseAdd}>
                 {t('common:actions.cancel')}
               </Button>
-              <Button type="submit" icon={<UserPlus className="w-4 h-4" />}>
+              <Button type="submit" icon={<UserPlus className="w-4 h-4" />} loading={isAdding}>
                 {t('employees:management.addEmployee')}
               </Button>
             </div>
@@ -698,21 +728,27 @@ export default function EmployeesPage() {
             e.preventDefault();
             if (editingEmployee) {
               const selectedTitle = JOB_TITLE_OPTIONS.find((t) => t.id === editJobTitleId) ?? JOB_TITLE_OPTIONS[0];
-              const titleText = language === 'ar' ? selectedTitle.ar : selectedTitle.en;
-              void titleText;
-              const result = updateDirectoryEmployee(editingEmployee.id, {
-                name: { ar: editName.trim(), en: editName.trim() },
+              setIsEditing(true);
+              void api.patch(`/employees/${editingEmployee.id}`, {
+                name: editName.trim(),
                 employeeNumber: editBn.trim(),
                 code: editCode.trim().toUpperCase(),
-                position: { ar: selectedTitle.ar, en: selectedTitle.en },
-              }, actor?.name);
-              if (!result.ok) {
-                addToast({ type: 'error', title: t('common:toast.error', 'Error'), message: result.message || result.reason });
-                return;
-              }
+                email: editEmail.trim(),
+                position: language === 'ar' ? selectedTitle.ar : selectedTitle.en,
+              })
+                .then(async () => {
+                  await refreshEmployees();
+                  setEditOpen(false);
+                  addToast({ type: 'success', title: t('common:toast.saved') });
+                })
+                .catch((error: unknown) => {
+                  const message = error instanceof Error ? error.message : t('common:errorState.sectionMessage');
+                  addToast({ type: 'error', title: t('common:toast.error', 'Error'), message });
+                })
+                .finally(() => {
+                  setIsEditing(false);
+                });
             }
-            setEditOpen(false);
-            addToast({ type: 'success', title: t('common:toast.saved') });
           }}
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -739,6 +775,14 @@ export default function EmployeesPage() {
             dir="ltr"
             required
           />
+          <Input
+            label={t('forms:labels.email', 'Email')}
+            value={editEmail}
+            onChange={(e) => setEditEmail(e.target.value)}
+            type="email"
+            dir="ltr"
+            required
+          />
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1.5">
               {t('forms:labels.jobTitle')}
@@ -756,7 +800,7 @@ export default function EmployeesPage() {
             </select>
           </div>
           <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
-            <Button variant="secondary" type="button" onClick={() => setEditOpen(false)}>
+            <Button variant="secondary" type="button" onClick={() => setEditOpen(false)} disabled={isEditing || isResettingPassword}>
               {t('common:actions.cancel')}
             </Button>
             <Button
@@ -764,11 +808,12 @@ export default function EmployeesPage() {
               variant="secondary"
               icon={<RotateCcw className="w-4 h-4" />}
               onClick={() => editingEmployee && handleResetPassword(editingEmployee)}
+              disabled={isEditing || isResettingPassword}
               className="!text-danger !border-danger/30 hover:!bg-danger-50"
             >
               {t('employees:management.resetPasswordBtn')}
             </Button>
-            <Button type="submit">{t('common:actions.save')}</Button>
+            <Button type="submit" loading={isEditing}>{t('common:actions.save')}</Button>
           </div>
         </form>
       </Modal>
@@ -804,7 +849,7 @@ export default function EmployeesPage() {
                   code: employee.code,
                   fullName: employee.fullName,
                 }))}
-                actorName={actor?.name || 'Administrator'}
+                actorName={user?.name || 'Administrator'}
                 onSaved={() => {
                   addToast({ type: 'success', title: t('common:toast.saved') });
                 }}
@@ -822,18 +867,26 @@ export default function EmployeesPage() {
       <ConfirmDialog
         isOpen={!!deleteDialog}
         onClose={() => setDeleteDialog(null)}
-        onConfirm={() => deleteDialog && handleDelete(deleteDialog)}
+        onConfirm={() => {
+          if (deleteDialog) {
+            void handleDelete(deleteDialog);
+          }
+        }}
         title={t('employees:management.deleteTitle')}
         message={t('employees:management.deleteMessage')}
+        loading={Boolean(deleteDialog && busyEmployeeId === deleteDialog)}
       />
 
       {/* ═══ Reset Password Confirm ═══ */}
       <ConfirmDialog
         isOpen={!!resetPasswordDialog}
         onClose={() => setResetPasswordDialog(null)}
-        onConfirm={confirmResetPassword}
+        onConfirm={() => {
+          void confirmResetPassword();
+        }}
         title={t('employees:management.resetPasswordTitle')}
         message={t('employees:management.resetPasswordMessage', { name: resetPasswordDialog?.name ?? '' })}
+        loading={isResettingPassword}
       />
     </div>
   );

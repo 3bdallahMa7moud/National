@@ -5,6 +5,9 @@ import ProfileIdentityCard from './ProfileIdentityCard';
 import { buildEmployeeScheduleView } from '@/lib/employeeScheduleView';
 import { buildUnifiedOperationalAudit } from '@/lib/operationalAudit';
 import { useAuthStore } from '@/stores/authStore';
+import { useToast } from '@/components/ui/Toast';
+import api from '@/lib/axios';
+import { mapViewerToAuthUser, type ApiViewer } from '@/lib/backendAdapters';
 import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { resolveEffectiveEmployeeAccess } from '@/types/employeeAccess';
@@ -15,28 +18,38 @@ import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 function fmt(date: Date): string { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
 
 export default function ProfilePage() {
-  const { t } = useTranslation('employees');
+  const { t, i18n } = useTranslation('employees');
+  const { addToast } = useToast();
   const user = useAuthStore((state) => state.user);
   const accessProfile = useEmployeeAccessStore((state) => user ? state.profiles[user.id] : undefined);
-  const updateProfile = useAuthStore((state) => state.updateProfile);
-  const changePassword = useAuthStore((state) => state.changePassword);
+  const setUser = useAuthStore((state) => state.setUser);
   const roster = useEmployeeRosterStore((state) => state.employees);
   const matrices = useScheduleMatrixStore((state) => state.matricesByMonth);
   const currentMatrix = useScheduleMatrixStore((state) => state.data);
   const otMonths = useLateScheduleStore((state) => state.publishedRowsByMonth);
   const auditEntries = useOperationalAuditStore((state) => state.entries);
-  const recordAudit = useOperationalAuditStore((state) => state.record);
   if (!user) return null;
 
-  const saveEmail = (email: string) => {
-    const before = user.email;
-    updateProfile({ email });
-    if (before !== email) recordAudit({ actorName: user.name, action: 'update', module: 'profile', entityId: 'email', entityLabel: t('profileView.email'), before, after: email, context: { route: '/profile' } });
+  const saveEmail = async (email: string) => {
+    try {
+      const response = await api.patch<{ user: ApiViewer }>('/profile', { email });
+      const localizedUser = mapViewerToAuthUser(response.data.user, i18n.language === 'ar' ? 'ar' : 'en');
+      setUser(localizedUser);
+      addToast({ type: 'success', title: t('common:toast.saved'), message: t('profileView.email') });
+      return true;
+    } catch {
+      addToast({ type: 'error', title: t('common:toast.error'), message: t('common:errorState.sectionMessage') });
+      return false;
+    }
   };
-  const savePassword = (currentPassword: string, newPassword: string) => {
-    const changed = changePassword(currentPassword, newPassword);
-    if (changed) recordAudit({ actorName: user.name, action: 'update', module: 'profile', entityId: 'password', entityLabel: t('profileView.password'), context: { route: '/profile' } });
-    return changed;
+  const savePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      await api.post('/profile/password', { currentPassword, newPassword });
+      addToast({ type: 'success', title: t('common:toast.saved'), message: t('profileView.password') });
+      return { ok: true };
+    } catch {
+      return { ok: false, error: t('profileView.currentPasswordInvalid') };
+    }
   };
 
   const now = new Date();

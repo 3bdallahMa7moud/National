@@ -8,6 +8,7 @@ import {
   mockShifts,
 } from '@/mocks/sources';
 import { directoryRecordToMockSource, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
+import { useDepartmentStore } from '@/stores/departmentStore';
 import {
   resolveEmployee,
   resolveDepartment,
@@ -24,6 +25,7 @@ export function triggerMockDataChange() {
 export function useMockData() {
   const { language } = useLanguage();
   const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
+  const departmentRecords = useDepartmentStore((state) => state.records);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -35,7 +37,8 @@ export function useMockData() {
   return useMemo(() => {
     void tick;
     const employees = directoryRecords.map((record) => resolveEmployee(directoryRecordToMockSource(record), language));
-    const departments = mockDepartmentsSource.map((d) => resolveDepartment(d, language));
+    const departmentSource = departmentRecords.length > 0 ? departmentRecords : mockDepartmentsSource;
+    const departments = departmentSource.map((d) => resolveDepartment(d, language));
     const notifications = mockNotificationsSource.map((n) => resolveNotification(n, language));
     const auditLog = mockAuditLogSource.map((e) => resolveAuditLog(e, language));
     const shiftTypes = mockShiftTypesSource.map((st) => resolveShiftType(st, language));
@@ -50,5 +53,5 @@ export function useMockData() {
       shiftTypes,
       shifts,
     };
-  }, [directoryRecords, language, tick]);
+  }, [departmentRecords, directoryRecords, language, tick]);
 }

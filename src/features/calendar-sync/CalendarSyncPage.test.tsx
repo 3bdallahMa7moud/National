@@ -5,6 +5,16 @@ import { useAuthStore } from '@/stores/authStore';
 import type { AuthUser } from '@/types';
 import CalendarSyncPage from './CalendarSyncPage';
 
+const mocks = vi.hoisted(() => ({
+  get: vi.fn(),
+}));
+
+vi.mock('@/lib/axios', () => ({
+  default: {
+    get: mocks.get,
+  },
+}));
+
 const employee: AuthUser = {
   id: 'calendar-employee',
   name: 'Calendar Employee',
@@ -21,6 +31,7 @@ describe('CalendarSyncPage', () => {
   beforeEach(async () => {
     await changeLanguage('en');
     writeText.mockReset();
+    mocks.get.mockReset();
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },
@@ -43,11 +54,16 @@ describe('CalendarSyncPage', () => {
   });
 
   it('shows the signed-in employee link and copies exactly what is displayed', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        feedUrl: 'https://localhost/api/calendar-sync/feed/secure-token.ics',
+      },
+    });
     render(<CalendarSyncPage />);
 
     const expectedUrl =
-      'https://hospital.sa/api/v1/schedule/sync/ical/calendar-employee/ct-department.ics';
-    expect(screen.getByDisplayValue(expectedUrl)).toBeInTheDocument();
+      'https://localhost/api/calendar-sync/feed/secure-token.ics';
+    expect(await screen.findByDisplayValue(expectedUrl)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
 
@@ -55,10 +71,15 @@ describe('CalendarSyncPage', () => {
     expect(screen.getByRole('button', { name: 'Copied!' })).toBeInTheDocument();
   });
 
-  it('switches between calendar-provider instructions', () => {
+  it('switches between calendar-provider instructions', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        feedUrl: 'https://localhost/api/calendar-sync/feed/secure-token.ics',
+      },
+    });
     render(<CalendarSyncPage />);
 
-    expect(screen.getByText('Open Google Calendar on your computer')).toBeInTheDocument();
+    expect(await screen.findByText('Open Google Calendar on your computer')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Apple Calendar' }));
 
     expect(screen.getByText('Open the Calendar app on iPhone or Mac')).toBeInTheDocument();

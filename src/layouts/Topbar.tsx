@@ -39,8 +39,9 @@ export default function Topbar() {
 
   const handleLogout = () => {
     setShowUserMenu(false);
-    logout();
-    navigate('/login');
+    void logout().finally(() => {
+      navigate('/login');
+    });
   };
 
   const today = new Date().toLocaleDateString(dateLocale, {

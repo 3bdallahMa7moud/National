@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest';
 import React from 'react';
 import { ShiftRequestCreateWizard } from './ShiftRequestCreateWizard';
@@ -240,10 +240,18 @@ describe('ShiftRequestCreateWizard', () => {
     expect(createRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('supports selecting range mode for multiple replace requests by an admin', () => {
+  it('supports selecting range mode for multiple replace requests by an admin', async () => {
     const onClose = vi.fn();
     const onResult = vi.fn();
-    const createRequest = vi.fn().mockReturnValue({ ok: true, request: { id: 'req-1' } });
+    const createRequest = vi.fn().mockResolvedValue({ ok: true, request: { id: 'req-1' } });
+    const createBatchRequests = vi.fn().mockResolvedValue({
+      ok: true,
+      createdCount: 2,
+      results: [
+        { ok: true, request: { id: 'req-1' } },
+        { ok: true, request: { id: 'req-2' } },
+      ],
+    });
 
     render(
       <ShiftRequestCreateWizard
@@ -258,6 +266,7 @@ describe('ShiftRequestCreateWizard', () => {
         user={user}
         initialAssignment={null}
         createRequest={createRequest}
+        createBatchRequests={createBatchRequests}
       />
     );
 
@@ -290,8 +299,10 @@ describe('ShiftRequestCreateWizard', () => {
     expect(submitBtn).not.toBeDisabled();
     fireEvent.click(submitBtn);
 
-    // Verify onResult was called
-    expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
+    await waitFor(() => {
+      expect(createBatchRequests).toHaveBeenCalledTimes(1);
+      expect(onResult).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
+    });
   });
 
   it('safely handles null, valid, changed valid, and null user transitions', () => {

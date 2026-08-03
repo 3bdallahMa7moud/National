@@ -8,7 +8,8 @@ import LoginPage from './LoginPage';
 
 const mocks = vi.hoisted(() => ({
   login: vi.fn(),
-  mockLogin: vi.fn(),
+  post: vi.fn(),
+  fetchAndHydrateBootstrap: vi.fn(),
   syncAuthUserLocale: vi.fn(),
 }));
 
@@ -19,8 +20,14 @@ vi.mock('@/stores/authStore', () => ({
   syncAuthUserLocale: mocks.syncAuthUserLocale,
 }));
 
-vi.mock('@/mocks/mockData', () => ({
-  mockLogin: mocks.mockLogin,
+vi.mock('@/lib/axios', () => ({
+  default: {
+    post: mocks.post,
+  },
+}));
+
+vi.mock('@/lib/backendBootstrap', () => ({
+  fetchAndHydrateBootstrap: mocks.fetchAndHydrateBootstrap,
 }));
 
 const adminUser: AuthUser = {
@@ -38,6 +45,7 @@ function renderLogin() {
       <MemoryRouter initialEntries={['/login']}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<p>Register destination</p>} />
           <Route path="/forgot-password" element={<p>Recovery destination</p>} />
           <Route path="/admin/dashboard" element={<p>Admin destination</p>} />
           <Route path="/employee/dashboard" element={<p>Employee destination</p>} />
@@ -47,21 +55,46 @@ function renderLogin() {
   );
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('LoginPage', () => {
   beforeEach(async () => {
     await changeLanguage('en');
     mocks.login.mockReset();
-    mocks.mockLogin.mockReset();
+    mocks.post.mockReset();
+    mocks.fetchAndHydrateBootstrap.mockReset();
     mocks.syncAuthUserLocale.mockReset();
   });
 
   afterEach(cleanup);
 
   it('fills a demo account and signs an administrator into the admin area', async () => {
-    mocks.mockLogin.mockReturnValue({
-      user: adminUser,
-      token: 'deterministic-test-token',
+    mocks.post.mockResolvedValue({
+      data: {
+        user: {
+          id: adminUser.id,
+          employeeNumber: 'EMP-003',
+          code: 'ADM',
+          role: 'admin',
+          email: adminUser.email,
+          phone: '0500000000',
+          isActive: true,
+          name: { en: adminUser.name, ar: 'مشرف' },
+          department: { id: adminUser.departmentId, name: { en: adminUser.departmentName, ar: 'القسم' } },
+          position: { en: 'Admin', ar: 'مشرف' },
+          access: null,
+        },
+      },
     });
+    mocks.fetchAndHydrateBootstrap.mockResolvedValue(undefined);
     renderLogin();
 
     fireEvent.click(screen.getByText('EMP-003').closest('button') as HTMLButtonElement);
@@ -72,12 +105,49 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 
     expect(await screen.findByText('Admin destination', {}, { timeout: 2000 })).toBeInTheDocument();
-    expect(mocks.mockLogin).toHaveBeenCalledWith('EMP-003', '123456');
-    expect(mocks.login).toHaveBeenCalledWith(adminUser, 'deterministic-test-token');
+    expect(mocks.post).toHaveBeenCalledWith('/auth/login', { identifier: 'EMP-003', password: '123456' });
+    expect(mocks.fetchAndHydrateBootstrap).toHaveBeenCalledTimes(1);
+    expect(mocks.login).toHaveBeenCalledWith(expect.objectContaining(adminUser));
+  });
+
+  it('navigates immediately after login without waiting for bootstrap hydration to finish', async () => {
+    const bootstrap = deferred<void>();
+    mocks.post.mockResolvedValue({
+      data: {
+        user: {
+          id: adminUser.id,
+          employeeNumber: 'EMP-003',
+          code: 'ADM',
+          role: 'admin',
+          email: adminUser.email,
+          phone: '0500000000',
+          isActive: true,
+          name: { en: adminUser.name, ar: 'مشرف' },
+          department: { id: adminUser.departmentId, name: { en: adminUser.departmentName, ar: 'القسم' } },
+          position: { en: 'Admin', ar: 'مشرف' },
+          access: null,
+        },
+      },
+    });
+    mocks.fetchAndHydrateBootstrap.mockReturnValue(bootstrap.promise);
+    renderLogin();
+
+    fireEvent.change(screen.getByLabelText('Email or Username'), {
+      target: { value: 'EMP-003' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    expect(await screen.findByText('Admin destination', {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(mocks.fetchAndHydrateBootstrap).toHaveBeenCalledTimes(1);
+
+    bootstrap.resolve();
   });
 
   it('shows invalid-credential feedback and does not authenticate', async () => {
-    mocks.mockLogin.mockReturnValue(null);
+    mocks.post.mockRejectedValue(new Error('Invalid credentials'));
     renderLogin();
 
     fireEvent.change(screen.getByLabelText('Email or Username'), {
@@ -91,6 +161,37 @@ describe('LoginPage', () => {
     expect(
       await screen.findByText(
         'Invalid email/username or password',
+        {},
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.login).not.toHaveBeenCalled();
+  });
+
+  it('shows the verification-required message for unverified accounts', async () => {
+    mocks.post.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          error: {
+            code: 'EMAIL_VERIFICATION_REQUIRED',
+          },
+        },
+      },
+    });
+    renderLogin();
+
+    fireEvent.change(screen.getByLabelText('Email or Username'), {
+      target: { value: 'noura.signup@hospital.sa' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'signup-pass-123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    expect(
+      await screen.findByText(
+        'You must verify your email before signing in.',
         {},
         { timeout: 2000 },
       ),
@@ -113,5 +214,11 @@ describe('LoginPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Forgot Password?' }));
     expect(screen.getByText('Recovery destination')).toBeInTheDocument();
+  });
+
+  it('navigates to the registration page from login', () => {
+    renderLogin();
+    fireEvent.click(screen.getByRole('link', { name: 'Create account' }));
+    expect(screen.getByText('Register destination')).toBeInTheDocument();
   });
 });

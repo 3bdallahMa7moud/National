@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ArrowLeftRight, Check, Clock3, Plus, X } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
@@ -6,11 +6,15 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { useToast } from '@/components/ui/Toast';
+import {
+  acceptShiftRequest,
+  cancelShiftRequest,
+  rejectShiftRequestByRecipient,
+} from '@/lib/shiftRequestApi';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { getEmployeeDirectoryRecord } from '@/stores/employeeDirectoryStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
-import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
 import { ShiftRequestCreateModal } from './ShiftRequestsPage';
 import {
   resolveEffectiveEmployeeAccess,
@@ -104,16 +108,9 @@ export default function EmployeeShiftRequestsPage() {
     (state) => (user ? state.profiles[user.id] : undefined),
   );
   const visibleForUser = useShiftRequestStore((state) => state.visibleForUser);
-  const expirePending = useShiftRequestStore((state) => state.expirePending);
 
   const [tab, setTab] = useState<TabKey>('my');
   const [createOpen, setCreateOpen] = useState(false);
-
-  useEffect(() => {
-    useShiftRequestStore.getState().reloadFromStorage();
-    useTargetedNotificationStore.getState().reloadFromStorage();
-    expirePending();
-  }, [expirePending, user]);
 
   if (!user) return null;
 
@@ -326,12 +323,10 @@ function RequestCard({
   showIncomingActions: boolean;
 }) {
   const { t, i18n } = useTranslation(['shiftRequests']);
-  const accept = useShiftRequestStore((state) => state.acceptByRecipient);
-  const rejectRecipient = useShiftRequestStore((state) => state.rejectByRecipient);
-  const cancel = useShiftRequestStore((state) => state.cancelByRequester);
   const accessProfile = useEmployeeAccessStore((state) => state.profiles[user.id]);
 
   const [showTimeline, setShowTimeline] = useState(false);
+  const [actionPending, setActionPending] = useState<string | null>(null);
 
   const isRecipient = request.recipient.accountId === user.id;
   const isRequester = request.requester.accountId === user.id;
@@ -343,6 +338,20 @@ function RequestCard({
     resolveEffectiveEmployeeAccess(user, accessProfile).permissions['schedule.requests.cancelOwn'];
   const requesterName = requestPartyName(request.requester, i18n.language);
   const recipientName = requestPartyName(request.recipient, i18n.language);
+
+  async function runAction(
+    actionKey: string,
+    callback: () => Promise<ShiftRequestMutationResult>,
+    actionType: 'accepted' | 'rejected' | 'cancelled',
+  ) {
+    if (actionPending) return;
+    setActionPending(actionKey);
+    try {
+      report(await callback(), actionType);
+    } finally {
+      setActionPending(null);
+    }
+  }
 
   return (
     <Card className="space-y-4">
@@ -460,7 +469,10 @@ function RequestCard({
             <Button
               size="sm"
               icon={<Check className="h-4 w-4" />}
-              onClick={() => report(accept(request.id, user.id, user.name), 'accepted')}
+              disabled={Boolean(actionPending)}
+              onClick={() => {
+                void runAction('accept', () => acceptShiftRequest(request.id), 'accepted');
+              }}
             >
               {t('shiftRequests:accept')}
             </Button>
@@ -468,7 +480,10 @@ function RequestCard({
               size="sm"
               variant="danger"
               icon={<X className="h-4 w-4" />}
-              onClick={() => report(rejectRecipient(request.id, user.id, user.name), 'rejected')}
+              disabled={Boolean(actionPending)}
+              onClick={() => {
+                void runAction('reject', () => rejectShiftRequestByRecipient(request.id), 'rejected');
+              }}
             >
               {t('shiftRequests:reject')}
             </Button>
@@ -482,7 +497,10 @@ function RequestCard({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => report(cancel(request.id, user.id, user.name), 'cancelled')}
+              disabled={Boolean(actionPending)}
+              onClick={() => {
+                void runAction('cancel', () => cancelShiftRequest(request.id), 'cancelled');
+              }}
             >
               {t('shiftRequests:cancel')}
             </Button>

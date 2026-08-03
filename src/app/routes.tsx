@@ -13,6 +13,7 @@ import DocumentTitle from './DocumentTitle';
 import LoginPage from '@/features/auth/LoginPage';
 
 const AppShell = lazy(() => import('@/layouts/AppShell'));
+const RegisterPage = lazy(() => import('@/features/auth/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'));
 const NotFoundPage = lazy(() => import('@/features/auth/NotFoundPage'));
 const ForbiddenPage = lazy(() => import('@/features/auth/ForbiddenPage'));
@@ -73,6 +74,13 @@ export const router = createBrowserRouter([
     path: '/login',
     element: titledElement(
       <LoginRouteGuard>{lazyElement(<LoginPage />)}</LoginRouteGuard>,
+    ),
+    errorElement: <RouteErrorFallback />,
+  },
+  {
+    path: '/register',
+    element: titledElement(
+      <LoginRouteGuard>{lazyElement(<RegisterPage />)}</LoginRouteGuard>,
     ),
     errorElement: <RouteErrorFallback />,
   },

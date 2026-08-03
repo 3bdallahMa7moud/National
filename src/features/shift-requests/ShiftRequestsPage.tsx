@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ArrowLeftRight, Check, Clock3, Plus, X } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
@@ -9,10 +9,18 @@ import Modal from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { getStoredLanguage } from '@/i18n/constants';
 import { listPublishedAssignmentsForDepartment, listPublishedAssignmentsForEmployee } from '@/lib/shiftAssignmentGateway';
+import {
+  acceptShiftRequest,
+  approveShiftRequest,
+  cancelShiftRequest,
+  createShiftRequest,
+  createShiftRequestBatch,
+  rejectShiftRequestByAdmin,
+  rejectShiftRequestByRecipient,
+} from '@/lib/shiftRequestApi';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
-import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
 import { getEmployeeDirectoryRecord, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import { ShiftRequestCreateWizard } from './components/ShiftRequestCreateWizard';
 import { effectivePermissions, resolveEffectiveEmployeeAccess, type EmployeeAccessProfile } from '@/types/employeeAccess';
@@ -108,16 +116,9 @@ export default function ShiftRequestsPage() {
   const requests = useShiftRequestStore((state) => state.requests);
   const accessProfile = useEmployeeAccessStore((state) => user ? state.profiles[user.id] : undefined);
   const visibleForUser = useShiftRequestStore((state) => state.visibleForUser);
-  const expirePending = useShiftRequestStore((state) => state.expirePending);
   const [filter, setFilter] = useState<RequestFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [createOpen, setCreateOpen] = useState(false);
-
-  useEffect(() => {
-    useShiftRequestStore.getState().reloadFromStorage();
-    useTargetedNotificationStore.getState().reloadFromStorage();
-    expirePending();
-  }, [expirePending, user]);
 
   let visibleForAccount: ShiftRequest[] = [];
   if (user) {
@@ -263,15 +264,11 @@ function RequestCard({
   ): boolean;
 }) {
   const { t, i18n } = useTranslation(['shiftRequests']);
-  const accept = useShiftRequestStore((state) => state.acceptByRecipient);
-  const rejectRecipient = useShiftRequestStore((state) => state.rejectByRecipient);
-  const cancel = useShiftRequestStore((state) => state.cancelByRequester);
-  const approve = useShiftRequestStore((state) => state.approveByAdmin);
-  const rejectAdmin = useShiftRequestStore((state) => state.rejectByAdmin);
   const [showTimeline, setShowTimeline] = useState(false);
   const [overridePending, setOverridePending] = useState(false);
   const [reason, setReason] = useState<ShiftRequestAdminRejectionReason>('operational_need');
   const [note, setNote] = useState('');
+  const [actionPending, setActionPending] = useState<string | null>(null);
   const accessProfile = useEmployeeAccessStore((state) => state.profiles[user.id]);
 
   const isRecipient = request.recipient.accountId === user.id;
@@ -283,6 +280,27 @@ function RequestCard({
     && resolveEffectiveEmployeeAccess(user, accessProfile).permissions['schedule.requests.cancelOwn'];
   const requesterName = requestPartyName(request.requester, i18n.language);
   const recipientName = requestPartyName(request.recipient, i18n.language);
+
+  async function runAction(
+    actionKey: string,
+    callback: () => Promise<ShiftRequestMutationResult>,
+    actionType: Parameters<typeof report>[1],
+  ) {
+    if (actionPending) return;
+    setActionPending(actionKey);
+    try {
+      const result = await callback();
+      if (actionType === 'approved' && !result.ok && result.reason === 'conflict_requires_override') {
+        setOverridePending(true);
+      }
+      if (actionType === 'overrideApproved' && result.ok) {
+        setOverridePending(false);
+      }
+      report(result, actionType);
+    } finally {
+      setActionPending(null);
+    }
+  }
 
   return (
     <Card className="space-y-4">
@@ -367,16 +385,22 @@ function RequestCard({
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
         {isRecipient && canRespond && request.status === 'pending_recipient' && (
           <>
-            <Button size="sm" icon={<Check className="h-4 w-4" />} onClick={() => report(accept(request.id, user.id, user.name), 'accepted')}>
+            <Button size="sm" icon={<Check className="h-4 w-4" />} disabled={Boolean(actionPending)} onClick={() => {
+              void runAction('accept', () => acceptShiftRequest(request.id), 'accepted');
+            }}>
               {t('shiftRequests:accept')}
             </Button>
-            <Button size="sm" variant="danger" icon={<X className="h-4 w-4" />} onClick={() => report(rejectRecipient(request.id, user.id, user.name), 'rejected')}>
+            <Button size="sm" variant="danger" icon={<X className="h-4 w-4" />} disabled={Boolean(actionPending)} onClick={() => {
+              void runAction('reject', () => rejectShiftRequestByRecipient(request.id), 'rejected');
+            }}>
               {t('shiftRequests:reject')}
             </Button>
           </>
         )}
         {isRequester && canCancel && (request.status === 'pending_recipient' || request.status === 'pending_admin') && (
-          <Button size="sm" variant="secondary" onClick={() => report(cancel(request.id, user.id, user.name), 'cancelled')}>
+          <Button size="sm" variant="secondary" disabled={Boolean(actionPending)} onClick={() => {
+            void runAction('cancel', () => cancelShiftRequest(request.id), 'cancelled');
+          }}>
             {t('shiftRequests:cancel')}
           </Button>
         )}
@@ -385,18 +409,17 @@ function RequestCard({
             {request.status === 'pending_admin' && (
               <Button
                 size="sm"
+                disabled={Boolean(actionPending)}
                 onClick={() => {
-                  const result = approve(request.id, user.id, user.name, false);
-                  if (!result.ok && result.reason === 'conflict_requires_override') setOverridePending(true);
-                  report(result, 'approved');
+                  void runAction('approve', () => approveShiftRequest(request.id, false), 'approved');
                 }}
               >
                 {t('shiftRequests:approve')}
               </Button>
             )}
             {request.status === 'pending_admin' && overridePending && (
-              <Button size="sm" variant="danger" onClick={() => {
-                if (report(approve(request.id, user.id, user.name, true), 'overrideApproved')) setOverridePending(false);
+              <Button size="sm" variant="danger" disabled={Boolean(actionPending)} onClick={() => {
+                void runAction('approve-override', () => approveShiftRequest(request.id, true), 'overrideApproved');
               }}>
                 {t('shiftRequests:approveOverride')}
               </Button>
@@ -423,13 +446,13 @@ function RequestCard({
                 required
               />
             )}
-            <Button size="sm" variant="danger" onClick={() => report(rejectAdmin(
-              request.id,
-              user.id,
-              user.name,
-              reason,
-              reason === 'other' ? note : undefined,
-            ), 'rejectAdmin')}>
+            <Button size="sm" variant="danger" disabled={Boolean(actionPending)} onClick={() => {
+              void runAction(
+                'reject-admin',
+                () => rejectShiftRequestByAdmin(request.id, reason, reason === 'other' ? note : undefined),
+                'rejectAdmin',
+              );
+            }}>
               {t('shiftRequests:rejectAdmin')}
             </Button>
           </>
@@ -495,7 +518,6 @@ export function ShiftRequestCreateModal({
   const user = useAuthStore((state) => state.user);
   const profiles = useEmployeeAccessStore((state) => state.profiles);
   const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
-  const createRequest = useShiftRequestStore((state) => state.createRequest);
 
   const isAdmin = isAdminOrSuperAdmin(user);
   const currentAccess = user ? resolveEffectiveEmployeeAccess(user, profiles[user.id]) : null;
@@ -547,7 +569,8 @@ export function ShiftRequestCreateModal({
       candidateProfiles={candidateProfiles}
       user={user}
       initialAssignment={initialAssignment ?? null}
-      createRequest={createRequest}
+      createRequest={createShiftRequest}
+      createBatchRequests={createShiftRequestBatch}
     />
   );
 }

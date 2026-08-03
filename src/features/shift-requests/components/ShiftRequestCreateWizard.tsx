@@ -31,7 +31,6 @@ import type {
 import type { EmployeeAccessProfile } from '@/types/employeeAccess';
 import { isAdminOrSuperAdmin, type UserRole } from '@/types';
 import { getEmployeeDirectoryRecord } from '@/stores/employeeDirectoryStore';
-import { useShiftRequestStore } from '@/stores/shiftRequestStore';
 import { localizeRowLabel } from '@/lib/scheduleMatrixLocale';
 import type { Language } from '@/i18n/constants';
 
@@ -52,7 +51,12 @@ export interface ShiftRequestCreateWizardProps {
     recipientAccountId: string;
     requesterAssignment: ShiftAssignmentRef;
     offeredAssignment?: ShiftAssignmentRef;
-  }) => ShiftRequestMutationResult;
+  }) => Promise<ShiftRequestMutationResult>;
+  createBatchRequests?: (inputs: CreateShiftRequestInput[]) => Promise<{
+    ok: boolean;
+    createdCount: number;
+    results: ShiftRequestMutationResult[];
+  }>;
 }
 
 function accountName(accountId: string, language: string): string {
@@ -91,10 +95,11 @@ function ShiftRequestCreateWizardContent({
   user,
   initialAssignment,
   createRequest,
+  createBatchRequests,
 }: ShiftRequestCreateWizardContentProps) {
   const { t, i18n } = useTranslation(['shiftRequests', 'common']);
   const isRtl = i18n.language.startsWith('ar');
-  const createBatchRequestsStore = useShiftRequestStore((state) => state.createBatchRequests);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [type, setType] = useState<ShiftRequestType>(
     canExchange ? 'exchange' : canReplace ? 'replace' : 'exchange',
@@ -247,10 +252,15 @@ function ShiftRequestCreateWizardContent({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (requesterAssignmentsSelected.length === 0 || !recipientProfile || hasConflict) return;
-    if (type === 'exchange' && offeredAssignmentsSelected.length === 0) return;
+    if (
+      isSubmitting
+      || requesterAssignmentsSelected.length === 0
+      || !recipientProfile
+      || hasConflict
+      || (type === 'exchange' && offeredAssignmentsSelected.length === 0)
+    ) return;
 
     let inputs: CreateShiftRequestInput[] = [];
 
@@ -281,17 +291,30 @@ function ShiftRequestCreateWizardContent({
 
     if (inputs.length === 0) return;
 
-    if (inputs.length === 1 && inputs[0]) {
-      onResult(createRequest(inputs[0]));
-    } else {
-      const batchRes = createBatchRequestsStore(inputs);
-      if (batchRes.ok && batchRes.results.find((r) => r.ok)) {
-        const firstSuccess = batchRes.results.find((r) => r.ok)!;
-        onResult(firstSuccess);
+    setIsSubmitting(true);
+    try {
+      if (inputs.length === 1 && inputs[0]) {
+        onResult(await createRequest(inputs[0]));
       } else {
-        const firstFail = batchRes.results.find((r) => !r.ok);
-        onResult(firstFail || { ok: false, reason: 'storage_error' });
+        const batchRes = createBatchRequests
+          ? await createBatchRequests(inputs)
+          : await (async () => {
+            const results = await Promise.all(inputs.map((input) => createRequest(input)));
+            return {
+              ok: results.some((result) => result.ok),
+              createdCount: results.filter((result) => result.ok).length,
+              results,
+            };
+          })();
+        if (batchRes.ok && batchRes.results.find((result) => result.ok)) {
+          onResult(batchRes.results.find((result) => result.ok) ?? { ok: false, reason: 'storage_error' });
+        } else {
+          const firstFail = batchRes.results.find((result) => !result.ok);
+          onResult(firstFail || { ok: false, reason: 'storage_error' });
+        }
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -508,19 +531,19 @@ function ShiftRequestCreateWizardContent({
           <div className="flex items-center justify-between border-t border-border-subtle pt-4">
             <div>
               {stepIndex > 0 ? (
-                <Button type="button" variant="secondary" onClick={handleBack} className="gap-1.5">
+                <Button type="button" variant="secondary" onClick={handleBack} className="gap-1.5" disabled={isSubmitting}>
                   {isRtl ? <ArrowRight className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
                   {t('shiftRequests:wizard.back')}
                 </Button>
               ) : (
-                <Button type="button" variant="secondary" onClick={onClose}>
+                <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
                   {t('shiftRequests:form.cancel')}
                 </Button>
               )}
             </div>
             <div className="flex items-center gap-2">
               {stepIndex < totalSteps - 1 ? (
-                <Button type="button" variant="primary" onClick={handleNext} disabled={!canGoNext()} className="gap-1.5">
+                <Button type="button" variant="primary" onClick={handleNext} disabled={!canGoNext() || isSubmitting} className="gap-1.5">
                   {t('shiftRequests:wizard.next')}
                   {isRtl ? <ArrowLeft className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
                 </Button>
@@ -530,6 +553,7 @@ function ShiftRequestCreateWizardContent({
                   variant="primary"
                   onClick={handleSubmit}
                   disabled={
+                    isSubmitting ||
                     requesterAssignmentsSelected.length === 0 ||
                     !recipientProfile ||
                     (type === 'exchange' && offeredAssignmentsSelected.length === 0) ||
@@ -537,8 +561,10 @@ function ShiftRequestCreateWizardContent({
                   }
                   className="gap-1.5 bg-success-600 hover:bg-success-700"
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                  {requesterAssignmentsSelected.length > 1
+                  {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {isSubmitting
+                    ? t('common:loading')
+                    : requesterAssignmentsSelected.length > 1
                     ? (i18n.language.startsWith('ar') ? `تقديم ${requesterAssignmentsSelected.length} طلبات` : `Submit ${requesterAssignmentsSelected.length} Requests`)
                     : t('shiftRequests:wizard.submit')}
                 </Button>

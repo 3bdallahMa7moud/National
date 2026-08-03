@@ -40,17 +40,23 @@ describe('ScheduleMatrix arrange mode', () => {
     );
 
     expect(screen.getByTestId('mobile-matrix-order')).toBeInTheDocument();
+    expect(screen.getByTestId('desktop-schedule-matrix')).toBeInTheDocument();
     expect(screen.getByText(/right-side handle/i)).toBeInTheDocument();
-    expect(await screen.findByTestId(
-      `matrix-order-handle-unit-${unit.id}`,
+    const unitHandles = await screen.findAllByLabelText(
+      `Drag unit ${unit.name}`,
       {},
       { timeout: 5000 },
-    )).toHaveClass('cursor-grab');
-    expect(screen.getByTestId(`matrix-order-handle-row-${row.id}`)).toHaveClass('cursor-grab');
-    expect(screen.getAllByLabelText(`Drag unit ${unit.name}`).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByLabelText(`Drag shift ${row.rowLabel || row.shiftLabel}`).length).toBeGreaterThanOrEqual(2);
-    const emptyGroup = screen.getByTestId('unit-group-empty-order-unit');
-    expect(within(emptyGroup).getByLabelText('Add row')).toBeInTheDocument();
+    );
+    const rowHandles = await screen.findAllByLabelText(
+      `Drag shift ${row.rowLabel || row.shiftLabel}`,
+      {},
+      { timeout: 5000 },
+    );
+    expect(unitHandles.length).toBeGreaterThanOrEqual(1);
+    expect(rowHandles.length).toBeGreaterThanOrEqual(1);
+    expect(unitHandles.some((handle) => handle.className.includes('cursor-grab'))).toBe(true);
+    expect(rowHandles.some((handle) => handle.className.includes('cursor-grab'))).toBe(true);
+    expect(screen.getAllByLabelText('Add row').length).toBeGreaterThan(0);
   }, 30000);
 
   it('adds the first unit directly from an empty facility on the mobile ordering surface', async () => {

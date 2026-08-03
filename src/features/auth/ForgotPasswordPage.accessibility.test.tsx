@@ -5,10 +5,21 @@ import { ThemeProvider } from '@/hooks/useTheme';
 import { expectNoAxeViolations } from '@/test/axe';
 import ForgotPasswordPage from './ForgotPasswordPage';
 
+const mocks = vi.hoisted(() => ({
+  post: vi.fn(),
+}));
+
+vi.mock('@/lib/axios', () => ({
+  default: {
+    post: mocks.post,
+  },
+}));
+
 describe('ForgotPasswordPage accessibility', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    mocks.post.mockReset();
   });
 
   it('has no detectable axe violations in its initial state', async () => {
@@ -24,7 +35,24 @@ describe('ForgotPasswordPage accessibility', () => {
   });
 
   it('names and groups OTP digits, connects errors, and names password icon buttons', async () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0);
+    mocks.post
+      .mockResolvedValueOnce({
+        data: {
+          ok: true,
+          accountFound: true,
+          hasEmail: true,
+          maskedEmail: 'ad*****@hospital.sa',
+          userId: 'user-admin',
+          displayName: { en: 'Admin User', ar: 'مدير النظام' },
+          devCode: '100000',
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ok: true,
+        },
+      });
+
     render(
       <ThemeProvider>
         <MemoryRouter>

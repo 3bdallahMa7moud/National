@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
@@ -19,10 +19,13 @@ import ErrorBoundary from '@/components/common/ErrorBoundary';
 import Modal from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { getStoredLanguage } from '@/i18n/constants';
+import {
+  approveShiftRequest,
+  rejectShiftRequestByAdmin,
+} from '@/lib/shiftRequestApi';
 import { useAuthStore } from '@/stores/authStore';
 import { getEmployeeDirectoryRecord } from '@/stores/employeeDirectoryStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
-import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
 import { ShiftRequestCreateModal } from './ShiftRequestsPage';
 import type {
   ShiftRequest,
@@ -145,9 +148,6 @@ export default function AdminShiftRequestsPage() {
   const { addToast } = useToast();
   const user = useAuthStore((state) => state.user);
   const requests = useShiftRequestStore((state) => state.requests);
-  const expirePending = useShiftRequestStore((state) => state.expirePending);
-  const approveByAdmin = useShiftRequestStore((state) => state.approveByAdmin);
-  const rejectByAdmin = useShiftRequestStore((state) => state.rejectByAdmin);
 
   /* ---- local ui state ---- */
   const [search, setSearch] = useState('');
@@ -161,12 +161,7 @@ export default function AdminShiftRequestsPage() {
   const [rejectNote, setRejectNote] = useState('');
   const [overridePendingId, setOverridePendingId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-
-  useEffect(() => {
-    useShiftRequestStore.getState().reloadFromStorage();
-    useTargetedNotificationStore.getState().reloadFromStorage();
-    expirePending();
-  }, [expirePending, user]);
+  const [actionPendingId, setActionPendingId] = useState<string | null>(null);
 
   /* ---- Filtered & sorted data ---- */
   const filtered = useMemo(() => {
@@ -229,19 +224,29 @@ export default function AdminShiftRequestsPage() {
     return false;
   }
 
-  function handleApprove(requestId: string) {
-    if (!user) return;
-    const result = approveByAdmin(requestId, user.id, user.name, false);
-    if (!result.ok && result.reason === 'conflict_requires_override') {
-      setOverridePendingId(requestId);
+  async function handleApprove(requestId: string) {
+    if (!user || actionPendingId) return;
+    setActionPendingId(requestId);
+    try {
+      const result = await approveShiftRequest(requestId, false);
+      if (!result.ok && result.reason === 'conflict_requires_override') {
+        setOverridePendingId(requestId);
+      }
+      report(result, 'approved');
+    } finally {
+      setActionPendingId(null);
     }
-    report(result, 'approved');
   }
 
-  function handleOverrideApprove(requestId: string) {
-    if (!user) return;
-    if (report(approveByAdmin(requestId, user.id, user.name, true), 'overrideApproved')) {
-      setOverridePendingId(null);
+  async function handleOverrideApprove(requestId: string) {
+    if (!user || actionPendingId) return;
+    setActionPendingId(requestId);
+    try {
+      if (report(await approveShiftRequest(requestId, true), 'overrideApproved')) {
+        setOverridePendingId(null);
+      }
+    } finally {
+      setActionPendingId(null);
     }
   }
 
@@ -251,16 +256,19 @@ export default function AdminShiftRequestsPage() {
     setRejectNote('');
   }
 
-  function handleRejectSubmit() {
-    if (!user || !rejectModalId) return;
-    if (report(rejectByAdmin(
-      rejectModalId,
-      user.id,
-      user.name,
-      rejectReason,
-      rejectReason === 'other' ? rejectNote : undefined,
-    ), 'rejectAdmin')) {
-      setRejectModalId(null);
+  async function handleRejectSubmit() {
+    if (!user || !rejectModalId || actionPendingId) return;
+    setActionPendingId(rejectModalId);
+    try {
+      if (report(await rejectShiftRequestByAdmin(
+        rejectModalId,
+        rejectReason,
+        rejectReason === 'other' ? rejectNote : undefined,
+      ), 'rejectAdmin')) {
+        setRejectModalId(null);
+      }
+    } finally {
+      setActionPendingId(null);
     }
   }
 

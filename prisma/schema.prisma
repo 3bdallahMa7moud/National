@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  super_admin
+  admin
+  employee
+}
+
+enum AccessTemplateId {
+  standard
+  view_only
+  coordinator
+}
+
+enum MonthStatus {
+  draft
+  published
+}
+
+enum ShiftRequestType {
+  exchange
+  replace
+}
+
+enum ShiftRequestStatus {
+  pending_recipient
+  pending_admin
+  approved
+  recipient_rejected
+  admin_rejected
+  cancelled
+  expired
+  stale
+}
+
+enum NotificationAudienceKind {
+  account
+  department_role
+  broadcast
+}
+
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String
+  expiresAt DateTime
+}
+
+model Department {
+  id            String         @id
+  nameEn        String
+  nameAr        String
+  descriptionEn String
+  descriptionAr String
+  managerId     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  manager       User?          @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  users         User[]         @relation("UserDepartment")
+  notifications Notification[]
+  shiftRequests ShiftRequest[]
+}
+
+model User {
+  id                     String                  @id
+  employeeNumber         String                  @unique
+  code                   String                  @unique
+  nameEn                 String
+  nameAr                 String
+  email                  String?                 @unique
+  emailVerifiedAt        DateTime?
+  phone                  String
+  role                   UserRole
+  departmentId           String
+  positionEn             String
+  positionAr             String
+  avatar                 String?
+  isActive               Boolean                 @default(true)
+  passwordHash           String
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  scheduleEmployeeId     String?                 @unique
+  department             Department              @relation("UserDepartment", fields: [departmentId], references: [id], onDelete: Restrict)
+  managedDepartment      Department[]            @relation("DepartmentManager")
+  accessProfile          EmployeeAccessProfile?
+  requestedShiftChanges  ShiftRequest[]          @relation("ShiftRequestRequester")
+  receivedShiftChanges   ShiftRequest[]          @relation("ShiftRequestRecipient")
+  calendarFeedTokens     CalendarFeedToken[]
+  passwordResetCodes     PasswordResetCode[]
+  emailVerificationCodes EmailVerificationCode[]
+
+  @@index([departmentId, role])
+}
+
+model EmployeeAccessProfile {
+  userId          String           @id
+  templateId      AccessTemplateId
+  overridesJson   String           @default("{}")
+  isActive        Boolean          @default(true)
+  updatedAt       DateTime         @default(now())
+  updatedByUserId String?
+  updatedByLabel  String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id                String                   @id
+  type              String
+  title             String
+  message           String
+  isUrgent          Boolean                  @default(false)
+  actionUrl         String?
+  createdAt         DateTime                 @default(now())
+  audienceKind      NotificationAudienceKind
+  audienceAccountId String?
+  audienceRole      UserRole?
+  departmentId      String?
+  relatedRequestId  String?
+  dedupeKey         String?                  @unique
+  titleKey          String?
+  messageKey        String?
+  paramsJson        String?
+  readByJson        String                   @default("[]")
+  deletedByJson     String                   @default("[]")
+  department        Department?              @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([departmentId, audienceKind])
+}
+
+model AuditEntry {
+  id          String   @id
+  actorUserId String?
+  actorName   String
+  action      String
+  module      String
+  entityId    String
+  entityLabel String
+  before      String?
+  after       String?
+  contextJson String
+  timestamp   DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([module, action])
+}
+
+model ShiftRequest {
+  id                      String             @id
+  type                    ShiftRequestType
+  status                  ShiftRequestStatus
+  departmentId            String
+  requesterUserId         String
+  recipientUserId         String
+  requesterAssignmentJson String
+  offeredAssignmentJson   String?
+  warningsJson            String             @default("[]")
+  adminRejectionReason    String?
+  adminRejectionNote      String?
+  conflictOverride        Boolean            @default(false)
+  timelineJson            String             @default("[]")
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  expiresAt               DateTime
+  department              Department         @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  requester               User               @relation("ShiftRequestRequester", fields: [requesterUserId], references: [id], onDelete: Cascade)
+  recipient               User               @relation("ShiftRequestRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@index([departmentId, status])
+  @@index([requesterUserId, createdAt])
+  @@index([recipientUserId, createdAt])
+}
+
+model ScheduleMonth {
+  id                String      @id
+  monthKey          String      @unique
+  year              Int
+  month             Int
+  departmentId      String
+  draftJson         String?
+  publishedJson     String?
+  versionsJson      String      @default("[]")
+  status            MonthStatus @default(draft)
+  deleted           Boolean     @default(false)
+  publishedAt       DateTime?
+  publishedByUserId String?
+  updatedAt         DateTime    @updatedAt
+  createdAt         DateTime    @default(now())
+
+  @@index([departmentId, year, month])
+}
+
+model OvertimeMonth {
+  id                 String      @id
+  monthKey           String      @unique
+  year               Int
+  month              Int
+  departmentId       String
+  rowsJson           String
+  unitsJson          String
+  publishedRowsJson  String
+  publishedUnitsJson String
+  versionsJson       String      @default("[]")
+  status             MonthStatus @default(draft)
+  deleted            Boolean     @default(false)
+  notice             String
+  publishedAt        DateTime?
+  publishedByUserId  String?
+  updatedAt          DateTime    @updatedAt
+  createdAt          DateTime    @default(now())
+
+  @@index([departmentId, year, month])
+}
+
+model CalendarFeedToken {
+  id         String    @id
+  userId     String
+  token      String    @unique
+  label      String?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+}
+
+model PasswordResetCode {
+  id             String    @id
+  userId         String
+  codeHash       String
+  deliveryTarget String?
+  requestedAt    DateTime  @default(now())
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model EmailVerificationCode {
+  id             String    @id
+  userId         String
+  codeHash       String
+  deliveryTarget String
+  requestedAt    DateTime  @default(now())
+  expiresAt      DateTime
+  usedAt         DateTime?
+  invalidatedAt  DateTime?
+  failedAttempts Int       @default(0)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, requestedAt])
+  @@index([userId, expiresAt])
+}

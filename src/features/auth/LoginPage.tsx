@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { startTransition, useState, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,8 +12,10 @@ import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
-import { mockLogin } from '@/mocks/mockData';
 import { isAdminOrSuperAdmin } from '@/types';
+import api from '@/lib/axios';
+import { fetchAndHydrateBootstrap } from '@/lib/backendBootstrap';
+import { mapViewerToAuthUser, type ApiViewer } from '@/lib/backendAdapters';
 import AuthSplitLayout, {
   AUTH_FORM_COLUMN_CLASS,
   AUTH_HERO_COLUMN_CLASS,
@@ -22,11 +25,14 @@ import AuthSplitLayout, {
 type LoginForm = { identifier: string; password: string };
 
 export default function LoginPage() {
-  const { t } = useTranslation(['auth', 'forms', 'common']);
+  const { t, i18n } = useTranslation(['auth', 'forms', 'common']);
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const showDemoAccounts = import.meta.env.MODE === 'test'
+    || import.meta.env.DEV
+    || import.meta.env.VITE_ENABLE_DEMO_ACCOUNTS === 'true';
 
   const loginSchema = useMemo(() => z.object({
     identifier: z.string().min(1, t('auth:login.identifierRequired')),
@@ -45,16 +51,27 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginForm) => {
     setError('');
-    await new Promise((r) => setTimeout(r, 800));
+    try {
+      const response = await api.post<{ user: ApiViewer }>('/auth/login', data);
+      const authUser = mapViewerToAuthUser(response.data.user, i18n.language === 'ar' ? 'ar' : 'en');
+      login(authUser);
+      startTransition(() => {
+        navigate(isAdminOrSuperAdmin(authUser) ? '/admin/dashboard' : '/employee/dashboard');
+      });
+      void fetchAndHydrateBootstrap().catch(() => undefined);
+    } catch (error) {
+      const code = axios.isAxiosError(error)
+        ? (error.response?.data as { error?: { code?: string } } | undefined)?.error?.code
+        : undefined;
 
-    const result = mockLogin(data.identifier, data.password);
-    if (!result) {
-      setError(t('auth:login.invalidCredentials'));
-      return;
+      setError(
+        code === 'EMAIL_VERIFICATION_REQUIRED'
+          ? (i18n.language === 'ar'
+            ? 'يجب التحقق من بريدك الإلكتروني أولاً قبل تسجيل الدخول.'
+            : 'You must verify your email before signing in.')
+          : t('auth:login.invalidCredentials'),
+      );
     }
-
-    login(result.user, result.token);
-    navigate(isAdminOrSuperAdmin(result.user) ? '/admin/dashboard' : '/employee/dashboard');
   };
 
   return (
@@ -186,7 +203,15 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-3 border-t border-border pt-2.5">
+            <div className="mt-3 border-t border-border pt-2.5 text-center text-xs text-text-secondary">
+              <span>{i18n.language === 'ar' ? 'لا تملك حساباً بعد؟' : 'Need a new account?'}</span>
+              <Link to="/register" className="ms-1 inline-flex items-center gap-1 font-bold text-primary hover:underline">
+                <span>{i18n.language === 'ar' ? 'إنشاء حساب' : 'Create account'}</span>
+              </Link>
+            </div>
+
+            {showDemoAccounts && (
+              <div className="mt-3 border-t border-border pt-2.5">
               <p className="mb-1.5 text-center text-[11px] font-semibold text-text-secondary">{t('auth:login.demoAccounts')}</p>
               <div className="flex flex-col gap-2 text-[11px]">
                 {/* Super Admin demo */}
@@ -226,7 +251,8 @@ export default function LoginPage() {
                   <span className="shrink-0 rounded border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-semibold text-text-secondary" dir="ltr">123456</span>
                 </button>
               </div>
-            </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-3 text-center text-[10px] text-text-secondary/60 leading-5">
