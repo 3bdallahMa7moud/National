@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { startTransition, useState, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -202,13 +202,6 @@ export default function LoginPage() {
                 {t('auth:login.submit')}
               </Button>
             </form>
-
-            <div className="mt-3 border-t border-border pt-2.5 text-center text-xs text-text-secondary">
-              <span>{i18n.language === 'ar' ? 'لا تملك حساباً بعد؟' : 'Need a new account?'}</span>
-              <Link to="/register" className="ms-1 inline-flex items-center gap-1 font-bold text-primary hover:underline">
-                <span>{i18n.language === 'ar' ? 'إنشاء حساب' : 'Create account'}</span>
-              </Link>
-            </div>
 
             {showDemoAccounts && (
               <div className="mt-3 border-t border-border pt-2.5">

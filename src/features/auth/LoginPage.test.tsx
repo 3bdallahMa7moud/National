@@ -45,7 +45,6 @@ function renderLogin() {
       <MemoryRouter initialEntries={['/login']}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<p>Register destination</p>} />
           <Route path="/forgot-password" element={<p>Recovery destination</p>} />
           <Route path="/admin/dashboard" element={<p>Admin destination</p>} />
           <Route path="/employee/dashboard" element={<p>Employee destination</p>} />
@@ -182,10 +181,10 @@ describe('LoginPage', () => {
     renderLogin();
 
     fireEvent.change(screen.getByLabelText('Email or Username'), {
-      target: { value: 'noura.signup@hospital.sa' },
+      target: { value: 'new.employee@hospital.sa' },
     });
     fireEvent.change(screen.getByLabelText('Password'), {
-      target: { value: 'signup-pass-123' },
+      target: { value: 'setup-pass-123' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 
@@ -216,9 +215,8 @@ describe('LoginPage', () => {
     expect(screen.getByText('Recovery destination')).toBeInTheDocument();
   });
 
-  it('navigates to the registration page from login', () => {
+  it('does not show a public registration link', () => {
     renderLogin();
-    fireEvent.click(screen.getByRole('link', { name: 'Create account' }));
-    expect(screen.getByText('Register destination')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Create account' })).not.toBeInTheDocument();
   });
 });

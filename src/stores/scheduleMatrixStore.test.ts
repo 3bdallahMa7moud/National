@@ -238,6 +238,134 @@ describe('scheduleMatrixStore administration', () => {
       .every((row) => row.backgroundColor === '#7C3AED' && row.textColor === '#FDE047')).toBe(true);
   });
 
+  it('updates a row to the selected local shift type and preserves the current colors through draft reload and publish', () => {
+    const state = useScheduleMatrixStore.getState();
+    const sourceData = state.data!;
+    const facility = sourceData.facilities.find((candidate) => {
+      const definitions = sourceData.settings.find((entry) => entry.facilityId === candidate.id)?.shiftDefinitions ?? [];
+      return definitions.length > 1 && candidate.units.some((unit) =>
+        unit.rows.some((row) => definitions.some((definition) => definition.id !== row.shiftDefinitionId)),
+      );
+    })!;
+    const definitions = sourceData.settings.find((entry) => entry.facilityId === facility.id)!.shiftDefinitions;
+    const row = facility.units.flatMap((unit) => unit.rows)
+      .find((candidate) => definitions.some((definition) => definition.id !== candidate.shiftDefinitionId))!;
+    const targetDefinition = definitions.find((definition) => definition.id !== row.shiftDefinitionId)!;
+    const expectedLabel = targetDefinition.englishName?.trim() || targetDefinition.label;
+    const expectedTimeRange = targetDefinition.startTime && targetDefinition.endTime
+      ? `${targetDefinition.startTime} - ${targetDefinition.endTime}`
+      : targetDefinition.timeRange;
+    const expectedWeekendOnly = !row.weekendOnly;
+    const monthKey = `${sourceData.year}-${String(sourceData.month + 1).padStart(2, '0')}`;
+    const findRow = (monthData = useScheduleMatrixStore.getState().data!) =>
+      monthData.facilities
+        .flatMap((candidateFacility) => candidateFacility.units)
+        .flatMap((unit) => unit.rows)
+        .find((candidate) => candidate.id === row.id)!;
+
+    state.updateMatrixRow(row.id, {
+      shiftDefinitionId: targetDefinition.id,
+      rowLabel: 'Updated CT Coverage',
+      weekendOnly: expectedWeekendOnly,
+    });
+
+    const editedRow = findRow();
+    expect(editedRow).toMatchObject({
+      shiftDefinitionId: targetDefinition.id,
+      shiftLabel: expectedLabel,
+      timeRange: expectedTimeRange,
+      colorKey: targetDefinition.colorKey,
+      rowLabel: 'Updated CT Coverage',
+      weekendOnly: expectedWeekendOnly,
+    });
+
+    useScheduleMatrixStore.getState().loadMonth(7, 2026);
+    useScheduleMatrixStore.getState().loadMonth(sourceData.month, sourceData.year);
+    expect(findRow()).toMatchObject({
+      shiftDefinitionId: editedRow.shiftDefinitionId,
+      shiftLabel: editedRow.shiftLabel,
+      timeRange: editedRow.timeRange,
+      colorKey: editedRow.colorKey,
+      backgroundColor: editedRow.backgroundColor,
+      textColor: editedRow.textColor,
+      rowLabel: editedRow.rowLabel,
+      weekendOnly: editedRow.weekendOnly,
+    });
+
+    expect(useScheduleMatrixStore.getState().publishDrafts('Shift Publisher')).toMatchObject({ ok: true });
+    const publishedRow = useScheduleMatrixStore.getState().matricesByMonth[monthKey].facilities
+      .flatMap((candidateFacility) => candidateFacility.units)
+      .flatMap((unit) => unit.rows)
+      .find((candidate) => candidate.id === row.id)!;
+    expect(publishedRow.shiftDefinitionId).toBe(editedRow.shiftDefinitionId);
+    expect(publishedRow.shiftLabel).toBe(editedRow.shiftLabel);
+    expect(publishedRow.timeRange).toBe(editedRow.timeRange);
+    expect(publishedRow.colorKey).toBe(editedRow.colorKey);
+    expect(publishedRow.backgroundColor).toBe(editedRow.backgroundColor);
+    expect(publishedRow.textColor).toBe(editedRow.textColor);
+    expect(publishedRow.rowLabel).toBe(editedRow.rowLabel);
+    expect(publishedRow.weekendOnly).toBe(editedRow.weekendOnly);
+
+    useScheduleMatrixStore.getState().loadMonth(8, 2026);
+    useScheduleMatrixStore.getState().loadMonth(sourceData.month, sourceData.year);
+    expect(findRow()).toMatchObject({
+      shiftDefinitionId: editedRow.shiftDefinitionId,
+      shiftLabel: editedRow.shiftLabel,
+      timeRange: editedRow.timeRange,
+      colorKey: editedRow.colorKey,
+      backgroundColor: editedRow.backgroundColor,
+      textColor: editedRow.textColor,
+      rowLabel: editedRow.rowLabel,
+      weekendOnly: editedRow.weekendOnly,
+    });
+  });
+
+  it('repairs stale foreign shift-definition ids when a persisted month is loaded again', () => {
+    const state = useScheduleMatrixStore.getState();
+    const monthData = structuredClone(state.data!);
+    const facility = monthData.facilities.find((candidate) => candidate.units.some((unit) => unit.rows.length > 0))!;
+    const localDefinitions = monthData.settings.find((entry) => entry.facilityId === facility.id)!.shiftDefinitions;
+    const foreignDefinitions = monthData.settings.find((entry) => entry.facilityId !== facility.id && entry.shiftDefinitions.length > 0)!.shiftDefinitions;
+    const row = facility.units.find((unit) => unit.rows.length > 0)!.rows[0];
+    const localDefinition = localDefinitions.find((definition) => definition.id === row.shiftDefinitionId) ?? localDefinitions[0];
+    const expectedLabel = localDefinition.englishName?.trim() || localDefinition.label;
+    const expectedTimeRange = localDefinition.startTime && localDefinition.endTime
+      ? `${localDefinition.startTime} - ${localDefinition.endTime}`
+      : localDefinition.timeRange;
+    const monthKey = `${monthData.year}-${String(monthData.month + 1).padStart(2, '0')}`;
+
+    row.shiftDefinitionId = foreignDefinitions[0].id;
+    row.shiftLabel = expectedLabel;
+    row.timeRange = expectedTimeRange;
+    row.colorKey = localDefinition.colorKey;
+    row.backgroundColor = localDefinition.backgroundColor;
+    row.textColor = localDefinition.textColor;
+
+    useScheduleMatrixStore.setState({
+      data: null,
+      draftsByMonth: { [monthKey]: monthData },
+      matricesByMonth: {},
+      month: monthData.month,
+      year: monthData.year,
+      draftCellKeys: [],
+    });
+
+    useScheduleMatrixStore.getState().loadMonth(monthData.month, monthData.year);
+
+    const repairedRow = useScheduleMatrixStore.getState().data!.facilities
+      .flatMap((candidateFacility) => candidateFacility.units)
+      .flatMap((unit) => unit.rows)
+      .find((candidate) => candidate.id === row.id)!;
+    expect(repairedRow).toMatchObject({
+      shiftDefinitionId: localDefinition.id,
+      shiftLabel: expectedLabel,
+      timeRange: expectedTimeRange,
+      colorKey: localDefinition.colorKey,
+      backgroundColor: localDefinition.backgroundColor,
+      textColor: localDefinition.textColor,
+    });
+  });
+
   it('makes new definitions inherit the shared type color and preserves the target type color when changing presets', () => {
     const state = useScheduleMatrixStore.getState();
     const sourceSettings = state.data!.settings[0];

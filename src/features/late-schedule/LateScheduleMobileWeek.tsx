@@ -5,6 +5,8 @@ import type { OTShiftRow, OTUnit } from '@/types/lateSchedule';
 import type { UnifiedEmployee } from '@/lib/unifiedEmployeeRoster';
 import { cn } from '@/lib/utils';
 import { scheduleCellMarkerBackground } from '@/lib/scheduleCellMarkers';
+import { buildEmployeeDisplayLookup } from '@/lib/employeeDisplay';
+import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import { getLateScheduleIntlLocale } from './lateScheduleLocale';
 
 interface LateScheduleMobileWeekProps {
@@ -47,9 +49,10 @@ export default function LateScheduleMobileWeek({
   const safeWeekIndex = Math.min(weekIndex, weekStarts.length - 1);
   const weekStart = weekStarts[safeWeekIndex];
   const [selectedDay, setSelectedDay] = useState(1);
-  const employeeById = useMemo(
-    () => new Map(roster.map((employee) => [employee.employeeId, employee])),
-    [roster],
+  const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
+  const employeeLookup = useMemo(
+    () => buildEmployeeDisplayLookup(roster, directoryRecords, isRtl),
+    [directoryRecords, isRtl, roster],
   );
   const days = Array.from(
     { length: Math.min(7, daysInMonth - weekStart + 1) },
@@ -205,8 +208,7 @@ export default function LateScheduleMobileWeek({
                   if (assignment.kind === 'unresolved') {
                     return <span key={`${assignment.legacyCode}-${index}`} className="max-w-full break-all rounded-xl border border-danger/30 bg-danger-50 px-2.5 py-2 font-mono text-xs font-bold text-danger">{assignment.legacyCode} ?</span>;
                   }
-                  const employee = employeeById.get(assignment.employeeId);
-                  const name = isRtl ? employee?.fullName : employee?.fullNameEn || employee?.fullName;
+                  const display = employeeLookup.resolve({ employeeId: assignment.employeeId });
                   return (
                     <button
                       type="button"
@@ -215,9 +217,12 @@ export default function LateScheduleMobileWeek({
                       onClick={() => onAssignmentClick?.(row.id, selectedDay, assignment.employeeId)}
                       className="min-w-0 max-w-full rounded-xl border border-primary/20 bg-primary-50 px-2.5 py-2 text-start text-xs text-primary disabled:cursor-default"
                       style={{ backgroundColor: row.backgroundColor, color: row.textColor, borderColor: row.backgroundColor }}
+                      title={display.tooltip}
                     >
-                      <strong className="font-mono">{employee?.code ?? assignment.employeeId}</strong>
-                      {name ? <span className="ms-1 break-words">{name}</span> : null}
+                      <span className="block truncate font-semibold">{display.name}</span>
+                      {display.employeeNumber && (
+                        <span className="mt-0.5 block text-[11px] opacity-80" dir="ltr">{display.employeeNumber}</span>
+                      )}
                     </button>
                   );
                 })}

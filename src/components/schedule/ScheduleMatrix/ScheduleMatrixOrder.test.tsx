@@ -56,7 +56,6 @@ describe('ScheduleMatrix arrange mode', () => {
     expect(rowHandles.length).toBeGreaterThanOrEqual(1);
     expect(unitHandles.some((handle) => handle.className.includes('cursor-grab'))).toBe(true);
     expect(rowHandles.some((handle) => handle.className.includes('cursor-grab'))).toBe(true);
-    expect(screen.getAllByLabelText('Add row').length).toBeGreaterThan(0);
   }, 30000);
 
   it('adds the first unit directly from an empty facility on the mobile ordering surface', async () => {

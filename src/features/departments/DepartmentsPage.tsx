@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +10,7 @@ import Input from '@/components/ui/Input';
 import Badge from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import api from '@/lib/axios';
+import { fetchAndHydrateBootstrap } from '@/lib/backendBootstrap';
 import { mapApiDepartmentToMockSource, type ApiDepartment } from '@/lib/backendAdapters';
 import { useDepartmentStore } from '@/stores/departmentStore';
 import { directoryRecordToMockSource, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
@@ -17,12 +19,20 @@ import { resolveDepartment, resolveEmployee } from '@/mocks/resolveMockData';
 import { Building2, Users, UserCheck, Plus, Edit2 } from 'lucide-react';
 import type { Department } from '@/types';
 
+interface DepartmentFieldErrors {
+  name?: string;
+  description?: string;
+  managerId?: string;
+}
+
 export default function DepartmentsPage() {
   const { t } = useTranslation(['departments', 'common', 'forms']);
   const navigate = useNavigate();
   const [editModal, setEditModal] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<DepartmentFieldErrors>({});
   const { addToast } = useToast();
   const { language } = useLanguage();
   const departmentRecords = useDepartmentStore((state) => state.records);
@@ -39,18 +49,43 @@ export default function DepartmentsPage() {
 
   const handleEdit = (dept: Department) => {
     setEditingDept(dept);
+    setFormError('');
+    setFieldErrors({});
     setEditModal(true);
+  };
+
+  const resetFormState = () => {
+    setFormError('');
+    setFieldErrors({});
+  };
+
+  const closeModal = () => {
+    resetFormState();
+    setEditModal(false);
+  };
+
+  const readFieldErrors = (details: unknown): DepartmentFieldErrors => {
+    if (!details || typeof details !== 'object') return {};
+    const fieldErrors = (details as { fieldErrors?: Record<string, unknown> }).fieldErrors;
+    if (!fieldErrors || typeof fieldErrors !== 'object') return {};
+
+    return {
+      name: Array.isArray(fieldErrors.name) ? String(fieldErrors.name[0] ?? '') : undefined,
+      description: Array.isArray(fieldErrors.description) ? String(fieldErrors.description[0] ?? '') : undefined,
+      managerId: Array.isArray(fieldErrors.managerId) ? String(fieldErrors.managerId[0] ?? '') : undefined,
+    };
   };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    resetFormState();
     const formData = new FormData(e.currentTarget);
     const name = String(formData.get('name') || '').trim();
     const description = String(formData.get('description') || '').trim();
     const managerIdValue = String(formData.get('managerId') || '').trim();
 
     if (!name) {
-      addToast({ type: 'error', title: t('common:toast.error'), message: t('forms:validation.nameMin') });
+      setFieldErrors({ name: t('forms:validation.departmentNameRequired') });
       return;
     }
 
@@ -73,10 +108,38 @@ export default function DepartmentsPage() {
         ? departmentRecords.map((record) => record.id === updated.id ? updated : record)
         : [...departmentRecords, updated];
       setDepartmentRecords(nextRecords);
-      setEditModal(false);
-      addToast({ type: 'success', title: t('common:toast.saved'), message: t('departments:updateSuccess') });
-    } catch {
-      addToast({ type: 'error', title: t('common:toast.error'), message: t('common:errorState.sectionMessage') });
+      await fetchAndHydrateBootstrap().catch(() => undefined);
+      closeModal();
+      addToast({
+        type: 'success',
+        title: t('common:toast.saved'),
+        message: editingDept ? t('departments:updateSuccess') : t('departments:createSuccess'),
+      });
+    } catch (error) {
+      if (isAxiosError(error)) {
+        const payload = error.response?.data as {
+          error?: {
+            code?: string;
+            message?: string;
+            details?: unknown;
+          };
+        } | undefined;
+        const apiFieldErrors = readFieldErrors(payload?.error?.details);
+        if (apiFieldErrors.name || apiFieldErrors.description || apiFieldErrors.managerId) {
+          setFieldErrors(apiFieldErrors);
+          setFormError(t('departments:validationFailed'));
+          return;
+        }
+
+        const message = payload?.error?.message || t('departments:validationFailed');
+        setFormError(message);
+        addToast({ type: 'error', title: t('common:toast.error'), message });
+        return;
+      }
+
+      const message = t('common:errorState.sectionMessage');
+      setFormError(message);
+      addToast({ type: 'error', title: t('common:toast.error'), message });
     } finally {
       setIsSaving(false);
     }
@@ -91,7 +154,7 @@ export default function DepartmentsPage() {
         </div>
         <Button
           icon={<Plus className="w-4 h-4" />}
-          onClick={() => { setEditingDept(null); setEditModal(true); }}
+          onClick={() => { setEditingDept(null); resetFormState(); setEditModal(true); }}
         >
           {t('departments:addDepartment')}
         </Button>
@@ -158,23 +221,52 @@ export default function DepartmentsPage() {
 
       <Modal
         isOpen={editModal}
-        onClose={() => setEditModal(false)}
+        onClose={closeModal}
         title={editingDept ? t('departments:editDepartment') : t('departments:addDepartment')}
       >
         <form onSubmit={handleSave} className="space-y-4">
-          <Input name="name" label={t('forms:labels.departmentName')} defaultValue={editingDept?.name} required placeholder={t('departments:namePlaceholder')} />
-          <Input name="description" label={t('forms:labels.departmentDescription')} defaultValue={editingDept?.description} placeholder={t('departments:descriptionPlaceholder')} />
+          <Input
+            name="name"
+            label={t('forms:labels.departmentName')}
+            defaultValue={editingDept?.name}
+            error={fieldErrors.name}
+            required
+            placeholder={t('departments:namePlaceholder')}
+          />
+          <Input
+            name="description"
+            label={t('forms:labels.departmentDescription')}
+            defaultValue={editingDept?.description}
+            error={fieldErrors.description}
+            placeholder={t('departments:descriptionPlaceholder')}
+          />
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1.5">{t('forms:labels.departmentHead')}</label>
-            <select name="managerId" className="input-field" defaultValue={editingDept?.managerId || ''}>
+            <select
+              name="managerId"
+              className={`input-field ${fieldErrors.managerId ? 'border-danger focus:ring-danger/20 focus:border-danger' : ''}`}
+              defaultValue={editingDept?.managerId || ''}
+              aria-invalid={fieldErrors.managerId ? true : undefined}
+              aria-describedby={fieldErrors.managerId ? 'department-manager-error' : undefined}
+            >
               <option value="">{t('forms:labels.selectSupervisor')}</option>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>{emp.name} ({emp.position})</option>
               ))}
             </select>
+            {fieldErrors.managerId && (
+              <p id="department-manager-error" role="alert" className="mt-1 text-xs text-danger">
+                {fieldErrors.managerId}
+              </p>
+            )}
           </div>
+          {formError && (
+            <p role="alert" className="rounded-btn bg-danger/10 px-3 py-2 text-sm text-danger">
+              {formError}
+            </p>
+          )}
           <div className="flex gap-3 justify-end pt-4 border-t border-border/50">
-            <Button variant="secondary" type="button" onClick={() => setEditModal(false)}>{t('common:actions.cancel')}</Button>
+            <Button variant="secondary" type="button" onClick={closeModal}>{t('common:actions.cancel')}</Button>
             <Button type="submit" loading={isSaving}>{t('forms:actions.saveChanges')}</Button>
           </div>
         </form>

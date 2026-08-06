@@ -792,7 +792,12 @@ function ScheduleMatrix({
                               onEditRow={
                                 canEditRows
                                   ? (anchorRect) =>
-                                      setRowEditTarget({ row, unitName: unit.name, anchorRect })
+                                      setRowEditTarget({
+                                        row,
+                                        facilityId: facility.id,
+                                        unitName: unit.name,
+                                        anchorRect,
+                                      })
                                   : undefined
                               }
                               onAddRow={
@@ -1030,7 +1035,12 @@ function ScheduleMatrix({
                               onEditRow={
                                 canEditRows
                                   ? (anchorRect) =>
-                                      setRowEditTarget({ row: item.row!, unitName: item.unit!.name, anchorRect })
+                                      setRowEditTarget({
+                                        row: item.row!,
+                                        facilityId: item.facility.id,
+                                        unitName: item.unit!.name,
+                                        anchorRect,
+                                      })
                                   : undefined
                               }
                               onAddRow={
@@ -1123,8 +1133,7 @@ function ScheduleMatrix({
         onSave={(rowId, updates) => onUpdateRow?.(rowId, updates)}
         shiftDefinitions={
           rowEditTarget
-            ? data.settings
-                .flatMap((entry) => entry.shiftDefinitions)
+            ? (data.settings.find((entry) => entry.facilityId === rowEditTarget.facilityId)?.shiftDefinitions ?? [])
                 .filter((definition) => !definition.archived)
             : []
         }

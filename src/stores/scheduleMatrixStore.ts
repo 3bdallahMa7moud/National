@@ -284,6 +284,58 @@ function findRowContext(data: ScheduleMatrixData, rowId: string) {
   return null;
 }
 
+function normalizeComparableText(value?: string): string {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function definitionMatchesRow(definition: ShiftDefinition, row: ShiftRow): boolean {
+  const rowTimeRange = normalizeComparableText(row.timeRange);
+  const definitionTimeRange = normalizeComparableText(normalizeTimeRange(definition));
+  const rowShiftLabel = normalizeComparableText(row.shiftLabel);
+  const definitionNames = new Set([
+    normalizeComparableText(definition.label),
+    normalizeComparableText(definition.englishName),
+    normalizeComparableText(definition.arabicName),
+    normalizeComparableText(definitionDisplayName(definition)),
+  ].filter(Boolean));
+
+  return rowTimeRange === definitionTimeRange && definitionNames.has(rowShiftLabel);
+}
+
+function resolveShiftDefinitionForRow(
+  definitions: ShiftDefinition[],
+  row: ShiftRow,
+  preferredId?: string,
+): ShiftDefinition | undefined {
+  if (preferredId) {
+    const definition = definitions.find((candidate) => candidate.id === preferredId);
+    if (definition) return definition;
+  }
+
+  if (row.shiftDefinitionId) {
+    const definition = definitions.find((candidate) => candidate.id === row.shiftDefinitionId);
+    if (definition) return definition;
+  }
+
+  const exactMatches = definitions.filter((definition) => definitionMatchesRow(definition, row));
+  if (exactMatches.length === 1) return exactMatches[0];
+
+  const sameColorAndTime = definitions.filter((definition) =>
+    definition.colorKey === row.colorKey
+    && normalizeComparableText(normalizeTimeRange(definition)) === normalizeComparableText(row.timeRange),
+  );
+  const labeledColorMatch = sameColorAndTime.find((definition) => definitionMatchesRow(definition, row));
+  if (labeledColorMatch) return labeledColorMatch;
+  if (sameColorAndTime.length === 1) return sameColorAndTime[0];
+
+  const sameColor = definitions.filter((definition) => definition.colorKey === row.colorKey);
+  const labeledColorOnlyMatch = sameColor.find((definition) => definitionMatchesRow(definition, row));
+  if (labeledColorOnlyMatch) return labeledColorOnlyMatch;
+  if (sameColor.length === 1) return sameColor[0];
+
+  return exactMatches[0];
+}
+
 function linkShiftDefinitionIds(data: ScheduleMatrixData): void {
   for (const facility of data.facilities) {
     const definitions = data.settings
@@ -291,13 +343,7 @@ function linkShiftDefinitionIds(data: ScheduleMatrixData): void {
       ?.shiftDefinitions ?? [];
     for (const unit of facility.units) {
       for (const shiftRow of unit.rows) {
-        if (shiftRow.shiftDefinitionId) continue;
-        const candidates = definitions.filter((definition) =>
-          definition.colorKey === shiftRow.colorKey && definition.timeRange === shiftRow.timeRange,
-        );
-        const definition = candidates.find((candidate) => candidate.label === shiftRow.shiftLabel)
-          ?? (candidates.length === 1 ? candidates[0] : undefined);
-        shiftRow.shiftDefinitionId = definition?.id;
+        shiftRow.shiftDefinitionId = resolveShiftDefinitionForRow(definitions, shiftRow)?.id;
       }
     }
   }
@@ -423,6 +469,11 @@ function prepareLegacyStoredMatrix(data: ScheduleMatrixData): void {
 function normalizeStoredMatrix(data: ScheduleMatrixData): void {
   prepareLegacyStoredMatrix(data);
   synchronizeMatrixRoster(data);
+}
+
+export function normalizeScheduleMatrixData(data: ScheduleMatrixData): ScheduleMatrixData {
+  normalizeStoredMatrix(data);
+  return data;
 }
 
 function makeShiftRowFromDefinition(
@@ -1715,22 +1766,43 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     const data = cloneData(state.data);
     const context = findRowContext(data, rowId);
     if (!context) return;
+    const definitions = data.settings
+      .find((entry) => entry.facilityId === context.facility.id)
+      ?.shiftDefinitions ?? [];
 
-    Object.assign(context.row, updates);
-    if (updates.shiftDefinitionId) {
-      const definition = data.settings
-        .find((entry) => entry.facilityId === context.facility.id)
-        ?.shiftDefinitions.find((candidate) => candidate.id === updates.shiftDefinitionId);
-      if (definition) applyShiftDefinitionToRow(context.row, definition);
-    } else if (updates.colorKey || updates.timeRange) {
-      const definitions = data.settings
-        .find((entry) => entry.facilityId === context.facility.id)
-        ?.shiftDefinitions ?? [];
-      const definition = definitions.find((candidate) =>
-        candidate.colorKey === context.row.colorKey && candidate.timeRange === context.row.timeRange,
-      ) ?? definitions.find((candidate) => candidate.colorKey === context.row.colorKey);
-      context.row.shiftDefinitionId = definition?.id;
+    const {
+      shiftDefinitionId,
+      rowLabel,
+      weekendOnly,
+      shiftLabel,
+      timeRange,
+      colorKey,
+      backgroundColor,
+      textColor,
+    } = updates;
+
+    if (shiftDefinitionId !== undefined) {
+      const definition = resolveShiftDefinitionForRow(definitions, context.row, shiftDefinitionId);
+      if (definition) {
+        applyShiftDefinitionToRow(context.row, definition);
+      } else {
+        context.row.shiftDefinitionId = undefined;
+      }
+    } else {
+      if (shiftLabel !== undefined) context.row.shiftLabel = shiftLabel;
+      if (timeRange !== undefined) context.row.timeRange = timeRange;
+      if (colorKey !== undefined) context.row.colorKey = colorKey;
+      if (backgroundColor !== undefined) context.row.backgroundColor = backgroundColor;
+      if (textColor !== undefined) context.row.textColor = textColor;
+
+      if (colorKey !== undefined || timeRange !== undefined || shiftLabel !== undefined) {
+        context.row.shiftDefinitionId = resolveShiftDefinitionForRow(definitions, context.row)?.id;
+      }
     }
+
+    if (rowLabel !== undefined) context.row.rowLabel = rowLabel;
+    if (weekendOnly !== undefined) context.row.weekendOnly = weekendOnly;
+
     addAudit(data, state.locale, {
       action: 'settings',
       facilityId: context.facility.id,

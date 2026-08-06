@@ -9,5 +9,7 @@
   "viewTeam": "View team →",
   "namePlaceholder": "e.g. CT Scan Department",
   "descriptionPlaceholder": "Describe department duties and specialty...",
-  "updateSuccess": "Department updated successfully"
+  "createSuccess": "Department created successfully",
+  "updateSuccess": "Department updated successfully",
+  "validationFailed": "Please review the department form and try again."
 }

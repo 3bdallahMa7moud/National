@@ -11,6 +11,7 @@ import type { ShiftDefinition, ShiftRow } from '@/types/scheduleMatrix';
 
 export interface RowEditTarget {
   row: ShiftRow;
+  facilityId: string;
   unitName: string;
   anchorRect: DOMRect;
 }

@@ -9,5 +9,7 @@
   "viewTeam": "عرض الطاقم ←",
   "namePlaceholder": "مثال: قسم الأشعة المقطعية",
   "descriptionPlaceholder": "وصف مهام وتخصص القسم...",
-  "updateSuccess": "تم تحديث بيانات القسم بنجاح"
+  "createSuccess": "تم إنشاء القسم بنجاح",
+  "updateSuccess": "تم تحديث بيانات القسم بنجاح",
+  "validationFailed": "يرجى مراجعة بيانات القسم والمحاولة مرة أخرى."
 }
