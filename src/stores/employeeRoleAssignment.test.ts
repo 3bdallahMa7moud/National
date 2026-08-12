@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { EMPLOYEE_DIRECTORY_STORAGE_KEY, createEmployeeDirectoryStore } from './employeeDirectoryStore';
 import type { EmployeeDirectoryStorage } from './employeeDirectoryStore';
+import {
+  createEmployeeDirectoryStorageFixture,
+  createOfficialEmployeeDirectoryRecordsFixture,
+} from '@/test/fixtures/employeeDirectory';
 
 function memoryStorage(): EmployeeDirectoryStorage & { values: Map<string, string> } {
   const values = new Map<string, string>();
@@ -11,10 +15,21 @@ function memoryStorage(): EmployeeDirectoryStorage & { values: Map<string, strin
   };
 }
 
+function seededStore(options: Parameters<typeof createEmployeeDirectoryStore>[2] = {}) {
+  const storage = memoryStorage();
+  storage.setItem(
+    EMPLOYEE_DIRECTORY_STORAGE_KEY,
+    JSON.stringify(createEmployeeDirectoryStorageFixture()),
+  );
+  return {
+    storage,
+    store: createEmployeeDirectoryStore(storage, false, options),
+  };
+}
+
 describe('Super Admin Role Assignment', () => {
   it('allows promoting an employee to admin and demoting back', () => {
-    const storage = memoryStorage();
-    const store = createEmployeeDirectoryStore(storage, false, {
+    const { store } = seededStore({
       canManageRoles: () => true,
     });
 
@@ -33,9 +48,8 @@ describe('Super Admin Role Assignment', () => {
     expect(store.getState().records.find((r) => r.accountId === target.accountId)?.role).toBe('employee');
   });
 
-  it('prevents demoting the last remaining active super admin', () => {
-    const storage = memoryStorage();
-    const store = createEmployeeDirectoryStore(storage, false, {
+  it('prevents demoting a super admin account', () => {
+    const { store } = seededStore({
       canManageRoles: () => true,
     });
 
@@ -43,19 +57,17 @@ describe('Super Admin Role Assignment', () => {
     const superAdmin = store.getState().records.find((r) => r.role === 'super_admin')!;
     expect(superAdmin).toBeDefined();
 
-    // Attempt to demote the sole super_admin
     const result = store.getState().setRole(superAdmin.accountId, 'admin', 'Super Admin');
     expect(result).toMatchObject({
       ok: false,
       reason: 'invalid_record',
-      message: 'Cannot demote the last active super admin.',
+      message: 'Cannot remove or demote a super admin account.',
     });
     expect(store.getState().records.find((r) => r.accountId === superAdmin.accountId)?.role).toBe('super_admin');
   });
 
   it('rejects role changes when the actor is not a super admin', () => {
-    const storage = memoryStorage();
-    const store = createEmployeeDirectoryStore(storage, false, {
+    const { store } = seededStore({
       canManageRoles: () => false,
     });
     const target = store.getState().records.find((r) => r.role === 'employee')!;
@@ -71,8 +83,7 @@ describe('Super Admin Role Assignment', () => {
   });
 
   it('rejects role changes through the generic employee update path without super admin rights', () => {
-    const storage = memoryStorage();
-    const store = createEmployeeDirectoryStore(storage, false, {
+    const { store } = seededStore({
       canManageRoles: () => false,
     });
     const target = store.getState().records.find((r) => r.role === 'employee')!;
@@ -84,8 +95,7 @@ describe('Super Admin Role Assignment', () => {
   });
 
   it('rejects invalid runtime role values', () => {
-    const storage = memoryStorage();
-    const store = createEmployeeDirectoryStore(storage);
+    const { store } = seededStore();
     const target = store.getState().records.find((r) => r.role === 'employee')!;
 
     const result = store.getState().setRole(target.accountId, 'owner' as never, 'Super Admin');
@@ -98,9 +108,8 @@ describe('Super Admin Role Assignment', () => {
     expect(store.getState().records.find((r) => r.accountId === target.accountId)?.role).toBe('employee');
   });
 
-  it('allows demoting a super admin after another active super admin exists', () => {
-    const storage = memoryStorage();
-    const store = createEmployeeDirectoryStore(storage, false, {
+  it('keeps a super admin protected even after another super admin exists', () => {
+    const { store } = seededStore({
       canManageRoles: () => true,
     });
     const originalSuperAdmin = store.getState().records.find((r) => r.role === 'super_admin')!;
@@ -109,14 +118,17 @@ describe('Super Admin Role Assignment', () => {
     expect(store.getState().setRole(secondSuperAdmin.accountId, 'super_admin', 'Super Admin')).toMatchObject({ ok: true });
     const result = store.getState().setRole(originalSuperAdmin.accountId, 'admin', 'Super Admin');
 
-    expect(result).toMatchObject({ ok: true });
-    expect(store.getState().records.find((r) => r.accountId === originalSuperAdmin.accountId)?.role).toBe('admin');
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'invalid_record',
+      message: 'Cannot remove or demote a super admin account.',
+    });
+    expect(store.getState().records.find((r) => r.accountId === originalSuperAdmin.accountId)?.role).toBe('super_admin');
     expect(store.getState().records.find((r) => r.accountId === secondSuperAdmin.accountId)?.role).toBe('super_admin');
   });
 
-  it('prevents deactivating the last remaining active super admin', () => {
-    const storage = memoryStorage();
-    const store = createEmployeeDirectoryStore(storage);
+  it('prevents deactivating a super admin account', () => {
+    const { store } = seededStore();
     const superAdmin = store.getState().records.find((r) => r.role === 'super_admin')!;
 
     const result = store.getState().setActive(superAdmin.accountId, false, 'Super Admin');
@@ -124,17 +136,14 @@ describe('Super Admin Role Assignment', () => {
     expect(result).toMatchObject({
       ok: false,
       reason: 'invalid_record',
-      message: 'Cannot deactivate the last active super admin.',
+      message: 'Cannot remove or demote a super admin account.',
     });
     expect(store.getState().records.find((r) => r.accountId === superAdmin.accountId)?.active).toBe(true);
   });
 
-  it('repairs old persisted directories that have no active super admin', () => {
+  it('does not invent a super admin when persisted backend records have none', () => {
     const storage = memoryStorage();
-    const bootstrap = createEmployeeDirectoryStore(storage, false, {
-      canManageRoles: () => true,
-    });
-    const demotedRecords = bootstrap.getState().records.map((record) => (
+    const demotedRecords = createOfficialEmployeeDirectoryRecordsFixture().map((record) => (
       record.role === 'super_admin'
         ? { ...record, role: 'admin' as const, active: true }
         : record
@@ -143,22 +152,16 @@ describe('Super Admin Role Assignment', () => {
     storage.setItem(EMPLOYEE_DIRECTORY_STORAGE_KEY, JSON.stringify({
       version: 3,
       records: demotedRecords,
-      migrationReport: bootstrap.getState().migrationReport,
+      migrationReport: createEmployeeDirectoryStorageFixture(demotedRecords).migrationReport,
     }));
 
     const repaired = createEmployeeDirectoryStore(storage);
-    const primaryAccount = repaired.getState().records.find((record) => record.employeeNumber === 'EMP-001');
 
-    expect(primaryAccount).toMatchObject({
-      accountId: 'emp-1',
-      role: 'super_admin',
-      active: true,
-    });
-    expect(repaired.getState().migrationReport.sourceVersions).toContain('super-admin-recovery');
+    expect(repaired.getState().records.some((record) => record.role === 'super_admin')).toBe(false);
+    expect(repaired.getState().migrationReport.sourceVersions).not.toContain('super-admin-recovery');
   });
 
   it('persists the role and records a focused operational audit payload', () => {
-    const storage = memoryStorage();
     const audits: Array<{
       actorName: string;
       action: string;
@@ -166,7 +169,7 @@ describe('Super Admin Role Assignment', () => {
       before?: unknown;
       after?: unknown;
     }> = [];
-    const store = createEmployeeDirectoryStore(storage, false, {
+    const { storage, store } = seededStore({
       canManageRoles: () => true,
       recordAudit: (entry) => {
         audits.push(entry);

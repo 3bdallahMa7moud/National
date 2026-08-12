@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { useOperationalAuditStore } from './operationalAuditStore';
-import {
-  DEFAULT_LATE_SCHEDULE_NOTICE,
-  LEGACY_LATE_SCHEDULE_ROWS,
-} from '@/data/lateScheduleSeed';
 import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import { migrateLateSchedulePayload, migrateRetiredOTEmployeeIds } from '@/lib/lateScheduleMigration';
 import { isMarkerColor } from '@/lib/scheduleCellMarkers';
@@ -451,12 +447,6 @@ function defaultMigrationRoster(): OTRosterEmployee[] {
   return getOfficialEmployeeRoster();
 }
 
-function seedRowsByMonth(roster: OTRosterEmployee[]): Record<string, OTShiftRow[]> {
-  return {
-    '2026-07': migrateLateSchedulePayload(LEGACY_LATE_SCHEDULE_ROWS, roster).rows,
-  };
-}
-
 function addStorageRecoveryWarning(state: InitialLateScheduleState): void {
   if (!state.warnings.some((warning) => warning.kind === 'storage_recovery')) {
     state.warnings.push({ kind: 'storage_recovery' });
@@ -533,11 +523,11 @@ function stateFromPersisted(
 function readInitialState(options: CreateLateScheduleStoreOptions): InitialLateScheduleState {
   const storage = options.storage;
   const roster = options.migrationRoster ?? defaultMigrationRoster();
-  const fallbackRows = cloneRowsByMonth(options.initialRowsByMonth ?? seedRowsByMonth(roster));
+  const fallbackRows = cloneRowsByMonth(options.initialRowsByMonth ?? {});
   const fallbackUnits = Object.fromEntries(Object.entries(fallbackRows).map(([key, rows]) => [key, unitsForRows(rows)]));
   const fallback: InitialLateScheduleState = {
-    year: options.initialYear ?? 2026,
-    month: options.initialMonth ?? 6,
+    year: options.initialYear ?? new Date().getFullYear(),
+    month: options.initialMonth ?? new Date().getMonth(),
     rowsByMonth: fallbackRows,
     unitsByMonth: fallbackUnits,
     publishedRowsByMonth: cloneValue(fallbackRows),
@@ -546,11 +536,11 @@ function readInitialState(options: CreateLateScheduleStoreOptions): InitialLateS
     monthStatuses: Object.fromEntries(Object.keys(fallbackRows).map((key) => [key, 'published' as const])),
     versionsByMonth: {},
     deletedMonths: [],
-    notice: options.initialNotice ?? DEFAULT_LATE_SCHEDULE_NOTICE,
+    notice: options.initialNotice ?? '',
     warnings: [],
   };
 
-  const ensureDefaultBranches = !options.initialRowsByMonth && !options.initialUnitsByMonth;
+  const ensureDefaultBranches = false;
 
   if (!storage) return normalizeStateBranchUnits(fallback, ensureDefaultBranches);
 
@@ -1247,10 +1237,8 @@ function createLateScheduleState(
     resetCurrentMonth: (actorName) => {
       const state = get();
       const key = formatLateScheduleMonthKey(state.year, state.month);
-      const seedKey = '2026-07';
-      const defaultRows = seedRowsByMonth(defaultMigrationRoster())[seedKey] ?? [];
-      const sourceRows = state.rowsByMonth[seedKey] ?? defaultRows;
-      const sourceUnits = state.unitsByMonth[seedKey] ?? unitsForRows(cloneValue(sourceRows));
+      const sourceRows = state.rows;
+      const sourceUnits = state.units;
       const rows = templateRows(sourceRows);
       const units = normalizeAndEnsureBranchUnits(
         cloneValue(sourceUnits).map((unit) => ({ ...unit, archived: false })),

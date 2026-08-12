@@ -11,7 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx --tsconfig tsconfig.server.json prisma/seed.ts",
-    "build:e2e": "VITE_API_URL=http://127.0.0.1:3100/api VITE_SOCKET_URL=http://127.0.0.1:3100 VITE_ENABLE_DEMO_ACCOUNTS=true npm run build",
+    "build:e2e": "VITE_API_URL=http://127.0.0.1:3100/api VITE_SOCKET_URL=http://127.0.0.1:3100 npm run build",
     "e2e:db:reset": "rm -f prisma/prisma-e2e.db && cp prisma/app.db prisma/prisma-e2e.db && DATABASE_URL=file:./prisma-e2e.db npx prisma db push --skip-generate && DATABASE_URL=file:./prisma-e2e.db node server/dist/prisma/seed.js",
     "preview:e2e": "vite preview --host 127.0.0.1 --port 4174",
     "build": "npm run prisma:generate && tsc -b && vite build",

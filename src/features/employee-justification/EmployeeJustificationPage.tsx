@@ -29,7 +29,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useAuthStore } from '@/stores/authStore';
 import { useLateScheduleStore } from '@/stores/lateScheduleStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
-import type { OfficialEmployee } from '@/data/officialEmployeeRoster';
+import type { OfficialEmployee } from '@/types/officialEmployee';
 import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
 import { isAdminOrSuperAdmin } from '@/types';
 import {
@@ -37,6 +37,10 @@ import {
   type JustificationEmployeeRow,
   type JustificationReportState,
 } from '@/types/employeeJustification';
+import {
+  readJustificationReportDraft,
+  writeJustificationReportDraft,
+} from '@/lib/employeeJustificationDrafts';
 
 /** Parse "HH:MM - HH:MM" time ranges into hours (handles overnight). */
 function hoursFromTimeRange(timeRange: string): number {
@@ -61,6 +65,77 @@ function getEmployeeBranch(employee: OfficialEmployee | undefined): string {
     return employee.branch;
   }
   return 'General';
+}
+
+function getSourceRowId(employeeId: string): string {
+  return `employee:${employeeId}`;
+}
+
+function getReportEmployeeName(employee: OfficialEmployee, isEngReport: boolean): string {
+  return isEngReport ? employee.fullNameEn || employee.fullName : employee.fullName;
+}
+
+function getEmployeeBn(employee: OfficialEmployee): string {
+  return employee.employeeNumber?.trim() || employee.code;
+}
+
+function shouldUseEnglishReport(report: Pick<JustificationReportState, 'kingdomLabel'>, isEngLocale: boolean): boolean {
+  return isEngLocale || report.kingdomLabel.toLowerCase().includes('kingdom') || /[A-Za-z]/.test(report.kingdomLabel);
+}
+
+function normalizeRosterLookup(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function reconcileReportRowsWithRoster(
+  report: JustificationReportState,
+  roster: OfficialEmployee[],
+  isEngReport: boolean,
+): JustificationReportState {
+  if (roster.length === 0 || report.rows.length === 0) return report;
+  const employeeById = new Map(roster.map((employee) => [employee.employeeId, employee]));
+  const employeeByCode = new Map(roster.map((employee) => [normalizeRosterLookup(employee.code), employee]));
+  const employeeByNumber = new Map(roster
+    .filter((employee) => employee.employeeNumber?.trim())
+    .map((employee) => [normalizeRosterLookup(employee.employeeNumber || ''), employee]));
+  const employeeByName = new Map<string, OfficialEmployee>();
+  const usedEmployeeIds = new Set(report.rows.map((row) => row.employeeId).filter(Boolean));
+  for (const employee of roster) {
+    for (const name of [employee.fullName, employee.fullNameEn]) {
+      if (name) employeeByName.set(normalizeRosterLookup(name), employee);
+    }
+  }
+  let changed = false;
+  const rows = report.rows.map((row) => {
+    let employee = row.employeeId ? employeeById.get(row.employeeId) : undefined;
+    if (!employee) {
+      const normalizedBn = normalizeRosterLookup(row.bn);
+      const resolved = employeeByNumber.get(normalizedBn)
+        || employeeByCode.get(normalizedBn)
+        || employeeByName.get(normalizeRosterLookup(row.name));
+      if (resolved && !usedEmployeeIds.has(resolved.employeeId)) {
+        employee = resolved;
+      }
+    }
+    if (!employee) return row;
+    usedEmployeeIds.add(employee.employeeId);
+    const nextName = getReportEmployeeName(employee, isEngReport);
+    const nextRow = {
+      ...row,
+      employeeId: employee.employeeId,
+      bn: row.manualBn ? row.bn : getEmployeeBn(employee),
+      name: row.manualName ? row.name : nextName,
+      branch: getEmployeeBranch(employee),
+    };
+    if (
+      nextRow.employeeId !== row.employeeId ||
+      nextRow.bn !== row.bn ||
+      nextRow.name !== row.name ||
+      nextRow.branch !== row.branch
+    ) changed = true;
+    return nextRow;
+  });
+  return changed ? { ...report, rows } : report;
 }
 
 const ARABIC_MONTHS = [
@@ -237,6 +312,11 @@ function EmployeeJustificationContent() {
   const [mobileView, setMobileView] = useState<'editor' | 'preview'>('editor');
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [rosterSearch, setRosterSearch] = useState('');
+  const reportRef = useRef(report);
+
+  useEffect(() => {
+    reportRef.current = report;
+  }, [report]);
 
   const isEngLocale = i18n.language.startsWith('en') || !i18n.language.startsWith('ar');
   const monthOptions = useMemo(() => getMonthOptions(isEngLocale), [isEngLocale]);
@@ -248,9 +328,21 @@ function EmployeeJustificationContent() {
       (e) =>
         e.fullName.toLowerCase().includes(q) ||
         e.code.toLowerCase().includes(q) ||
+        (e.employeeNumber && e.employeeNumber.toLowerCase().includes(q)) ||
         (e.fullNameEn && e.fullNameEn.toLowerCase().includes(q)),
     ).slice(0, 20);
   }, [officialEmployeeRoster, rosterSearch]);
+
+  const updateReportDraft = useCallback(
+    (updater: (prev: JustificationReportState) => JustificationReportState) => {
+      setReport((prev) => {
+        const next = updater(prev);
+        writeJustificationReportDraft(selectedMonthKey, next);
+        return next;
+      });
+    },
+    [selectedMonthKey],
+  );
 
   /* ---- Generate/Sync report from OT data ---- */
   function executeGenerateReport(targetMonthKey?: string) {
@@ -265,7 +357,8 @@ function EmployeeJustificationContent() {
     const monthIdx = parseInt(monthStr, 10) - 1;
     const yearNum = parseInt(yearStr, 10);
     const isEngReport = isEngLocale || report.kingdomLabel.toLowerCase().includes('kingdom') || !report.kingdomLabel.includes('المملكة');
-    const monthLabel = isEngReport
+    const currentIsEngReport = shouldUseEnglishReport(reportRef.current, isEngLocale) || isEngReport;
+    const monthLabel = currentIsEngReport
       ? `${ENGLISH_MONTHS[monthIdx]} ${yearNum}`
       : `${ARABIC_MONTHS[monthIdx]} ${yearNum}`;
 
@@ -305,8 +398,8 @@ function EmployeeJustificationContent() {
         for (const unit of facility.units) {
           for (const row of unit.rows) {
             if (row.archived) continue;
-            // Only pick up overtime-coloured rows from schedule management
-            if (row.colorKey !== 'overtime') continue;
+            // Only pick up overtime, onCall, and onCallNight coloured rows from schedule management
+            if (row.colorKey !== 'overtime' && row.colorKey !== 'onCall' && row.colorKey !== 'onCallNight') continue;
             const shiftHours = hoursFromTimeRange(row.timeRange);
             for (const dayStr of Object.keys(row.cellsByDay)) {
               const assignments = row.cellsByDay[Number(dayStr)];
@@ -329,11 +422,12 @@ function EmployeeJustificationContent() {
     for (const [empId, summary] of Object.entries(summaryMap)) {
       const rosterEmp = officialEmployeeRoster.find((r) => r.employeeId === empId);
       newRows.push({
-        id: generateId(),
-        bn: rosterEmp ? rosterEmp.code : empId.slice(0, 5),
-        name: rosterEmp
-          ? (isEngReport ? rosterEmp.fullNameEn || rosterEmp.fullName : rosterEmp.fullName)
-          : empId,
+        id: getSourceRowId(empId),
+        employeeId: empId,
+        bn: rosterEmp ? getEmployeeBn(rosterEmp) : empId.slice(0, 5),
+        manualBn: false,
+        name: rosterEmp ? getReportEmployeeName(rosterEmp, currentIsEngReport) : empId,
+        manualName: false,
         branch: getEmployeeBranch(rosterEmp),
         totalShifts: summary.shifts,
         claimedHours: Math.round(summary.hours),
@@ -351,28 +445,51 @@ function EmployeeJustificationContent() {
     }));
   }
 
-  /* ---- Auto-init on load ---- */
+  /* ---- Auto-load saved drafts, otherwise keep generated rows in sync with OT/roster data ---- */
   useEffect(() => {
+    const savedDraft = readJustificationReportDraft(selectedMonthKey);
+    if (savedDraft) {
+      const isSavedEngReport = shouldUseEnglishReport(savedDraft, isEngLocale);
+      const reconciledDraft = reconcileReportRowsWithRoster(
+        savedDraft,
+        officialEmployeeRoster,
+        isSavedEngReport,
+      );
+      if (reconciledDraft !== savedDraft) {
+        writeJustificationReportDraft(selectedMonthKey, reconciledDraft);
+      }
+      setReport(reconciledDraft);
+      return;
+    }
+
     executeGenerateReport(selectedMonthKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [
+    selectedMonthKey,
+    officialEmployeeRoster,
+    publishedRowsByMonth,
+    rowsByMonth,
+    matricesByMonth,
+    currentMatrixData,
+    isEngLocale,
+  ]);
 
   /* ---- Actions ---- */
   const updateField = useCallback(
     <K extends keyof JustificationReportState>(key: K, value: JustificationReportState[K]) => {
-      setReport((prev) => ({ ...prev, [key]: value }));
+      updateReportDraft((prev) => ({ ...prev, [key]: value }));
     },
-    [],
+    [updateReportDraft],
   );
 
   const updateHeader = useCallback(
     (key: keyof JustificationReportState['headers'], value: string) => {
-      setReport((prev) => ({
+      updateReportDraft((prev) => ({
         ...prev,
         headers: { ...prev.headers, [key]: value },
       }));
     },
-    [],
+    [updateReportDraft],
   );
 
   const addRow = useCallback(() => {
@@ -384,16 +501,16 @@ function EmployeeJustificationContent() {
       totalShifts: 1,
       claimedHours: 8,
     };
-    setReport((prev) => ({
+    updateReportDraft((prev) => ({
       ...prev,
       rows: [...prev.rows, newRow],
       numberOfStaff: String(prev.rows.length + 1),
     }));
     setEditingRowId(newRow.id);
-  }, [isEngLocale]);
+  }, [isEngLocale, updateReportDraft]);
 
   const deleteRow = useCallback((id: string) => {
-    setReport((prev) => {
+    updateReportDraft((prev) => {
       const nextRows = prev.rows.filter((r) => r.id !== id);
       return {
         ...prev,
@@ -401,17 +518,22 @@ function EmployeeJustificationContent() {
         numberOfStaff: String(nextRows.length),
       };
     });
-  }, []);
+  }, [updateReportDraft]);
 
   const updateRow = useCallback((id: string, updates: Partial<JustificationEmployeeRow>) => {
-    setReport((prev) => ({
+    updateReportDraft((prev) => ({
       ...prev,
-      rows: prev.rows.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+      rows: prev.rows.map((r) => (r.id === id ? {
+        ...r,
+        ...updates,
+        manualBn: updates.bn !== undefined ? true : r.manualBn,
+        manualName: updates.name !== undefined ? true : r.manualName,
+      } : r)),
     }));
-  }, []);
+  }, [updateReportDraft]);
 
   const moveRow = useCallback((id: string, direction: 'up' | 'down') => {
-    setReport((prev) => {
+    updateReportDraft((prev) => {
       const idx = prev.rows.findIndex((r) => r.id === id);
       if (idx < 0) return prev;
       const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
@@ -423,11 +545,14 @@ function EmployeeJustificationContent() {
       newRows[targetIdx] = temp;
       return { ...prev, rows: newRows };
     });
-  }, []);
+  }, [updateReportDraft]);
 
   const handleSelectRosterEmployee = useCallback(
     (employee: OfficialEmployee) => {
-      const exists = report.rows.some((r) => r.bn === employee.code);
+      const normalizedBn = getEmployeeBn(employee).trim().toUpperCase();
+      const exists = report.rows.some((r) =>
+        r.employeeId === employee.employeeId ||
+        r.bn.trim().toUpperCase() === normalizedBn);
       if (exists) {
         addToast({ type: 'warning', title: `${employee.fullName} is already in the table.` });
         return;
@@ -437,23 +562,27 @@ function EmployeeJustificationContent() {
         report.kingdomLabel.toLowerCase().includes('kingdom') ||
         !report.kingdomLabel.includes('المملكة');
 
+      const currentIsEngReport = shouldUseEnglishReport(report, isEngLocale) || isEngReport;
       const newRow: JustificationEmployeeRow = {
-        id: generateId(),
-        bn: employee.code,
-        name: isEngReport ? employee.fullNameEn || employee.fullName : employee.fullName,
+        id: getSourceRowId(employee.employeeId),
+        employeeId: employee.employeeId,
+        bn: getEmployeeBn(employee),
+        manualBn: false,
+        name: getReportEmployeeName(employee, currentIsEngReport),
+        manualName: false,
         branch: getEmployeeBranch(employee),
         totalShifts: 1,
         claimedHours: 8,
       };
 
-      setReport((prev) => ({
+      updateReportDraft((prev) => ({
         ...prev,
         rows: [...prev.rows, newRow],
         numberOfStaff: String(prev.rows.length + 1),
       }));
       addToast({ type: 'success', title: `${employee.fullName} added.` });
     },
-    [report.rows, report.kingdomLabel, isEngLocale, addToast],
+    [report, isEngLocale, addToast, updateReportDraft],
   );
 
   async function handleExport() {
@@ -540,7 +669,6 @@ function EmployeeJustificationContent() {
                 value={selectedMonthKey}
                 onChange={(e) => {
                   setSelectedMonthKey(e.target.value);
-                  executeGenerateReport(e.target.value);
                 }}
               >
                 {monthOptions.map((opt) => (
@@ -742,7 +870,7 @@ function EmployeeJustificationContent() {
                         <div className="min-w-0 flex-1">
                           <div className="font-medium text-text-primary truncate">{emp.fullName}</div>
                           <div className="text-[10px] text-text-secondary font-mono">
-                            {emp.code} · {getEmployeeBranch(emp)}
+                            {getEmployeeBn(emp)} · {emp.code} · {getEmployeeBranch(emp)}
                           </div>
                         </div>
                         <button

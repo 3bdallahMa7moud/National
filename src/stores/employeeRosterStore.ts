@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { OFFICIAL_EMPLOYEE_ROSTER, type OfficialEmployee } from '@/data/officialEmployeeRoster';
+import type { OfficialEmployee } from '@/types/officialEmployee';
 import {
   getEmployeeDirectoryRoster,
   useEmployeeDirectoryStore,
@@ -57,15 +57,6 @@ export const useEmployeeRosterStore = create<EmployeeRosterState>((set) => ({
     return result;
   },
   resetEmployees: () => {
-    const directory = useEmployeeDirectoryStore.getState();
-    for (const seed of OFFICIAL_EMPLOYEE_ROSTER) {
-      const record = directory.records.find((candidate) => candidate.scheduleEmployeeId === seed.employeeId);
-      if (!record) continue;
-      directory.updateEmployee(record.accountId, {
-        name: { ar: seed.fullName, en: seed.fullNameEn || seed.fullName },
-        code: seed.code,
-      }, 'System');
-    }
     set({ employees: getEmployeeDirectoryRoster() });
   },
 }));

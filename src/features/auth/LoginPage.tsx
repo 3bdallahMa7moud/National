@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { startTransition, useState, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -30,24 +30,15 @@ export default function LoginPage() {
   const login = useAuthStore((s) => s.login);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const showDemoAccounts = import.meta.env.MODE === 'test'
-    || import.meta.env.DEV
-    || import.meta.env.VITE_ENABLE_DEMO_ACCOUNTS === 'true';
 
   const loginSchema = useMemo(() => z.object({
     identifier: z.string().min(1, t('auth:login.identifierRequired')),
     password: z.string().min(1, t('forms:validation.passwordRequired')),
   }), [t]);
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<LoginForm>({
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
   });
-
-  const handleFillDemo = (identifier: string) => {
-    setValue('identifier', identifier, { shouldValidate: true });
-    setValue('password', '123456', { shouldValidate: true });
-    setError('');
-  };
 
   const onSubmit = async (data: LoginForm) => {
     setError('');
@@ -64,12 +55,24 @@ export default function LoginPage() {
         ? (error.response?.data as { error?: { code?: string } } | undefined)?.error?.code
         : undefined;
 
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+
+        if (status === 401 || code === 'INVALID_CREDENTIALS') {
+          setError(t('auth:login.invalidCredentials'));
+          return;
+        }
+
+        if (!error.response || status === 500 || status === 502 || status === 503 || status === 504) {
+          setError(t('auth:login.connectionError'));
+          return;
+        }
+      }
+
       setError(
         code === 'EMAIL_VERIFICATION_REQUIRED'
-          ? (i18n.language === 'ar'
-            ? 'يجب التحقق من بريدك الإلكتروني أولاً قبل تسجيل الدخول.'
-            : 'You must verify your email before signing in.')
-          : t('auth:login.invalidCredentials'),
+          ? t('auth:login.emailVerificationRequired')
+          : t('auth:login.unexpectedError'),
       );
     }
   };
@@ -166,14 +169,14 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••"
                   dir="ltr"
-                  className="!pe-10"
+                  className="!pe-12"
                   error={errors.password?.message}
                   {...register('password')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute end-1.5 top-[29px] inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="absolute end-1.5 top-7 inline-flex h-10 w-10 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
                   aria-label={showPassword ? t('auth:login.hidePassword') : t('auth:login.showPassword')}
                   aria-pressed={showPassword}
                 >
@@ -203,56 +206,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-3 border-t border-border pt-2.5 text-center text-xs text-text-secondary">
-              <span>{i18n.language === 'ar' ? 'لا تملك حساباً بعد؟' : 'Need a new account?'}</span>
-              <Link to="/register" className="ms-1 inline-flex items-center gap-1 font-bold text-primary hover:underline">
-                <span>{i18n.language === 'ar' ? 'إنشاء حساب' : 'Create account'}</span>
-              </Link>
-            </div>
-
-            {showDemoAccounts && (
-              <div className="mt-3 border-t border-border pt-2.5">
-              <p className="mb-1.5 text-center text-[11px] font-semibold text-text-secondary">{t('auth:login.demoAccounts')}</p>
-              <div className="flex flex-col gap-2 text-[11px]">
-                {/* Super Admin demo */}
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo('EMP-001')}
-                  className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-500/10 p-2 text-start transition-all hover:bg-amber-500/20 dark:border-amber-700"
-                >
-                  <div className="min-w-0">
-                    <span className="font-bold text-amber-600 dark:text-amber-400">👑 {t('common:role.superAdmin', 'Super Admin')}</span>
-                    <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-001</span>
-                  </div>
-                  <span className="shrink-0 rounded border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-semibold text-text-secondary" dir="ltr">123456</span>
-                </button>
-                {/* Admin demo */}
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo('EMP-003')}
-                  className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted/80 p-2 text-start transition-all hover:border-primary/50 hover:bg-primary/5"
-                >
-                  <div className="min-w-0">
-                    <span className="font-bold text-teal-600 dark:text-teal-400">🛡️ {t('common:role.admin', 'Admin')}</span>
-                    <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-003</span>
-                  </div>
-                  <span className="shrink-0 rounded border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-semibold text-text-secondary" dir="ltr">123456</span>
-                </button>
-                {/* Employee demo */}
-                <button
-                  type="button"
-                  onClick={() => handleFillDemo('EMP-002')}
-                  className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-surface-muted/80 p-2 text-start transition-all hover:border-primary/50 hover:bg-primary/5"
-                >
-                  <div className="min-w-0">
-                    <span className="font-bold text-text-primary">👤 {t('common:role.employee', 'Employee')}</span>
-                    <span className="text-[10px] text-text-secondary ms-1.5 font-mono" dir="ltr">EMP-002</span>
-                  </div>
-                  <span className="shrink-0 rounded border border-border bg-background px-2 py-0.5 font-mono text-[10px] font-semibold text-text-secondary" dir="ltr">123456</span>
-                </button>
-              </div>
-              </div>
-            )}
           </div>
 
           <div className="mt-3 text-center text-[10px] text-text-secondary/60 leading-5">

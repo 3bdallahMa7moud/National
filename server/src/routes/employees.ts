@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { type Response, Router } from 'express';
-import { AccessTemplateId, type Prisma, type UserRole } from '@prisma/client';
+import { AccessTemplateId, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { hashPassword, normalizeEmail } from '../lib/auth.js';
@@ -86,7 +86,7 @@ function serializeAccessProfile(user: UserWithRelations) {
     scheduleEmployeeId: user.scheduleEmployeeId ?? undefined,
     templateId: profile?.templateId ?? AccessTemplateId.standard,
     overrides: parseJson<Record<string, boolean>>(profile?.overridesJson, {}),
-    active: profile?.isActive ?? user.isActive,
+    active: user.isActive && (profile?.isActive ?? true),
     updatedAt: profile?.updatedAt.toISOString() ?? user.updatedAt.toISOString(),
     updatedBy: profile?.updatedByLabel ?? 'system',
   };
@@ -184,24 +184,6 @@ async function getUserOr404(userId: string, res: Response) {
   return user;
 }
 
-async function countActiveSuperAdmins(excludeUserId?: string) {
-  return prisma.user.count({
-    where: {
-      role: 'super_admin',
-      isActive: true,
-      ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
-    },
-  });
-}
-
-function canManageSuperAdminTransition(viewerRole: UserRole, currentRole: UserRole, nextRole: UserRole) {
-  if (currentRole === nextRole) return true;
-  if (currentRole === 'super_admin' || nextRole === 'super_admin') {
-    return viewerRole === 'super_admin';
-  }
-  return true;
-}
-
 export const employeesRouter = Router();
 
 employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res) => {
@@ -219,6 +201,17 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
 
   const departmentId = parsed.data.departmentId ?? req.viewer!.department.id;
   const normalizedEmail = normalizeEmail(parsed.data.email);
+
+  if (parsed.data.role === 'admin' && req.viewer!.role !== 'super_admin') {
+    res.status(403).json({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Only super admins can create admin accounts.',
+      },
+    });
+    return;
+  }
+
   const department = await prisma.department.findUnique({
     where: { id: departmentId },
   });
@@ -238,6 +231,132 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
     prisma.user.findUnique({ where: { code: parsed.data.code.toUpperCase() } }),
     prisma.user.findUnique({ where: { email: normalizedEmail } }),
   ]);
+
+  const conflicts = [employeeNumberConflict, codeConflict, emailConflict].filter(
+    (user): user is NonNullable<typeof employeeNumberConflict> => Boolean(user),
+  );
+  const conflictIds = new Set(conflicts.map((user) => user.id));
+  const restoreCandidate = conflictIds.size === 1 ? conflicts[0] : null;
+
+  if (restoreCandidate && !restoreCandidate.isActive) {
+    if (restoreCandidate.role === 'super_admin') {
+      res.status(400).json({
+        error: {
+          code: 'PROTECTED_SUPER_ADMIN',
+          message: 'Cannot remove or demote a super admin account.',
+        },
+      });
+      return;
+    }
+
+    if (restoreCandidate.role !== parsed.data.role && req.viewer!.role !== 'super_admin') {
+      res.status(403).json({
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only super admins can change user roles.',
+        },
+      });
+      return;
+    }
+
+    let restored: UserWithRelations | null = null;
+
+    try {
+      const passwordHash = await hashPassword(crypto.randomUUID());
+
+      await createAndSendPasswordSetup({
+        userId: restoreCandidate.id,
+        email: normalizedEmail,
+        identifier: normalizedEmail,
+      });
+
+      restored = await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: restoreCandidate.id },
+          data: {
+            employeeNumber: parsed.data.employeeNumber,
+            code: parsed.data.code.toUpperCase(),
+            nameEn: parsed.data.name,
+            nameAr: parsed.data.name,
+            email: normalizedEmail,
+            emailVerifiedAt: null,
+            phone: parsed.data.phone,
+            role: parsed.data.role,
+            departmentId,
+            positionEn: parsed.data.position,
+            positionAr: parsed.data.position,
+            isActive: true,
+            passwordHash,
+          },
+        });
+
+        await tx.employeeAccessProfile.upsert({
+          where: { userId: restoreCandidate.id },
+          update: {
+            templateId: AccessTemplateId.standard,
+            overridesJson: '{}',
+            isActive: true,
+            updatedByLabel: req.viewer!.name.en,
+          },
+          create: {
+            userId: restoreCandidate.id,
+            templateId: AccessTemplateId.standard,
+            overridesJson: '{}',
+            isActive: true,
+            updatedByLabel: req.viewer!.name.en,
+          },
+        });
+
+        return tx.user.findUniqueOrThrow({
+          where: { id: restoreCandidate.id },
+          include: {
+            department: true,
+            accessProfile: true,
+          },
+        });
+      });
+    } catch (error) {
+      const isEmailError = error instanceof EmailDeliveryError;
+      res.status(isEmailError ? 502 : 409).json({
+        error: {
+          code: isEmailError ? 'EMAIL_DELIVERY_FAILED' : 'EMPLOYEE_RESTORE_FAILED',
+          message: isEmailError ? error.message : 'Unable to restore the employee account.',
+        },
+      });
+      return;
+    }
+
+    if (!restored) return;
+
+    await recordAudit({
+      actorName: req.viewer!.name.en,
+      action: 'update',
+      entityId: restored.id,
+      entityLabel: restored.nameEn,
+      before: {
+        employeeNumber: restoreCandidate.employeeNumber,
+        code: restoreCandidate.code,
+        role: restoreCandidate.role,
+        departmentId: restoreCandidate.departmentId,
+        active: restoreCandidate.isActive,
+      },
+      after: {
+        employeeNumber: restored.employeeNumber,
+        code: restored.code,
+        role: restored.role,
+        departmentId: restored.departmentId,
+        active: restored.isActive,
+      },
+    });
+
+    res.status(200).json({
+      employee: serializeEmployee(restored),
+      accessProfile: serializeAccessProfile(restored),
+      setupEmailSent: true,
+      restored: true,
+    });
+    return;
+  }
 
   if (employeeNumberConflict) {
     res.status(409).json({
@@ -364,7 +483,17 @@ employeesRouter.patch('/:employeeId', requireRoles('admin', 'super_admin'), asyn
   const nextRole = parsed.data.role ?? existing.role;
   const nextActive = parsed.data.active ?? existing.isActive;
 
-  if (!canManageSuperAdminTransition(req.viewer!.role, existing.role, nextRole)) {
+  if (parsed.data.role !== undefined && req.viewer!.role !== 'super_admin') {
+    res.status(403).json({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Only super admins can change user roles.',
+      },
+    });
+    return;
+  }
+
+  if (existing.role === 'super_admin' && req.viewer!.role !== 'super_admin') {
     res.status(403).json({
       error: {
         code: 'FORBIDDEN',
@@ -375,16 +504,13 @@ employeesRouter.patch('/:employeeId', requireRoles('admin', 'super_admin'), asyn
   }
 
   if (existing.role === 'super_admin' && (!nextActive || nextRole !== 'super_admin')) {
-    const remaining = await countActiveSuperAdmins(existing.id);
-    if (remaining === 0) {
-      res.status(400).json({
-        error: {
-          code: 'LAST_SUPER_ADMIN',
-          message: 'Cannot remove the last active super admin.',
-        },
-      });
-      return;
-    }
+    res.status(400).json({
+      error: {
+        code: 'PROTECTED_SUPER_ADMIN',
+        message: 'Cannot remove or demote a super admin account.',
+      },
+    });
+    return;
   }
 
   if (parsed.data.employeeNumber && parsed.data.employeeNumber !== existing.employeeNumber) {
@@ -570,6 +696,26 @@ employeesRouter.patch('/:employeeId/access', requireRoles('admin', 'super_admin'
   const employeeId = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
   const existing = await getUserOr404(employeeId, res);
   if (!existing) return;
+
+  if (existing.role === 'super_admin' && req.viewer!.role !== 'super_admin') {
+    res.status(403).json({
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Only super admins can change super admin accounts.',
+      },
+    });
+    return;
+  }
+
+  if (existing.role === 'super_admin' && !parsed.data.active) {
+    res.status(400).json({
+      error: {
+        code: 'PROTECTED_SUPER_ADMIN',
+        message: 'Cannot remove or demote a super admin account.',
+      },
+    });
+    return;
+  }
 
   const normalizedScheduleEmployeeId = parsed.data.scheduleEmployeeId?.trim() || null;
   if (normalizedScheduleEmployeeId && normalizedScheduleEmployeeId !== existing.scheduleEmployeeId) {

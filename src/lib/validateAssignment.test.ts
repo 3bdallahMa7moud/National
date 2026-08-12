@@ -21,7 +21,7 @@ describe('validateAssignment - conflict detection engine', () => {
   });
 
   it('detects cross-facility and vacation conflicts during recalculation', () => {
-    const mockData: ScheduleMatrixData = {
+    const fixtureData: ScheduleMatrixData = {
       departmentId: 'dept-1',
       month: 0,
       year: 2026,
@@ -100,23 +100,23 @@ describe('validateAssignment - conflict detection engine', () => {
       cellMarkers: {},
     };
 
-    recalculateAllConflicts(mockData);
+    recalculateAllConflicts(fixtureData);
 
     // emp-1 on day 5 has a cross-facility conflict between KAMC and KASCH
-    const emp1KamcAssignment = mockData.facilities[0].units[0].rows[0].cellsByDay[5][0];
-    const emp1KaschAssignment = mockData.facilities[1].units[0].rows[0].cellsByDay[5][0];
+    const emp1KamcAssignment = fixtureData.facilities[0].units[0].rows[0].cellsByDay[5][0];
+    const emp1KaschAssignment = fixtureData.facilities[1].units[0].rows[0].cellsByDay[5][0];
     expect(emp1KamcAssignment.hasConflict).toBe(true);
     expect(emp1KamcAssignment.conflictType).toBe('crossFacility');
     expect(emp1KaschAssignment.hasConflict).toBe(true);
 
     // emp-2 on day 10 has a vacation conflict
-    const emp2Assignment = mockData.facilities[1].units[0].rows[0].cellsByDay[10][0];
+    const emp2Assignment = fixtureData.facilities[1].units[0].rows[0].cellsByDay[10][0];
     expect(emp2Assignment.hasConflict).toBe(true);
     expect(emp2Assignment.conflictType).toBe('vacation');
   });
 
   it('validates a proposed assignment against existing vacation', () => {
-    const mockData: ScheduleMatrixData = {
+    const fixtureData: ScheduleMatrixData = {
       departmentId: 'dept-1',
       month: 0,
       year: 2026,
@@ -136,7 +136,7 @@ describe('validateAssignment - conflict detection engine', () => {
       cellMarkers: {},
     };
 
-    const res = validateAssignment(mockData, {
+    const res = validateAssignment(fixtureData, {
       facilityId: 'kamc',
       unitId: 'u1',
       rowId: 'r1',
@@ -153,7 +153,7 @@ describe('validateAssignment - conflict detection engine', () => {
 
   it('blocks an overlapping assignment but ignores the cell being replaced', () => {
     const assignment = { employeeId: 'emp-1', employeeCode: 'EMP1' };
-    const mockData = {
+    const fixtureData = {
       departmentId: 'dept-1',
       month: 0,
       year: 2026,
@@ -199,7 +199,7 @@ describe('validateAssignment - conflict detection engine', () => {
       cellMarkers: {},
     } satisfies ScheduleMatrixData;
 
-    expect(validateAssignment(mockData, {
+    expect(validateAssignment(fixtureData, {
       facilityId: 'kamc',
       unitId: 'unit-1',
       rowId: 'row-1',
@@ -208,7 +208,7 @@ describe('validateAssignment - conflict detection engine', () => {
       timeRange: '08:00 - 16:00',
     })).toEqual({ ok: true });
 
-    const result = validateAssignment(mockData, {
+    const result = validateAssignment(fixtureData, {
       facilityId: 'kamc',
       unitId: 'unit-1',
       rowId: 'row-2',

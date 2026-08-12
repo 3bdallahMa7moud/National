@@ -1,6 +1,6 @@
 import type { Language } from '@/i18n/constants';
-import type { MockDepartmentSource } from '@/mocks/types';
-import type { AuthUser } from '@/types';
+import type { AuthUser, DepartmentRecord } from '@/types';
+import type { EmployeeAccessProfile } from '@/types/employeeAccess';
 import type { EmployeeDirectoryRecord } from '@/types/employeeDirectory';
 
 export interface ApiLocalizedText {
@@ -111,7 +111,10 @@ export function mapViewerToAuthUser(viewer: ApiViewer, language: Language): Auth
   };
 }
 
-export function mapApiEmployeeToDirectoryRecord(employee: ApiEmployee): EmployeeDirectoryRecord {
+export function mapApiEmployeeToDirectoryRecord(
+  employee: ApiEmployee,
+  accessProfile?: EmployeeAccessProfile,
+): EmployeeDirectoryRecord {
   return {
     accountId: employee.id,
     name: employee.name,
@@ -130,15 +133,15 @@ export function mapApiEmployeeToDirectoryRecord(employee: ApiEmployee): Employee
     origin: 'official',
     issues: [],
     access: {
-      templateId: 'standard',
-      overrides: {},
-      updatedAt: employee.createdAt,
-      updatedBy: 'system',
+      templateId: accessProfile?.templateId ?? 'standard',
+      overrides: { ...(accessProfile?.overrides ?? {}) },
+      updatedAt: accessProfile?.updatedAt ?? employee.createdAt,
+      updatedBy: accessProfile?.updatedBy ?? 'system',
     },
   };
 }
 
-export function mapApiDepartmentToMockSource(department: ApiDepartment): MockDepartmentSource {
+export function mapApiDepartmentToRecord(department: ApiDepartment): DepartmentRecord {
   return {
     id: department.id,
     name: department.name,

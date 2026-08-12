@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import { type Prisma, type User, type UserRole } from '@prisma/client';
+import { AccessTemplateId, type Prisma, type User, type UserRole } from '@prisma/client';
 import { env } from '../config/env.js';
 import { prisma } from './prisma.js';
 import { parseJson } from './json.js';
@@ -73,6 +73,8 @@ export async function findLoginUser(identifier: string) {
 }
 
 export function serializeLocalizedUser(user: UserWithRelations) {
+  const accessProfile = user.accessProfile;
+
   return {
     id: user.id,
     employeeNumber: user.employeeNumber,
@@ -97,12 +99,12 @@ export function serializeLocalizedUser(user: UserWithRelations) {
       en: user.positionEn,
       ar: user.positionAr,
     },
-    access: user.accessProfile ? {
-      templateId: user.accessProfile.templateId,
-      overrides: parseJson<Record<string, boolean>>(user.accessProfile.overridesJson, {}),
-      active: user.accessProfile.isActive,
-      updatedAt: user.accessProfile.updatedAt.toISOString(),
-      updatedBy: user.accessProfile.updatedByLabel,
+    access: user.role === 'employee' || accessProfile ? {
+      templateId: accessProfile?.templateId ?? AccessTemplateId.standard,
+      overrides: parseJson<Record<string, boolean>>(accessProfile?.overridesJson, {}),
+      active: user.isActive && (accessProfile?.isActive ?? true),
+      updatedAt: accessProfile?.updatedAt.toISOString() ?? user.updatedAt.toISOString(),
+      updatedBy: accessProfile?.updatedByLabel ?? 'system',
     } : null,
   };
 }
@@ -139,11 +141,15 @@ export function maskEmail(email: string) {
 }
 
 export function includeDevResetCode(code: string) {
-  return env.NODE_ENV !== 'production' && env.ENABLE_DEV_PASSWORD_RESET_CODES ? code : undefined;
+  return env.NODE_ENV === 'test' && env.EMAIL_PROVIDER === 'console' && env.ENABLE_DEV_PASSWORD_RESET_CODES
+    ? code
+    : undefined;
 }
 
 export function includeDevSignupCode(code: string) {
-  return env.NODE_ENV !== 'production' && env.ENABLE_DEV_SIGNUP_OTP_CODES ? code : undefined;
+  return env.NODE_ENV === 'test' && env.EMAIL_PROVIDER === 'console' && env.ENABLE_DEV_SIGNUP_OTP_CODES
+    ? code
+    : undefined;
 }
 
 export function isEmployeeAccessActive(user: Pick<User, 'role'> & { accessProfile?: { isActive: boolean } | null }) {

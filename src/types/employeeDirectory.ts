@@ -38,6 +38,23 @@ export interface EmployeeDirectoryRecord {
   access: EmployeeDirectoryAccess;
 }
 
+export interface EmployeeDirectorySource {
+  id: string;
+  name: LocalizedText;
+  email: string;
+  phone: string;
+  role: UserRole;
+  departmentId: string;
+  departmentName: LocalizedText;
+  position: LocalizedText;
+  employeeNumber: string;
+  code: string;
+  avatar?: string;
+  isActive: boolean;
+  createdAt: string;
+  scheduleEmployeeId?: string;
+}
+
 export interface EmployeeDirectoryMigrationReport {
   migratedAt: string;
   sourceVersions: string[];

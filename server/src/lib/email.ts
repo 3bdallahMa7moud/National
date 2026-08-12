@@ -14,27 +14,63 @@ export class EmailDeliveryError extends Error {
   }
 }
 
+function previewDeliveryMessage() {
+  return 'Real email delivery is not configured. Set EMAIL_PROVIDER="resend", RESEND_API_KEY, and a valid EMAIL_FROM sender.';
+}
+
+function maskEmailAddress(email: string) {
+  const [name, domain] = email.split('@');
+  if (!name || !domain) return '[invalid-email]';
+  const visible = name.slice(0, 2);
+  return `${visible}${'*'.repeat(Math.max(name.length - visible.length, 1))}@${domain}`;
+}
+
+function sanitizeProviderLog(value: string) {
+  return value
+    .replace(/\bre_[A-Za-z0-9_-]+\b/g, '[REDACTED_API_KEY]')
+    .replace(/(?<!\d)\d{6}(?!\d)/g, '[REDACTED_OTP]');
+}
+
+function describeError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 async function sendWithResend(message: EmailMessage) {
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: env.EMAIL_FROM,
-      to: [message.to],
-      subject: message.subject,
-      text: message.text,
-      html: message.html,
-    }),
-  });
+  let response: Response;
+  const recipient = maskEmailAddress(message.to);
+
+  try {
+    response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM,
+        to: [message.to],
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
+      }),
+    });
+  } catch (error) {
+    const messageText = sanitizeProviderLog(describeError(error));
+    console.error(`[email:resend] request failed for ${recipient}: ${messageText}`);
+    throw new EmailDeliveryError(
+      isProduction ? 'Email delivery request failed.' : `Email delivery request failed: ${messageText}`,
+    );
+  }
+
+  const body = sanitizeProviderLog(await response.text());
 
   if (response.ok) {
+    console.info(`[email:resend] send accepted for ${recipient}: status=${response.status} response=${body || '<empty>'}`);
     return;
   }
 
-  const body = await response.text();
+  console.error(`[email:resend] send rejected for ${recipient}: status=${response.status} response=${body || '<empty>'}`);
   throw new EmailDeliveryError(
     isProduction
       ? `Email delivery failed with status ${response.status}.`
@@ -48,11 +84,16 @@ export async function sendEmail(message: EmailMessage) {
     return;
   }
 
+  if (env.NODE_ENV === 'test') {
+    console.info(`[email:${env.EMAIL_PROVIDER}] queued "${message.subject}" to ${message.to}`);
+    return;
+  }
+
   if (isProduction) {
     throw new EmailDeliveryError('EMAIL_PROVIDER=console is not allowed in production.');
   }
 
-  console.info(`[email:${env.EMAIL_PROVIDER}] queued "${message.subject}" to ${message.to}`);
+  throw new EmailDeliveryError(previewDeliveryMessage());
 }
 
 export async function sendSignupVerificationEmail(args: {

@@ -212,25 +212,29 @@ calendarSyncRouter.get('/feed/:token.ics', async (req, res) => {
     },
   });
 
-  if (!token || !token.user.scheduleEmployeeId) {
+  if (!token) {
     res.status(404).send('Calendar feed not found.');
     return;
   }
 
-  const [scheduleMonths, overtimeMonths] = await Promise.all([
-    prisma.scheduleMonth.findMany({
-      where: { publishedJson: { not: null } },
-      orderBy: { monthKey: 'asc' },
-    }),
-    prisma.overtimeMonth.findMany({
-      orderBy: { monthKey: 'asc' },
-    }),
-  ]);
+  let events: Array<{ title: string; description: string; start: Date; end: Date }> = [];
 
-  const events = [
-    ...collectScheduleEvents(token.user.scheduleEmployeeId, scheduleMonths),
-    ...collectOvertimeEvents(token.user.scheduleEmployeeId, overtimeMonths),
-  ].sort((left, right) => left.start.getTime() - right.start.getTime());
+  if (token.user.scheduleEmployeeId) {
+    const [scheduleMonths, overtimeMonths] = await Promise.all([
+      prisma.scheduleMonth.findMany({
+        where: { publishedJson: { not: null } },
+        orderBy: { monthKey: 'asc' },
+      }),
+      prisma.overtimeMonth.findMany({
+        orderBy: { monthKey: 'asc' },
+      }),
+    ]);
+
+    events = [
+      ...collectScheduleEvents(token.user.scheduleEmployeeId, scheduleMonths),
+      ...collectOvertimeEvents(token.user.scheduleEmployeeId, overtimeMonths),
+    ].sort((left, right) => left.start.getTime() - right.start.getTime());
+  }
 
   const lines = [
     'BEGIN:VCALENDAR',

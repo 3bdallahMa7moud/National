@@ -1,19 +1,30 @@
 import { useMemo } from 'react';
+import { SHIFT_TYPES } from '@/data/shiftTypes';
+import { useLanguage } from '@/hooks/useLanguage';
+import { employeeRecordToEmployee, localizeShift, localizeShiftType } from '@/lib/localizedRecords';
+import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import { useScheduleStore } from '@/stores/scheduleStore';
-import { useMockData } from '@/hooks/useMockData';
-import { resolveShift } from '@/mocks/resolveMockData';
 
 export function useSchedule(employeeId?: string, month?: number, year?: number) {
   const { shifts, addShift, updateShift, deleteShift, addShiftToCell, bulkUpdateShifts } = useScheduleStore();
-  const { employees, shiftTypes, language } = useMockData();
+  const { language } = useLanguage();
+  const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
 
   const now = new Date();
   const currentMonth = month ?? now.getMonth();
   const currentYear = year ?? now.getFullYear();
+  const employees = useMemo(
+    () => directoryRecords.map((record) => employeeRecordToEmployee(record, language)),
+    [directoryRecords, language],
+  );
+  const shiftTypes = useMemo(
+    () => SHIFT_TYPES.map((shiftType) => localizeShiftType(shiftType, language)),
+    [language],
+  );
 
   const localizedShifts = useMemo(
-    () => shifts.map((s) => resolveShift(s, language, employees)),
-    [shifts, language, employees],
+    () => shifts.map((shift) => localizeShift(shift, employees)),
+    [shifts, employees],
   );
 
   const filteredShifts = useMemo(() => {

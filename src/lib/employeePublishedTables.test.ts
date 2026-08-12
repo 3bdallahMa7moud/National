@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
+import { createScheduleMatrixFixture } from '@/test/fixtures/scheduleMatrix';
 import { projectPublishedOTTable, projectPublishedScheduleMatrix } from './employeePublishedTables';
 import type { OTShiftRow } from '@/types/lateSchedule';
 
 describe('employee published table projections', () => {
   it('keeps the Schedule structure while hiding other employees, drafts, archives and audit history', () => {
-    const matrix = generateScheduleMatrixMock(2026, 6);
+    const matrix = createScheduleMatrixFixture(2026, 6);
     const sourceUnit = matrix.facilities[0].units[0];
     const sourceRow = sourceUnit.rows[0];
     const firstAssignedDay = Number(Object.keys(sourceRow.cellsByDay).find((day) => sourceRow.cellsByDay[Number(day)].length > 0));

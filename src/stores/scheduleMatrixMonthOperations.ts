@@ -1,5 +1,5 @@
 import { recalculateAllConflicts } from '@/lib/validateAssignment';
-import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
+import { createEmptyScheduleMatrix } from '@/lib/scheduleMatrixFactory';
 import { pruneScheduleCellMarkers } from '@/lib/scheduleCellMarkers';
 import type {
   Assignment,
@@ -126,16 +126,7 @@ export function deletedMonthShell(
   year: number,
   month: number,
 ): ScheduleMatrixData {
-  const generated = generateScheduleMatrixMock(year, month);
-  return {
-    ...generated,
-    facilities: [],
-    settings: [],
-    vacations: [],
-    holidays: [],
-    cellMarkers: {},
-    auditLog: [],
-  };
+  return createEmptyScheduleMatrix(year, month);
 }
 
 export function addMonthVersion(

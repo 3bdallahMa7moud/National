@@ -34,9 +34,11 @@ export default function DashboardPage() {
   const monthKey = selectedDate.slice(0, 7);
   const matrix = matricesByMonth[monthKey];
   const otRows = useMemo(() => {
-    return publishedOtRowsByMonth[monthKey]
-      || otRowsByMonth[monthKey]
-      || (currentOtRows?.length ? currentOtRows : undefined);
+    const published = publishedOtRowsByMonth[monthKey];
+    if (published && published.length > 0) return published;
+    const draft = otRowsByMonth[monthKey];
+    if (draft && draft.length > 0) return draft;
+    return currentOtRows?.length ? currentOtRows : undefined;
   }, [publishedOtRowsByMonth, otRowsByMonth, currentOtRows, monthKey]);
 
   const snapshot = useMemo(

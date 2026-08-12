@@ -7,6 +7,7 @@
     "phoneMin": "رقم الجوال يجب أن يكون 9 أرقام على الأقل",
     "positionMin": "يرجى تحديد المسمى الوظيفي",
     "departmentRequired": "يرجى اختيار القسم",
+    "departmentNameRequired": "اسم القسم مطلوب",
     "passwordMin": "كلمة المرور يجب أن تكون 6 أحرف أو أرقام على الأقل",
     "confirmPasswordRequired": "يرجى تأكيد كلمة المرور",
     "passwordMismatch": "كلمتا المرور غير متطابقتين",

@@ -1,13 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   EMPLOYEE_DIRECTORY_STORAGE_KEY,
-  LEGACY_EMPLOYEE_ACCESS_STORAGE_KEY,
-  LEGACY_EMPLOYEE_ROSTER_STORAGE_KEY,
+  buildEmployeeDirectoryRoster,
+  buildPendingEmployeeRosterId,
   createEmployeeDirectoryStore,
   type EmployeeDirectoryStorage,
 } from './employeeDirectoryStore';
-import { MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY } from '@/mocks/sources';
-import type { MockEmployeeSource } from '@/mocks/types';
+import type { EmployeeDirectoryRecord, EmployeeDirectorySource } from '@/types/employeeDirectory';
 
 function memoryStorage(): EmployeeDirectoryStorage & { values: Map<string, string>; failKey?: string } {
   const values = new Map<string, string>();
@@ -21,131 +20,92 @@ function memoryStorage(): EmployeeDirectoryStorage & { values: Map<string, strin
   };
 }
 
-function customEmployee(): MockEmployeeSource {
+function sourceEmployee(): EmployeeDirectorySource {
   return {
     id: 'custom-account',
-    name: { ar: 'موظف مضاف', en: 'Custom Employee' },
+    name: { ar: 'Custom Employee', en: 'Custom Employee' },
     email: 'custom@hospital.sa',
     phone: '0500000000',
     role: 'employee',
     departmentId: 'dept-1',
-    departmentName: { ar: 'الأشعة', en: 'Radiology' },
-    position: { ar: 'فني', en: 'Technologist' },
+    departmentName: { ar: 'Radiology', en: 'Radiology' },
+    position: { ar: 'Technologist', en: 'Technologist' },
     employeeNumber: 'CUSTOM-1',
     code: 'CUSTOM',
     isActive: true,
     createdAt: '2026-07-01',
-    scheduleEmployeeId: 'emp-m-1',
+    scheduleEmployeeId: 'schedule-employee-1',
   };
 }
 
-describe('employeeDirectoryStore migration', () => {
-  it('merges legacy accounts, roster identities, and access while restoring official accounts', () => {
+function backendRecord(overrides: Partial<EmployeeDirectoryRecord> = {}): EmployeeDirectoryRecord {
+  return {
+    accountId: 'backend-account',
+    name: { ar: 'Backend Employee', en: 'Backend Employee' },
+    email: 'backend.employee@hospital.sa',
+    phone: '0501112233',
+    role: 'employee',
+    departmentId: 'dept-backend',
+    departmentName: { ar: 'Backend Department', en: 'Backend Department' },
+    position: { ar: 'Technologist', en: 'Technologist' },
+    employeeNumber: 'BE-100',
+    code: 'B100',
+    active: true,
+    createdAt: '2026-08-08T00:00:00.000Z',
+    scheduleEmployeeId: 'backend-employee-1',
+    origin: 'official',
+    issues: [],
+    access: {
+      templateId: 'coordinator',
+      overrides: { 'schedule.department.export': true },
+      updatedAt: '2026-08-08T00:00:00.000Z',
+      updatedBy: 'Backend bootstrap',
+    },
+    ...overrides,
+  };
+}
+
+describe('employeeDirectoryStore', () => {
+  it('starts empty when no backend bootstrap data has been loaded', () => {
     const storage = memoryStorage();
-    storage.values.set(MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY, JSON.stringify({
-      version: 2,
-      employees: [
-        {
-          ...customEmployee(),
-          id: 'emp-m-1',
-          employeeNumber: 'EMP-003',
-          code: 'A',
-          scheduleEmployeeId: 'emp-m-1',
-          name: { ar: 'أحمد المعدل', en: 'Edited Ahmed' },
-        },
-        customEmployee(),
-      ],
-    }));
-    storage.values.set(LEGACY_EMPLOYEE_ROSTER_STORAGE_KEY, JSON.stringify([
-      { employeeId: 'emp-m-1', code: 'AX', fullName: 'أحمد الرسمي', fullNameEn: 'Official Ahmed' },
-    ]));
-    storage.values.set(LEGACY_EMPLOYEE_ACCESS_STORAGE_KEY, JSON.stringify({
-      version: 2,
-      profiles: {
-        'emp-m-1': {
-          accountId: 'emp-m-1', departmentId: 'dept-1', scheduleEmployeeId: 'emp-m-1',
-          templateId: 'coordinator', overrides: {}, active: true,
-          updatedAt: '2026-07-02T00:00:00.000Z', updatedBy: 'Admin',
-        },
-      },
-    }));
-
     const store = createEmployeeDirectoryStore(storage);
-    const ahmed = store.getState().records.find((record) => record.accountId === 'emp-m-1');
-    const custom = store.getState().records.find((record) => record.accountId === 'custom-account');
 
-    expect(ahmed).toMatchObject({
-      name: { ar: 'أحمد الرسمي', en: 'Official Ahmed' },
-      code: 'AX',
-      scheduleEmployeeId: 'emp-m-1',
-      access: { templateId: 'coordinator' },
-      issues: [],
+    expect(store.getState().records).toEqual([]);
+    expect(store.getState().migrationReport).toMatchObject({
+      importedAccounts: 0,
+      officialAccountsRestored: 0,
+      recordsNeedingReview: 0,
     });
-    expect(custom?.issues).toContain('duplicate_roster_link');
-    expect(store.getState().records.some((record) => record.accountId === 'emp-m-30')).toBe(true);
-    expect(store.getState().migrationReport.officialAccountsRestored).toBeGreaterThan(0);
     expect(storage.values.has(EMPLOYEE_DIRECTORY_STORAGE_KEY)).toBe(true);
-    expect(storage.values.has(MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY)).toBe(true);
   });
 
-  it('is idempotent and keeps review issues stable when v3 already exists', () => {
+  it('can add explicit directory records without relying on built-in account data', () => {
     const storage = memoryStorage();
-    storage.values.set(MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY, JSON.stringify({
-      version: 2,
-      employees: [customEmployee()],
-    }));
+    const store = createEmployeeDirectoryStore(storage, false, {
+      canManageRoles: () => true,
+      recordAudit: () => ({ ok: true }),
+    });
 
-    const first = createEmployeeDirectoryStore(storage);
-    const firstCount = first.getState().records.length;
-    const second = createEmployeeDirectoryStore(storage);
-
-    expect(second.getState().records).toHaveLength(firstCount);
-    expect(second.getState().records.filter((record) => record.accountId === 'custom-account')).toHaveLength(1);
-    expect(second.getState().records.find((record) => record.accountId === 'custom-account')?.issues)
-      .toContain('duplicate_roster_link');
-  });
-
-  it('flags repeated legacy account ids for administrator review', () => {
-    const storage = memoryStorage();
-    storage.values.set(MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY, JSON.stringify({
-      version: 2,
-      employees: [customEmployee(), { ...customEmployee(), phone: '0599999999' }],
-    }));
-
-    const store = createEmployeeDirectoryStore(storage);
-    expect(store.getState().records.find((record) => record.accountId === 'custom-account')?.issues)
-      .toContain('duplicate_account_id');
-  });
-
-  it('keeps incomplete legacy employees visible with review reasons instead of failing migration', () => {
-    const storage = memoryStorage();
-    storage.values.set(MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY, JSON.stringify({
-      version: 2,
-      employees: [{
-        id: 'incomplete-account',
-        name: { ar: 'موظف ناقص', en: 'Incomplete Employee' },
-        role: 'employee',
-        departmentId: 'dept-1',
-        isActive: true,
-      }, null, 'invalid-row'],
-    }));
-
-    const store = createEmployeeDirectoryStore(storage);
-    expect(store.getState().records.find((record) => record.accountId === 'incomplete-account')).toMatchObject({
-      issues: expect.arrayContaining(['missing_employee_number', 'missing_code']),
+    expect(store.getState().addEmployee(sourceEmployee(), 'Admin')).toMatchObject({ ok: true });
+    expect(store.getState().records).toHaveLength(1);
+    expect(store.getState().records[0]).toMatchObject({
+      accountId: 'custom-account',
+      employeeNumber: 'CUSTOM-1',
+      code: 'CUSTOM',
     });
   });
 
   it('does not mutate the directory when audit fails and rolls audit back when storage fails', () => {
     const storage = memoryStorage();
+    const employee = backendRecord();
     const auditFailureStore = createEmployeeDirectoryStore(storage, false, {
       recordAudit: () => ({ ok: false, message: 'Audit unavailable.' }),
     });
-    const employee = auditFailureStore.getState().records.find((record) => record.role === 'employee')!;
+    auditFailureStore.getState().replaceRecords([employee], ['backend-bootstrap']);
     const persistedBefore = storage.values.get(EMPLOYEE_DIRECTORY_STORAGE_KEY);
 
     expect(auditFailureStore.getState().updateEmployee(employee.accountId, {
-      name: { ar: 'اسم جديد', en: 'New Name' },
+      name: { ar: 'New Name', en: 'New Name' },
     })).toMatchObject({ ok: false, reason: 'storage_error' });
     expect(auditFailureStore.getState().records.find((record) => record.accountId === employee.accountId)?.name)
       .toEqual(employee.name);
@@ -159,5 +119,73 @@ describe('employeeDirectoryStore migration', () => {
     expect(storageFailureStore.getState().setRosterLink(employee.accountId, 'new-roster-link'))
       .toMatchObject({ ok: false, reason: 'storage_error' });
     expect(rollback).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps backend-hydrated records authoritative across reloads', () => {
+    const storage = memoryStorage();
+    const store = createEmployeeDirectoryStore(storage);
+    const employee = backendRecord();
+
+    store.getState().replaceRecords([employee], ['backend-bootstrap']);
+    expect(store.getState().records).toEqual([employee]);
+
+    store.getState().reloadFromStorage();
+
+    expect(store.getState().records).toEqual([employee]);
+    expect(store.getState().migrationReport.sourceVersions).toContain('backend-bootstrap');
+  });
+
+  it('builds the operational roster from active accounts, including super admins, and excludes inactive records', () => {
+    const roster = buildEmployeeDirectoryRoster([
+      backendRecord({
+        accountId: 'linked-employee',
+        name: { ar: 'Linked Ahmed', en: 'Linked Ahmed' },
+        employeeNumber: '5555555',
+        code: 'LA',
+        scheduleEmployeeId: 'schedule-linked-1',
+      }),
+      backendRecord({
+        accountId: 'unlinked-employee',
+        name: { ar: 'Unlinked User', en: 'Unlinked User' },
+        code: 'UU',
+        scheduleEmployeeId: undefined,
+      }),
+      backendRecord({
+        accountId: 'inactive-employee',
+        name: { ar: 'Inactive User', en: 'Inactive User' },
+        code: 'IU',
+        active: false,
+        scheduleEmployeeId: 'schedule-inactive-1',
+      }),
+      backendRecord({
+        accountId: 'super-admin',
+        name: { ar: 'Root Scheduler', en: 'Root Scheduler' },
+        role: 'super_admin',
+        code: 'SUP',
+        scheduleEmployeeId: 'schedule-super-1',
+      }),
+    ]);
+
+    expect(roster).toHaveLength(3);
+    expect(roster.some((employee) => employee.employeeId === 'schedule-inactive-1')).toBe(false);
+    expect(roster.find((employee) => employee.employeeId === 'schedule-linked-1')).toMatchObject({
+      code: 'LA',
+      employeeNumber: '5555555',
+      fullName: 'Linked Ahmed',
+      fullNameEn: 'Linked Ahmed',
+      origin: 'schedule',
+    });
+    expect(roster.find((employee) => employee.employeeId === buildPendingEmployeeRosterId('unlinked-employee'))).toMatchObject({
+      code: 'UU',
+      fullName: 'Unlinked User',
+      fullNameEn: 'Unlinked User',
+      origin: 'directory',
+    });
+    expect(roster.find((employee) => employee.employeeId === 'schedule-super-1')).toMatchObject({
+      code: 'SUP',
+      fullName: 'Root Scheduler',
+      fullNameEn: 'Root Scheduler',
+      origin: 'schedule',
+    });
   });
 });

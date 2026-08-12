@@ -7,12 +7,14 @@ import CalendarSyncPage from './CalendarSyncPage';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  setUnauthorizedHandler: vi.fn(),
 }));
 
 vi.mock('@/lib/axios', () => ({
   default: {
     get: mocks.get,
   },
+  setUnauthorizedHandler: mocks.setUnauthorizedHandler,
 }));
 
 const employee: AuthUser = {

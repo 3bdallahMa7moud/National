@@ -1,11 +1,5 @@
 import { create } from 'zustand';
-import type { OfficialEmployee } from '@/data/officialEmployeeRoster';
-import {
-  BUILTIN_EMPLOYEE_ACCOUNTS,
-  MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY,
-  mockEmployeesSource,
-} from '@/mocks/sources';
-import type { MockEmployeeSource } from '@/mocks/types';
+import type { OfficialEmployee } from '@/types/officialEmployee';
 import { isUserRole, type UserRole } from '@/types/employee';
 import type { EmployeeAccessProfile, EmployeePermissionTemplateId } from '@/types/employeeAccess';
 import type {
@@ -13,12 +7,12 @@ import type {
   EmployeeDirectoryMigrationReport,
   EmployeeDirectoryMutationResult,
   EmployeeDirectoryRecord,
+  EmployeeDirectorySource,
 } from '@/types/employeeDirectory';
 import { useOperationalAuditStore } from './operationalAuditStore';
 
 export const EMPLOYEE_DIRECTORY_STORAGE_KEY = 'ngh_employee_directory_v3';
-export const LEGACY_EMPLOYEE_ROSTER_STORAGE_KEY = 'ngh_official_employee_roster_v1';
-export const LEGACY_EMPLOYEE_ACCESS_STORAGE_KEY = 'ngh_employee_access_v2';
+const DIRECTORY_ROSTER_EMPLOYEE_PREFIX = 'directory-account:';
 
 export interface EmployeeDirectoryStorage {
   getItem(key: string): string | null;
@@ -51,28 +45,12 @@ interface PersistedDirectory {
   migrationReport: EmployeeDirectoryMigrationReport;
 }
 
-interface LegacyAccountsEnvelope {
-  version?: number;
-  employees?: unknown[];
-}
-
-interface LegacyRosterOverride {
-  employeeId: string;
-  code: string;
-  fullName: string;
-  fullNameEn?: string;
-}
-
-interface LegacyAccessEnvelope {
-  version?: number;
-  profiles?: Record<string, EmployeeAccessProfile>;
-}
-
 export interface EmployeeDirectoryState {
   records: EmployeeDirectoryRecord[];
   migrationReport: EmployeeDirectoryMigrationReport;
   storageError: string | null;
-  addEmployee(source: MockEmployeeSource, actorName?: string): EmployeeDirectoryMutationResult;
+  replaceRecords(records: EmployeeDirectoryRecord[], sourceVersions?: string[]): void;
+  addEmployee(source: EmployeeDirectorySource, actorName?: string): EmployeeDirectoryMutationResult;
   updateEmployee(
     accountId: string,
     updates: Partial<Pick<EmployeeDirectoryRecord,
@@ -106,6 +84,14 @@ function browserStorage(): EmployeeDirectoryStorage | null {
   }
 }
 
+export function buildPendingEmployeeRosterId(accountId: string): string {
+  return `${DIRECTORY_ROSTER_EMPLOYEE_PREFIX}${accountId}`;
+}
+
+export function isPendingEmployeeRosterId(employeeId: string): boolean {
+  return employeeId.startsWith(DIRECTORY_ROSTER_EMPLOYEE_PREFIX);
+}
+
 function hasBrowserSuperAdminSession(): boolean {
   try {
     if (typeof window === 'undefined') return false;
@@ -130,7 +116,7 @@ function cloneRecord(record: EmployeeDirectoryRecord): EmployeeDirectoryRecord {
   };
 }
 
-function sourceToRecord(source: MockEmployeeSource, origin: EmployeeDirectoryRecord['origin']): EmployeeDirectoryRecord {
+function sourceToRecord(source: EmployeeDirectorySource, origin: EmployeeDirectoryRecord['origin']): EmployeeDirectoryRecord {
   return {
     accountId: source.id,
     name: { ...source.name },
@@ -152,7 +138,7 @@ function sourceToRecord(source: MockEmployeeSource, origin: EmployeeDirectoryRec
   };
 }
 
-function recordToSource(record: EmployeeDirectoryRecord): MockEmployeeSource {
+function recordToSource(record: EmployeeDirectoryRecord): EmployeeDirectorySource {
   return {
     id: record.accountId,
     name: { ...record.name },
@@ -175,48 +161,6 @@ function isLocalized(value: unknown): value is { ar: string; en: string } {
   if (!value || typeof value !== 'object') return false;
   const item = value as { ar?: unknown; en?: unknown };
   return typeof item.ar === 'string' && typeof item.en === 'string';
-}
-
-function normalizeLegacySource(value: unknown): MockEmployeeSource | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const candidate = value as Partial<MockEmployeeSource>;
-  if (typeof candidate.id !== 'string' || !candidate.id.trim()) return null;
-  const seed = BUILTIN_EMPLOYEE_ACCOUNTS.find((record) => record.id === candidate.id);
-  const role = isUserRole(candidate.role)
-    ? candidate.role
-    : seed?.role || 'employee';
-  const fallbackName = seed?.name || { ar: candidate.id, en: candidate.id };
-  const fallbackDepartment = seed?.departmentName || { ar: 'القسم', en: 'Department' };
-  const fallbackPosition = seed?.position || { ar: 'موظف', en: 'Employee' };
-  const name = isLocalized(candidate.name)
-    ? candidate.name
-    : fallbackName;
-  const departmentName = isLocalized(candidate.departmentName)
-    ? candidate.departmentName
-    : fallbackDepartment;
-  const position = isLocalized(candidate.position)
-    ? candidate.position
-    : fallbackPosition;
-  return {
-    id: candidate.id.trim(),
-    name: { ...name },
-    email: typeof candidate.email === 'string' ? candidate.email : seed?.email || '',
-    phone: typeof candidate.phone === 'string' ? candidate.phone : seed?.phone || '',
-    role,
-    departmentId: typeof candidate.departmentId === 'string' && candidate.departmentId.trim()
-      ? candidate.departmentId
-      : seed?.departmentId || 'dept-1',
-    departmentName: { ...departmentName },
-    position: { ...position },
-    employeeNumber: typeof candidate.employeeNumber === 'string' ? candidate.employeeNumber : seed?.employeeNumber || '',
-    code: typeof candidate.code === 'string' ? candidate.code : seed?.code || '',
-    avatar: typeof candidate.avatar === 'string' ? candidate.avatar : seed?.avatar,
-    isActive: typeof candidate.isActive === 'boolean' ? candidate.isActive : seed?.isActive !== false,
-    createdAt: typeof candidate.createdAt === 'string' ? candidate.createdAt : seed?.createdAt || new Date(0).toISOString(),
-    scheduleEmployeeId: typeof candidate.scheduleEmployeeId === 'string'
-      ? candidate.scheduleEmployeeId
-      : seed?.scheduleEmployeeId,
-  };
 }
 
 function normalizeRecord(value: unknown): EmployeeDirectoryRecord | null {
@@ -264,46 +208,6 @@ function parseJson<T>(storage: EmployeeDirectoryStorage | null, key: string): T 
   }
 }
 
-function mergeEditable(base: EmployeeDirectoryRecord, source: MockEmployeeSource): EmployeeDirectoryRecord {
-  return {
-    ...base,
-    name: isLocalized(source.name) ? { ...source.name } : base.name,
-    email: source.email?.trim() || base.email,
-    phone: source.phone?.trim() || base.phone,
-    departmentName: isLocalized(source.departmentName) ? { ...source.departmentName } : base.departmentName,
-    position: isLocalized(source.position) ? { ...source.position } : base.position,
-    employeeNumber: source.employeeNumber?.trim() || base.employeeNumber,
-    code: source.code?.trim().toUpperCase() || base.code,
-    avatar: source.avatar ?? base.avatar,
-    active: source.isActive !== false,
-    scheduleEmployeeId: source.scheduleEmployeeId || base.scheduleEmployeeId,
-  };
-}
-
-function ensureActiveSuperAdmin(records: Map<string, EmployeeDirectoryRecord>): boolean {
-  if ([...records.values()].some((record) => record.active && record.role === 'super_admin')) return false;
-  const seed = BUILTIN_EMPLOYEE_ACCOUNTS.find((record) => record.role === 'super_admin');
-  if (!seed) return false;
-
-  const current = records.get(seed.id);
-  if (!current) {
-    records.set(seed.id, sourceToRecord(seed, 'official'));
-    return true;
-  }
-
-  records.set(seed.id, {
-    ...current,
-    role: 'super_admin',
-    active: true,
-    access: {
-      ...current.access,
-      updatedAt: new Date().toISOString(),
-      updatedBy: 'system',
-    },
-  });
-  return true;
-}
-
 function validateRecords(input: EmployeeDirectoryRecord[]): EmployeeDirectoryRecord[] {
   const records = input.map(cloneRecord).sort((left, right) => {
     if (left.origin !== right.origin) return left.origin === 'official' ? -1 : 1;
@@ -321,7 +225,7 @@ function validateRecords(input: EmployeeDirectoryRecord[]): EmployeeDirectoryRec
     const employeeNumber = record.employeeNumber.trim().toLowerCase();
     const email = record.email.trim().toLowerCase();
     const rosterLink = record.scheduleEmployeeId || '';
-    const code = record.role === 'employee' ? record.code.trim().toUpperCase() : '';
+    const code = record.active ? record.code.trim().toUpperCase() : '';
 
     if (!employeeNumber) issues.push('missing_employee_number');
     else if (employeeNumbers.has(employeeNumber)) issues.push('duplicate_employee_number');
@@ -331,7 +235,7 @@ function validateRecords(input: EmployeeDirectoryRecord[]): EmployeeDirectoryRec
       if (emails.has(email)) issues.push('duplicate_email');
       else emails.set(email, record.accountId);
     }
-    if (record.role === 'employee' && !record.code.trim()) issues.push('missing_code');
+    if (record.active && !record.code.trim()) issues.push('missing_code');
     if (rosterLink) {
       if (rosterLinks.has(rosterLink)) issues.push('duplicate_roster_link');
       else rosterLinks.set(rosterLink, record.accountId);
@@ -370,88 +274,20 @@ function migrate(storage: EmployeeDirectoryStorage | null): PersistedDirectory {
       if (duplicate) record.issues = [...record.issues, 'duplicate_account_id'];
       byId.set(record.accountId, record);
     }
-    let restored = 0;
-    for (const seed of BUILTIN_EMPLOYEE_ACCOUNTS) {
-      if (byId.has(seed.id)) continue;
-      byId.set(seed.id, sourceToRecord(seed, 'official'));
-      restored += 1;
-    }
-    const repairedSuperAdmin = ensureActiveSuperAdmin(byId);
+    const sourceVersions = existing.migrationReport?.sourceVersions || ['directory-v3'];
     const records = validateRecords([...byId.values()]);
-    const sourceVersions = repairedSuperAdmin ? ['directory-v3', 'super-admin-recovery'] : ['directory-v3'];
     return {
       version: 3,
       records,
-      migrationReport: restored > 0 || repairedSuperAdmin
-        ? migrationReport(records, sourceVersions, normalized.length, restored)
-        : existing.migrationReport || migrationReport(records, ['directory-v3'], normalized.length, 0),
+      migrationReport: existing.migrationReport || migrationReport(records, sourceVersions, normalized.length, 0),
     };
   }
 
-  const sourceVersions: string[] = [];
-  const legacyAccounts = parseJson<LegacyAccountsEnvelope>(storage, MOCK_EMPLOYEE_ACCOUNTS_STORAGE_KEY);
-  const legacyRoster = parseJson<LegacyRosterOverride[]>(storage, LEGACY_EMPLOYEE_ROSTER_STORAGE_KEY);
-  const legacyAccess = parseJson<LegacyAccessEnvelope>(storage, LEGACY_EMPLOYEE_ACCESS_STORAGE_KEY);
-  if (legacyAccounts?.version === 2) sourceVersions.push('accounts-v2');
-  if (Array.isArray(legacyRoster)) sourceVersions.push('roster-v1');
-  if (legacyAccess?.version === 2) sourceVersions.push('access-v2');
-
-  const byId = new Map<string, EmployeeDirectoryRecord>();
-  for (const seed of BUILTIN_EMPLOYEE_ACCOUNTS) byId.set(seed.id, sourceToRecord(seed, 'official'));
-  const accounts = (Array.isArray(legacyAccounts?.employees)
-    ? legacyAccounts.employees
-    : mockEmployeesSource)
-    .map(normalizeLegacySource)
-    .filter((account): account is MockEmployeeSource => Boolean(account));
-  const importedAccountIds = new Set<string>();
-  for (const account of accounts) {
-    if (!account?.id) continue;
-    const current = byId.get(account.id);
-    const merged = current
-      ? mergeEditable(current, account)
-      : sourceToRecord(account, 'custom');
-    if (importedAccountIds.has(account.id)) merged.issues = [...merged.issues, 'duplicate_account_id'];
-    importedAccountIds.add(account.id);
-    byId.set(account.id, merged);
-  }
-
-  if (Array.isArray(legacyRoster)) {
-    for (const override of legacyRoster) {
-      if (!override || typeof override !== 'object') continue;
-      const record = [...byId.values()].find((candidate) => candidate.scheduleEmployeeId === override.employeeId);
-      if (!record || !override.fullName?.trim()) continue;
-      record.name = {
-        ar: override.fullName.trim(),
-        en: (override.fullNameEn || override.fullName).trim(),
-      };
-      record.code = override.code?.trim().toUpperCase() || record.code;
-    }
-  }
-
-  for (const profile of Object.values(legacyAccess?.profiles || {})) {
-    if (!profile || typeof profile !== 'object' || typeof profile.accountId !== 'string') continue;
-    const record = byId.get(profile.accountId);
-    if (!record) continue;
-    record.departmentId = profile.departmentId || record.departmentId;
-    record.scheduleEmployeeId = profile.scheduleEmployeeId || record.scheduleEmployeeId;
-    record.active = profile.active !== false;
-    record.access = {
-      templateId: profile.templateId || 'standard',
-      overrides: { ...profile.overrides },
-      updatedAt: profile.updatedAt || new Date(0).toISOString(),
-      updatedBy: profile.updatedBy || 'system',
-    };
-  }
-
-  const repairedSuperAdmin = ensureActiveSuperAdmin(byId);
-  const records = validateRecords([...byId.values()]);
-  const restored = BUILTIN_EMPLOYEE_ACCOUNTS.filter((seed) => !accounts.some((account) => account.id === seed.id)).length;
-  const importedSources = sourceVersions.length ? sourceVersions : ['built-in-seed'];
-  const reportSources = repairedSuperAdmin ? [...importedSources, 'super-admin-recovery'] : importedSources;
+  const records: EmployeeDirectoryRecord[] = [];
   return {
     version: 3,
     records,
-    migrationReport: migrationReport(records, reportSources, accounts.length, restored),
+    migrationReport: migrationReport(records, ['empty-before-backend-bootstrap'], 0, 0),
   };
 }
 
@@ -464,11 +300,9 @@ function persist(storage: EmployeeDirectoryStorage | null, payload: PersistedDir
   }
 }
 
-function syncCompatibility(records: EmployeeDirectoryRecord[]): void {
-  const sources = records.map(recordToSource);
-  mockEmployeesSource.splice(0, mockEmployeesSource.length, ...sources);
+function syncCompatibility(): void {
   try {
-    if (typeof window !== 'undefined') window.dispatchEvent(new Event('mock-data-changed'));
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('employee-directory-changed'));
   } catch {
     // Store updates remain usable in non-browser tests.
   }
@@ -477,7 +311,7 @@ function syncCompatibility(records: EmployeeDirectoryRecord[]): void {
 function makeState(storage: EmployeeDirectoryStorage | null, syncLegacy = false): EmployeeDirectoryState {
   const initial = migrate(storage);
   persist(storage, initial);
-  if (syncLegacy) syncCompatibility(initial.records);
+  if (syncLegacy) syncCompatibility();
 
   return {
     records: initial.records,
@@ -491,6 +325,7 @@ function makeState(storage: EmployeeDirectoryStorage | null, syncLegacy = false)
     applyAccessProfile: () => ({ ok: false, reason: 'invalid_record' }),
     setActive: () => ({ ok: false, reason: 'invalid_record' }),
     reloadFromStorage: () => undefined,
+    replaceRecords: () => undefined,
   };
 }
 
@@ -531,16 +366,11 @@ export function createEmployeeDirectoryStore(
     const base = makeState(storage, syncLegacy);
     const canManageRoles = options.canManageRoles ?? hasBrowserSuperAdminSession;
     const now = options.now ?? (() => new Date().toISOString());
-    const activeSuperAdmins = (records = get().records) => records.filter((record) => record.active && record.role === 'super_admin');
-    const wouldRemoveLastActiveSuperAdmin = (
+    const wouldRemoveProtectedSuperAdmin = (
       record: EmployeeDirectoryRecord,
       nextRole: UserRole,
       nextActive = record.active,
-      records = get().records,
-    ) => record.active
-      && record.role === 'super_admin'
-      && (!nextActive || nextRole !== 'super_admin')
-      && activeSuperAdmins(records).length <= 1;
+    ) => record.role === 'super_admin' && (!nextActive || nextRole !== 'super_admin');
     const commit = (
       records: EmployeeDirectoryRecord[],
       accountId: string,
@@ -578,13 +408,24 @@ export function createEmployeeDirectoryStore(
         set({ storageError: 'Unable to save the employee directory.' });
         return { ok: false as const, reason: 'storage_error' as const, message: 'Unable to save the employee directory.' };
       }
-      if (syncLegacy) syncCompatibility(validated);
+      if (syncLegacy) syncCompatibility();
       set({ records: validated, migrationReport: report, storageError: null });
       options.onChanged?.();
       return { ok: true as const, record };
     };
     return {
       ...base,
+      replaceRecords: (records, sourceVersions = ['backend-bootstrap']) => {
+        const validated = validateRecords(records.map(cloneRecord));
+        const report = migrationReport(validated, sourceVersions, validated.length, 0);
+        if (!persist(storage, { version: 3, records: validated, migrationReport: report })) {
+          set({ storageError: 'Unable to save the employee directory.' });
+          return;
+        }
+        if (syncLegacy) syncCompatibility();
+        set({ records: validated, migrationReport: report, storageError: null });
+        options.onChanged?.();
+      },
       addEmployee: (source, actorName) => {
         if (!source.id.trim() || get().records.some((record) => record.accountId === source.id)) {
           return { ok: false, reason: 'invalid_record' };
@@ -602,12 +443,12 @@ export function createEmployeeDirectoryStore(
           if (updates.role !== current.role && !canManageRoles()) {
             return { ok: false, reason: 'permission_denied', message: 'Only super admins can change user roles.' };
           }
-          if (wouldRemoveLastActiveSuperAdmin(current, updates.role, updates.active ?? current.active)) {
-            return { ok: false, reason: 'invalid_record', message: 'Cannot demote the last active super admin.' };
+          if (wouldRemoveProtectedSuperAdmin(current, updates.role, updates.active ?? current.active)) {
+            return { ok: false, reason: 'invalid_record', message: 'Cannot remove or demote a super admin account.' };
           }
         }
-        if (updates.active === false && wouldRemoveLastActiveSuperAdmin(current, updates.role ?? current.role, false)) {
-          return { ok: false, reason: 'invalid_record', message: 'Cannot deactivate the last active super admin.' };
+        if (updates.active === false && wouldRemoveProtectedSuperAdmin(current, updates.role ?? current.role, false)) {
+          return { ok: false, reason: 'invalid_record', message: 'Cannot remove or demote a super admin account.' };
         }
         return commit(get().records.map((record) => record.accountId === accountId ? ({
           ...record,
@@ -628,8 +469,8 @@ export function createEmployeeDirectoryStore(
           return { ok: false, reason: 'permission_denied', message: 'Only super admins can change user roles.' };
         }
         if (current.role === newRole) return { ok: true, record: current };
-        if (wouldRemoveLastActiveSuperAdmin(current, newRole)) {
-          return { ok: false, reason: 'invalid_record', message: 'Cannot demote the last active super admin.' };
+        if (wouldRemoveProtectedSuperAdmin(current, newRole)) {
+          return { ok: false, reason: 'invalid_record', message: 'Cannot remove or demote a super admin account.' };
         }
         const actor = actorName?.trim() || 'Administrator';
         return commit(
@@ -677,8 +518,8 @@ export function createEmployeeDirectoryStore(
       setActive: (accountId, active, actorName) => {
         const current = get().records.find((record) => record.accountId === accountId);
         if (!current) return { ok: false, reason: 'not_found', message: 'Employee record not found.' };
-        if (!active && wouldRemoveLastActiveSuperAdmin(current, current.role, false)) {
-          return { ok: false, reason: 'invalid_record', message: 'Cannot deactivate the last active super admin.' };
+        if (!active && wouldRemoveProtectedSuperAdmin(current, current.role, false)) {
+          return { ok: false, reason: 'invalid_record', message: 'Cannot remove or demote a super admin account.' };
         }
         return commit(get().records.map((record) => record.accountId === accountId ? ({
           ...record,
@@ -688,7 +529,7 @@ export function createEmployeeDirectoryStore(
       },
       reloadFromStorage: () => {
         const payload = migrate(storage);
-        if (syncLegacy) syncCompatibility(payload.records);
+        if (syncLegacy) syncCompatibility();
         set({ records: payload.records, migrationReport: payload.migrationReport, storageError: null });
       },
     };
@@ -729,18 +570,41 @@ export function getEmployeeDirectoryRecord(accountId: string): EmployeeDirectory
   return useEmployeeDirectoryStore.getState().records.find((record) => record.accountId === accountId);
 }
 
-export function getEmployeeDirectoryRoster(): OfficialEmployee[] {
-  return useEmployeeDirectoryStore.getState().records
-    .filter((record) => record.role === 'employee' && record.scheduleEmployeeId && record.issues.length === 0)
-    .map((record) => ({
-      employeeId: record.scheduleEmployeeId!,
+export function buildEmployeeDirectoryRoster(records: EmployeeDirectoryRecord[]): OfficialEmployee[] {
+  const roster = new Map<string, OfficialEmployee>();
+
+  for (const record of records) {
+    if (!record.active || record.issues.length > 0) continue;
+
+    const employeeId = record.scheduleEmployeeId || buildPendingEmployeeRosterId(record.accountId);
+
+    const entry: OfficialEmployee = {
+      employeeId,
       code: record.code,
+      employeeNumber: record.employeeNumber,
       fullName: record.name.ar || record.name.en,
       fullNameEn: record.name.en || record.name.ar,
-      origin: 'schedule' as const,
-    }));
+      origin: isPendingEmployeeRosterId(employeeId) ? 'directory' : 'schedule',
+    };
+
+    if (roster.has(employeeId)) {
+      roster.set(employeeId, {
+        ...roster.get(employeeId)!,
+        ...entry,
+      });
+      continue;
+    }
+
+    roster.set(employeeId, entry);
+  }
+
+  return [...roster.values()];
 }
 
-export function directoryRecordToMockSource(record: EmployeeDirectoryRecord): MockEmployeeSource {
+export function getEmployeeDirectoryRoster(): OfficialEmployee[] {
+  return buildEmployeeDirectoryRoster(useEmployeeDirectoryStore.getState().records);
+}
+
+export function directoryRecordToSource(record: EmployeeDirectoryRecord): EmployeeDirectorySource {
   return recordToSource(record);
 }

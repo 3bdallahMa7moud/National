@@ -3,11 +3,19 @@
   "subtitle": "عرض وتعديل الهيكل التنظيمي لأقسام الأشعة",
   "addDepartment": "إضافة قسم جديد",
   "editDepartment": "تعديل بيانات القسم",
+  "deleteDepartment": "حذف القسم",
   "departmentHead": "رئيس القسم",
   "employeeCount": "عدد الموظفين",
   "employeeCountBadge": "{{count}} موظفين",
   "viewTeam": "عرض الطاقم ←",
   "namePlaceholder": "مثال: قسم الأشعة المقطعية",
   "descriptionPlaceholder": "وصف مهام وتخصص القسم...",
-  "updateSuccess": "تم تحديث بيانات القسم بنجاح"
+  "createSuccess": "تم إنشاء القسم بنجاح",
+  "updateSuccess": "تم تحديث بيانات القسم بنجاح",
+  "deleteSuccess": "تم حذف القسم بنجاح",
+  "deleteConfirmTitle": "حذف القسم",
+  "deleteConfirmMessage": "هل أنت متأكد من حذف \"{{name}}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+  "deleteHasEmployees": "لا يمكن حذف هذا القسم لأنه لا يزال يحتوي على موظفين مسجلين فيه.",
+  "validationFailed": "يرجى مراجعة بيانات القسم والمحاولة مرة أخرى."
 }
+

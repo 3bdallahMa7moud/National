@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import type { MockDepartmentSource } from '@/mocks/types';
+import type { DepartmentRecord } from '@/types';
 
 interface DepartmentState {
-  records: MockDepartmentSource[];
-  setRecords: (records: MockDepartmentSource[]) => void;
+  records: DepartmentRecord[];
+  setRecords: (records: DepartmentRecord[]) => void;
 }
 
 export const useDepartmentStore = create<DepartmentState>((set) => ({

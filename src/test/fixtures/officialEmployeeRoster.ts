@@ -1,10 +1,4 @@
-import type { LegendEmployee } from '@/types/scheduleMatrix';
-
-export type OfficialEmployeeOrigin = 'schedule';
-
-export interface OfficialEmployee extends LegendEmployee {
-  origin: OfficialEmployeeOrigin;
-}
+import type { OfficialEmployee } from '@/types/officialEmployee';
 
 export const OFFICIAL_EMPLOYEE_ROSTER: OfficialEmployee[] = [
   { employeeId: 'ot-employee-s', code: 'S', fullName: 'Ali', fullNameEn: 'Ali', origin: 'schedule' },

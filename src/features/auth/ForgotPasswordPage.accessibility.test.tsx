@@ -7,12 +7,14 @@ import ForgotPasswordPage from './ForgotPasswordPage';
 
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
+  setUnauthorizedHandler: vi.fn(),
 }));
 
 vi.mock('@/lib/axios', () => ({
   default: {
     post: mocks.post,
   },
+  setUnauthorizedHandler: mocks.setUnauthorizedHandler,
 }));
 
 describe('ForgotPasswordPage accessibility', () => {
@@ -44,7 +46,6 @@ describe('ForgotPasswordPage accessibility', () => {
           maskedEmail: 'ad*****@hospital.sa',
           userId: 'user-admin',
           displayName: { en: 'Admin User', ar: 'مدير النظام' },
-          devCode: '100000',
         },
       })
       .mockResolvedValueOnce({

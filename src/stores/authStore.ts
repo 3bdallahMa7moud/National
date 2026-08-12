@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { AuthUser } from '@/types';
 import type { Language } from '@/i18n/constants';
-import api from '@/lib/axios';
+import api, { setUnauthorizedHandler } from '@/lib/axios';
 
 interface AuthState {
   user: AuthUser | null;
@@ -85,6 +85,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   changePassword: () => false,
   syncLocale: () => undefined,
 }));
+
+setUnauthorizedHandler(() => {
+  useAuthStore.getState().logoutLocal();
+});
 
 export function syncAuthUserLocale(lang: Language) {
   useAuthStore.getState().syncLocale(lang);

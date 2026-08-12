@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios';
 import { lazy, Suspense, useDeferredValue, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -18,12 +19,17 @@ import {
 import { JOB_TITLE_OPTIONS, findJobTitleOption, type Employee, type UserRole } from '@/types';
 import api from '@/lib/axios';
 import { fetchAndHydrateBootstrap } from '@/lib/backendBootstrap';
+import { employeeRecordToEmployee } from '@/lib/localizedRecords';
 import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { effectivePermissions } from '@/types/employeeAccess';
 import { useAuthStore } from '@/stores/authStore';
-import { directoryRecordToMockSource, getEmployeeDirectoryRecord, useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
-import { resolveEmployee } from '@/mocks/resolveMockData';
+import {
+  buildPendingEmployeeRosterId,
+  getEmployeeDirectoryRecord,
+  isPendingEmployeeRosterId,
+  useEmployeeDirectoryStore,
+} from '@/stores/employeeDirectoryStore';
 
 const EmployeePermissionsPanel = lazy(() => import('./EmployeePermissionsPanel'));
 
@@ -54,6 +60,14 @@ export default function EmployeesPage() {
     employee: t('common:role.employee', 'Employee'),
   };
   const accessProfiles = useEmployeeAccessStore((state) => state.profiles);
+  const rosterLinkOwners = useMemo(() => {
+    const owners = new Map<string, string>();
+    for (const record of employeeRecords) {
+      if (!record.scheduleEmployeeId) continue;
+      owners.set(record.scheduleEmployeeId, record.accountId);
+    }
+    return owners;
+  }, [employeeRecords]);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const deptIdFilter = searchParams.get('departmentId') || '';
@@ -82,9 +96,17 @@ export default function EmployeesPage() {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   /* ─── derived data ─── */
+  const activeEmployeeRecords = useMemo(
+    () => employeeRecords.filter((record) => record.active),
+    [employeeRecords],
+  );
   const employees = useMemo(
-    () => employeeRecords.map((record) => resolveEmployee(directoryRecordToMockSource(record), language)),
-    [employeeRecords, language],
+    () => activeEmployeeRecords.map((record) => employeeRecordToEmployee(record, language)),
+    [activeEmployeeRecords, language],
+  );
+  const departmentEmployees = useMemo(
+    () => employees.filter((employee) => !deptIdFilter || employee.departmentId === deptIdFilter),
+    [deptIdFilter, employees],
   );
   const filtered = useMemo(
     () => employees.filter((employee) => {
@@ -96,6 +118,8 @@ export default function EmployeesPage() {
     }),
     [deferredSearch, deptIdFilter, employees],
   );
+  const canChangeRole = (role: UserRole) => user?.role === 'super_admin' && role !== 'super_admin';
+  const canDeleteEmployee = (role: UserRole) => role !== 'super_admin';
 
   /* ─── form helpers ─── */
   const setField = (k: keyof AddForm, v: string) => {
@@ -113,6 +137,17 @@ export default function EmployeesPage() {
     if (!form.jobTitleId) errs.jobTitleId = t('forms:validation.positionMin');
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
+  };
+
+  const readApiErrorMessage = (error: unknown) => {
+    if (isAxiosError(error)) {
+      const message = (error.response?.data as { error?: { message?: string } } | undefined)?.error?.message;
+      if (typeof message === 'string' && message.trim()) {
+        return message;
+      }
+    }
+
+    return error instanceof Error ? error.message : t('common:errorState.sectionMessage');
   };
 
   /* ─── handlers ─── */
@@ -142,7 +177,7 @@ export default function EmployeesPage() {
       setForm(emptyForm());
       setFormErrors({});
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('common:errorState.sectionMessage');
+      const message = readApiErrorMessage(error);
       addToast({ type: 'error', title: t('common:toast.error'), message });
     } finally {
       setIsAdding(false);
@@ -174,7 +209,7 @@ export default function EmployeesPage() {
       setDeleteDialog(null);
       addToast({ type: 'success', title: t('common:toast.deleted'), message: t('employees:management.deleteSuccess') });
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('common:errorState.sectionMessage');
+      const message = readApiErrorMessage(error);
       addToast({ type: 'error', title: t('common:toast.error'), message });
     } finally {
       setBusyEmployeeId(null);
@@ -201,7 +236,7 @@ export default function EmployeesPage() {
       setEditOpen(false);
       addToast({ type: 'success', title: t('employees:management.resetPasswordSuccess') });
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('common:errorState.sectionMessage');
+      const message = readApiErrorMessage(error);
       addToast({ type: 'error', title: t('common:toast.error'), message });
     } finally {
       setIsResettingPassword(false);
@@ -286,7 +321,7 @@ export default function EmployeesPage() {
         const currentRole = record?.role || emp.role;
         return (
           <div className="flex items-center justify-end gap-1.5">
-            {user?.role === 'super_admin' && (
+            {canChangeRole(currentRole) && (
               <select
                 value={currentRole}
                 onChange={(e) => {
@@ -337,16 +372,17 @@ export default function EmployeesPage() {
                 <ShieldCheck className="h-4 w-4" />
               </button>
             )}
-              <button
-                type="button"
-                onClick={() => handleEdit(emp)}
-                disabled={busyEmployeeId === emp.id}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
-                aria-label={t('employees:management.editEmployeeAria', { name: emp.name })}
-                title={t('employees:management.editEmployeeAria', { name: emp.name })}
+            <button
+              type="button"
+              onClick={() => handleEdit(emp)}
+              disabled={busyEmployeeId === emp.id}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
+              aria-label={t('employees:management.editEmployeeAria', { name: emp.name })}
+              title={t('employees:management.editEmployeeAria', { name: emp.name })}
             >
               <Edit2 className="w-4 h-4" />
             </button>
+            {canDeleteEmployee(currentRole) && (
               <button
                 type="button"
                 onClick={() => setDeleteDialog(emp.id)}
@@ -354,9 +390,10 @@ export default function EmployeesPage() {
                 className="inline-flex h-11 w-11 items-center justify-center rounded-btn text-danger transition-colors hover:bg-danger-50 focus:outline-none focus:ring-2 focus:ring-danger/30"
                 aria-label={t('employees:management.deleteEmployeeAria', { name: emp.name })}
                 title={t('employees:management.deleteEmployeeAria', { name: emp.name })}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         );
       },
@@ -421,15 +458,17 @@ export default function EmployeesPage() {
             >
               <Edit2 className="w-4 h-4" />
             </button>
-            <button
-              type="button"
-              onClick={() => setDeleteDialog(emp.id)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-btn text-danger transition-colors hover:bg-danger-50 focus:outline-none focus:ring-2 focus:ring-danger/30"
-              aria-label={t('employees:management.deleteEmployeeAria', { name: emp.name })}
-              title={t('employees:management.deleteEmployeeAria', { name: emp.name })}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {canDeleteEmployee(currentRole) && (
+              <button
+                type="button"
+                onClick={() => setDeleteDialog(emp.id)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-btn text-danger transition-colors hover:bg-danger-50 focus:outline-none focus:ring-2 focus:ring-danger/30"
+                aria-label={t('employees:management.deleteEmployeeAria', { name: emp.name })}
+                title={t('employees:management.deleteEmployeeAria', { name: emp.name })}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -466,7 +505,7 @@ export default function EmployeesPage() {
         )}
 
         {/* Role select for super_admin */}
-        {user?.role === 'super_admin' && (
+        {canChangeRole(currentRole) && (
           <select
             value={currentRole}
             onChange={(e) => {
@@ -510,7 +549,7 @@ export default function EmployeesPage() {
         <div>
           <h1 className="text-xl font-semibold text-text-primary sm:text-2xl">{t('employees:management.title')}</h1>
           <p className="mt-1 text-sm leading-6 text-text-secondary">
-            {t('employees:management.countInDepartment', { count: employees.length })}
+            {t('employees:management.countInDepartment', { count: departmentEmployees.length })}
           </p>
         </div>
         <Button className="w-full sm:w-auto" icon={<Plus className="w-4 h-4" />} onClick={() => setAddOpen(true)}>
@@ -844,7 +883,14 @@ export default function EmployeesPage() {
                   scheduleEmployeeId: source.scheduleEmployeeId,
                   active: source.active,
                 }}
-                roster={getOfficialEmployeeRoster().map((employee) => ({
+                roster={getOfficialEmployeeRoster().filter((employee) => {
+                  const ownerAccountId = rosterLinkOwners.get(employee.employeeId);
+                  if (ownerAccountId) return ownerAccountId === source.accountId;
+                  if (isPendingEmployeeRosterId(employee.employeeId)) {
+                    return employee.employeeId === buildPendingEmployeeRosterId(source.accountId);
+                  }
+                  return true;
+                }).map((employee) => ({
                   employeeId: employee.employeeId,
                   code: employee.code,
                   fullName: employee.fullName,

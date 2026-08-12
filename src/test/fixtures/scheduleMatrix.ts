@@ -1,5 +1,5 @@
 // ============================================================
-// Schedule Matrix - Mock Data
+// Schedule Matrix - Test Fixture Data
 // ============================================================
 // Realistic one-month schedule across KAMC, KASCH, WHH.
 // The row structure mirrors the parsed Excel templates:
@@ -20,7 +20,7 @@ import type {
   VacationRow,
   VacationType,
 } from '@/types/scheduleMatrix';
-import { OFFICIAL_EMPLOYEE_ROSTER } from '@/data/officialEmployeeRoster';
+import { OFFICIAL_EMPLOYEE_ROSTER } from './officialEmployeeRoster';
 
 const LEGEND = OFFICIAL_EMPLOYEE_ROSTER.map((employee) => ({
   employeeId: employee.employeeId,
@@ -266,7 +266,7 @@ function unitDefinitions(facilityId: string, units: Unit[]): UnitDefinition[] {
   }));
 }
 
-function buildMockData(year: number, month: number): ScheduleMatrixData {
+function buildFixtureData(year: number, month: number): ScheduleMatrixData {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   rowCounter = 0;
 
@@ -408,10 +408,10 @@ function buildMockData(year: number, month: number): ScheduleMatrixData {
   };
 }
 
-/** Pre-built mock for July 2026 */
-export const scheduleMatrixMockJuly2026 = buildMockData(2026, 6);
+/** Pre-built fixture for July 2026 */
+export const scheduleMatrixFixtureJuly2026 = buildFixtureData(2026, 6);
 
-/** Generate mock for any month */
-export function generateScheduleMatrixMock(year: number, month: number): ScheduleMatrixData {
-  return buildMockData(year, month);
+/** Generate fixture data for any month */
+export function createScheduleMatrixFixture(year: number, month: number): ScheduleMatrixData {
+  return buildFixtureData(year, month);
 }

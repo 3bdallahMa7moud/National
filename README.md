@@ -22,7 +22,6 @@ The repository is now a full-stack TypeScript project:
 Key backend route groups:
 
 - `/api/auth`
-- `/api/auth/signup/options`
 - `/api/bootstrap`
 - `/api/profile`
 - `/api/departments`
@@ -37,7 +36,7 @@ Key backend route groups:
 ## Completed Backend Work
 
 - Session login, logout, and session restore
-- Public employee sign-up with email OTP verification, resend cooldowns, and unverified-login blocking
+- Public sign-up endpoints intentionally disabled with `SIGNUP_DISABLED`
 - Forgot-password request, verify, and reset flow with email-backed OTP delivery
 - Department and employee CRUD integration
 - Employee access-profile updates
@@ -68,10 +67,6 @@ HOST="127.0.0.1"
 SESSION_SECRET="development-session-secret-change-me"
 APP_ORIGIN="http://127.0.0.1:5173"
 ENABLE_DEV_PASSWORD_RESET_CODES=true
-ENABLE_DEV_SIGNUP_OTP_CODES=false
-SIGNUP_OTP_EXPIRY_MINUTES=10
-SIGNUP_OTP_MAX_ATTEMPTS=5
-SIGNUP_OTP_RESEND_COOLDOWN_SECONDS=60
 EMAIL_PROVIDER="console"
 EMAIL_FROM="no-reply@hospital.local"
 RESEND_API_KEY=""
@@ -85,9 +80,8 @@ Notes:
 - Local development is pinned to `127.0.0.1` to avoid `localhost` loopback resolution differences between browser, Vite proxy, and the backend.
 - The backend dev and dist start commands load `.env` explicitly, so the server and frontend use the same local database and origin settings.
 - `SESSION_SECRET` must be replaced outside local development.
-- `ENABLE_DEV_PASSWORD_RESET_CODES=true` is for development/testing only.
-- `ENABLE_DEV_SIGNUP_OTP_CODES=true` is for development/testing only and exposes the current sign-up OTP in API responses and the register UI.
-- `EMAIL_PROVIDER="console"` is acceptable only for local development. Production should use `EMAIL_PROVIDER="resend"` with `RESEND_API_KEY` configured so sign-up OTP, password-reset, and employee password-setup emails are actually delivered.
+- `ENABLE_DEV_PASSWORD_RESET_CODES=true` is for automated tests only when the server runs with `NODE_ENV=test` and `EMAIL_PROVIDER="console"`.
+- `EMAIL_PROVIDER="console"` does not send real email. Password-reset and employee password-setup requests now fail outside automated tests until `EMAIL_PROVIDER="resend"`, `RESEND_API_KEY`, and a valid `EMAIL_FROM` sender are configured.
 
 ## Setup
 
@@ -193,6 +187,6 @@ These development accounts are seeded as already email-verified and must not be 
 ## Known Limitations
 
 - Local development and automated verification use SQLite. Production deployment should use a managed relational database with proper backup and operations controls.
-- Real sign-up OTP, password-reset, and employee password-setup delivery in production requires a configured email provider. The default local `console` provider intentionally avoids sending email and should not be used outside development.
+- Password-reset and employee password-setup delivery in production requires a configured email provider. Public sign-up remains disabled.
 - Playwright needs a local Chromium installation from `npx playwright install chromium` before `npm run test:e2e` can run.
 - `npm audit` still reports unresolved high-severity advisories in `react-router-dom` and a dev-only `brace-expansion` path under `eslint`. These need upstream-compatible dependency remediation before the repository can be called fully release-ready.

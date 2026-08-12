@@ -1,13 +1,13 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { OFFICIAL_EMPLOYEE_ROSTER } from '@/data/officialEmployeeRoster';
-import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
+import { OFFICIAL_EMPLOYEE_ROSTER } from '@/test/fixtures/officialEmployeeRoster';
+import { createScheduleMatrixFixture } from '@/test/fixtures/scheduleMatrix';
 import PublishedScheduleSurface from './PublishedScheduleSurface';
 
 afterEach(cleanup);
 
 function matrixAssignment() {
-  const matrix = generateScheduleMatrixMock(2027, 0);
+  const matrix = createScheduleMatrixFixture(2027, 0);
   for (const facility of matrix.facilities) {
     for (const unit of facility.units) {
       for (const row of unit.rows) {

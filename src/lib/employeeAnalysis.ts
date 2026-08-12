@@ -1,6 +1,6 @@
 import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
 import type { OTShiftRow } from '@/types/lateSchedule';
-import type { OfficialEmployee } from '@/data/officialEmployeeRoster';
+import type { OfficialEmployee } from '@/types/officialEmployee';
 import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
 import {
   createAnalysisPeriod,

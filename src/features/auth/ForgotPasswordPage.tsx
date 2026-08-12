@@ -1,10 +1,11 @@
 // ============================================================
 // ForgotPasswordPage — 3-step OTP Password Recovery
-// Step 1: Enter email / employee number → generate & show OTP
+// Step 1: Enter email / employee number → request OTP by email
 // Step 2: Enter 6-digit OTP with auto-advance and countdown
 // Step 3: Set new password with strength indicator → success
 // ============================================================
 
+import { isAxiosError } from 'axios';
 import { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +29,7 @@ import AuthSplitLayout, {
 
 /* ─── Types ─── */
 type Step = 1 | 2 | 3 | 'success' | 'no-email';
+const PASSWORD_RESET_OTP_TTL_SECONDS = 10 * 60;
 
 /* ─── Password strength helper ─── */
 function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
@@ -62,10 +64,9 @@ export default function ForgotPasswordPage() {
   const [isChecking, setIsChecking] = useState(false);
   const [foundEmployeeName, setFoundEmployeeName] = useState('');
   const [foundEmail, setFoundEmail] = useState(prefilledIdentifier.includes('@') ? prefilledIdentifier : '');
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [otpError, setOtpError] = useState('');
-  const [countdown, setCountdown] = useState(startsReady ? 0 : 120);
+  const [countdown, setCountdown] = useState(startsReady ? 0 : PASSWORD_RESET_OTP_TTL_SECONDS);
   const [isResending, setIsResending] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -78,6 +79,17 @@ export default function ForgotPasswordPage() {
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const otpGroupId = `otp-group-${useId()}`;
   const otpErrorId = `${otpGroupId}-error`;
+
+  const readApiErrorMessage = useCallback((error: unknown, fallbackEn: string, fallbackAr: string) => {
+    if (isAxiosError(error)) {
+      const message = (error.response?.data as { error?: { message?: string } } | undefined)?.error?.message;
+      if (typeof message === 'string' && message.trim()) {
+        return message;
+      }
+    }
+
+    return isRtl ? fallbackAr : fallbackEn;
+  }, [isRtl]);
 
   /* ─── Countdown timer ─── */
   useEffect(() => {
@@ -106,7 +118,6 @@ export default function ForgotPasswordPage() {
         maskedEmail?: string | null;
         userId?: string;
         displayName?: { en: string; ar: string };
-        devCode?: string;
       }>('/auth/forgot-password/request', { identifier: val });
 
       if (!response.data.accountFound) {
@@ -124,19 +135,18 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      setGeneratedOtp(response.data.devCode || '');
       setFoundEmployeeName(isRtl ? response.data.displayName?.ar || '' : response.data.displayName?.en || '');
       setFoundEmail(response.data.maskedEmail || '');
       setOtpDigits(['', '', '', '', '', '']);
       setOtpError('');
-      setCountdown(120);
+      setCountdown(PASSWORD_RESET_OTP_TTL_SECONDS);
       setStep(2);
-    } catch {
-      setIdentifierError(
-        isRtl
-          ? 'لم يتم العثور على حساب بهذا الرقم الوظيفي أو البريد الإلكتروني.'
-          : 'No account found with this employee number or email.'
-      );
+    } catch (error) {
+      setIdentifierError(readApiErrorMessage(
+        error,
+        'Unable to send the verification code right now.',
+        'تعذر إرسال كود التحقق حالياً.',
+      ));
     } finally {
       setIsChecking(false);
     }
@@ -202,22 +212,21 @@ export default function ForgotPasswordPage() {
   const handleResendOtp = useCallback(async () => {
     setIsResending(true);
     try {
-      const response = await api.post<{ devCode?: string }>('/auth/forgot-password/request', { identifier });
-      setGeneratedOtp(response.data.devCode || '');
+      await api.post('/auth/forgot-password/request', { identifier });
       setOtpDigits(['', '', '', '', '', '']);
       setOtpError('');
-      setCountdown(120);
+      setCountdown(PASSWORD_RESET_OTP_TTL_SECONDS);
       otpRefs.current[0]?.focus();
-    } catch {
-      setOtpError(
-        isRtl
-          ? 'تعذر إرسال كود جديد حالياً. حاول مرة أخرى بعد قليل.'
-          : 'Unable to send a new code right now. Please try again shortly.',
-      );
+    } catch (error) {
+      setOtpError(readApiErrorMessage(
+        error,
+        'Unable to send a new code right now. Please try again shortly.',
+        'تعذر إرسال كود جديد حالياً. حاول مرة أخرى بعد قليل.',
+      ));
     } finally {
       setIsResending(false);
     }
-  }, [identifier, isRtl]);
+  }, [identifier, readApiErrorMessage]);
 
   /* ─── Step 3: Save new password ─── */
   const handleSavePassword = async (e: React.FormEvent) => {
@@ -303,7 +312,7 @@ export default function ForgotPasswordPage() {
             {/* Security badges */}
             <div className="mt-6 flex flex-col gap-3">
               {[
-                { Icon: Clock, text: isRtl ? 'كود OTP صالح لمدة دقيقتين فقط' : 'OTP valid for 2 minutes only' },
+                { Icon: Clock, text: isRtl ? 'كود OTP صالح لمدة 10 دقائق فقط' : 'OTP valid for 10 minutes only' },
                 { Icon: Mail, text: isRtl ? 'يُرسل حصرياً لبريدك المسجل' : 'Sent exclusively to your registered email' },
                 { Icon: ShieldCheck, text: isRtl ? 'بياناتك محمية بالكامل' : 'Your data is fully protected' },
               ].map((item) => (
@@ -411,7 +420,7 @@ export default function ForgotPasswordPage() {
                 <div>
                   <Input
                     label={isRtl ? 'البريد الإلكتروني / الرقم الوظيفي' : 'Email / Employee Number'}
-                    placeholder={isRtl ? 'admin@hospital.sa أو EMP-001' : 'admin@hospital.sa or EMP-001'}
+                    placeholder={isRtl ? 'name@hospital.sa أو الرقم الوظيفي' : 'name@hospital.sa or employee number'}
                     value={identifier}
                     onChange={(e) => { setIdentifier(e.target.value); setIdentifierError(''); }}
                     dir="ltr"
@@ -431,43 +440,12 @@ export default function ForgotPasswordPage() {
                   {isRtl ? 'إرسال كود التحقق' : 'Send Verification Code'}
                 </Button>
               </form>
-
-              {/* Hint */}
-              <p className="text-center text-[11px] text-text-secondary/70">
-                {isRtl
-                  ? 'للتجربة: استخدم admin@hospital.sa أو EMP-001'
-                  : 'Demo: use admin@hospital.sa or EMP-001'}
-              </p>
             </div>
           )}
 
           {/* ═══ STEP 2: OTP ═══ */}
           {step === 2 && (
             <div className="space-y-4">
-              {/* Development code preview card */}
-              {generatedOtp && (
-                <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500 text-white text-[10px] font-bold">G</div>
-                  <div>
-                    <p className="text-[11px] font-bold text-text-primary">Gmail — {t('common:hospital.name')}</p>
-                    <p className="text-[10px] text-text-secondary" dir="ltr">{maskedEmail}</p>
-                  </div>
-                </div>
-                <div className="rounded-lg bg-white/60 dark:bg-slate-800/60 border border-border px-4 py-3">
-                  <p className="text-[11px] text-text-secondary mb-1.5">
-                    {isRtl ? 'كود التحقق الخاص بك:' : 'Your verification code:'}
-                  </p>
-                  <p className="font-mono text-3xl font-extrabold tracking-[0.4em] text-primary text-center py-2 select-all">
-                    {generatedOtp}
-                  </p>
-                  <p className="text-[10px] text-text-secondary/70 text-center mt-1">
-                    {isRtl ? 'صالح لمدة دقيقتين فقط' : 'Valid for 2 minutes only'}
-                  </p>
-                </div>
-                </div>
-              )}
-
               {/* OTP Form */}
               <div className="card space-y-5 !px-2.5 !py-5 sm:!p-5">
                 <div className="flex items-center gap-3">

@@ -27,6 +27,8 @@ interface EmployeeChipProps {
   rowBackgroundColor?: string;
   rowTextColor?: string;
   fullName?: string;
+  displayCode?: string;
+  employeeNumber?: string;
   shiftLabel: string;
   timeRange: string;
   facilityName: string;
@@ -50,6 +52,8 @@ function EmployeeChip({
   rowBackgroundColor,
   rowTextColor,
   fullName,
+  displayCode,
+  employeeNumber,
   shiftLabel,
   timeRange,
   facilityName,
@@ -75,7 +79,12 @@ function EmployeeChip({
     rowTextColor,
   );
   const isDraft = assignment.status === 'draft';
-  const ariaLabel = `${fullName || assignment.employeeCode} - ${shiftLabel} - ${day} ${monthLabel} - ${facilityName} ${unitName}`;
+  const chipLabel = displayCode?.trim() || assignment.employeeCode.trim() || fullName?.trim() || 'Unknown employee';
+  const displayName = fullName?.trim() || chipLabel;
+  const tooltipLabel = employeeNumber ? `${displayName} (${employeeNumber})` : displayName;
+  const ariaLabel = displayName === chipLabel
+    ? `${chipLabel} - ${shiftLabel} - ${day} ${monthLabel} - ${facilityName} ${unitName}`
+    : `${chipLabel} (${displayName}) - ${shiftLabel} - ${day} ${monthLabel} - ${facilityName} ${unitName}`;
   const lastHistory = historyEntries.slice(0, 3);
 
   const rect = chipRef.current?.getBoundingClientRect();
@@ -87,7 +96,7 @@ function EmployeeChip({
       <button
         ref={chipRef}
         dir="ltr"
-        data-employee-code={assignment.employeeCode}
+        data-employee-code={chipLabel}
         data-employee-id={assignment.employeeId}
         onClick={(event) => {
           event.stopPropagation();
@@ -115,6 +124,7 @@ function EmployeeChip({
           maxWidth: compact ? '100%' : 'calc(var(--matrix-day-col) - 8px)',
         }}
         aria-label={ariaLabel}
+        title={tooltipLabel}
       >
         {assignment.hasConflict && (
           <span title={assignment.conflictReason}>
@@ -126,7 +136,7 @@ function EmployeeChip({
             {shiftIcon || markerIcons[resolveAssignmentColorKey(assignment, rowColorKey)]}
           </span>
         )}
-        <span className="truncate">{assignment.employeeCode}</span>
+        <span className="truncate">{chipLabel}</span>
       </button>
 
       {showPopover && !suppressPopover && typeof document !== 'undefined' && createPortal(
@@ -140,8 +150,10 @@ function EmployeeChip({
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-sm font-bold text-ink truncate">{fullName || assignment.employeeCode}</p>
+              <p className="text-sm font-bold text-ink truncate">{displayName}</p>
               <div className="mt-1.5 space-y-1 text-[11px] text-text-secondary">
+                {displayName !== chipLabel && <p dir="ltr">{chipLabel}</p>}
+                {employeeNumber && <p dir="ltr">#{employeeNumber}</p>}
                 <p>{shiftLabel} · {timeRange}</p>
                 <p dir="ltr" style={{ unicodeBidi: 'isolate' }}>{facilityName} / {unitName}</p>
               </div>

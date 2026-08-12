@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { OFFICIAL_EMPLOYEE_ROSTER } from '@/data/officialEmployeeRoster';
-import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
+import { OFFICIAL_EMPLOYEE_ROSTER } from '@/test/fixtures/officialEmployeeRoster';
+import { createScheduleMatrixFixture } from '@/test/fixtures/scheduleMatrix';
 import type { OTShiftRow } from '@/types/lateSchedule';
 import { occurrenceShiftStyle } from './occurrenceShiftStyle';
 import { collectPublishedOperationalOccurrences } from './operationalSchedule';
 
 describe('operational occurrence colors', () => {
   it('preserves custom Schedule and OT colors while building occurrences', () => {
-    const matrix = generateScheduleMatrixMock(2026, 6);
+    const matrix = createScheduleMatrixFixture(2026, 6);
     const scheduleEmployee = OFFICIAL_EMPLOYEE_ROSTER[0];
     const scheduleRow = matrix.facilities[0].units[0].rows[0];
     scheduleRow.backgroundColor = '#6D28D9';

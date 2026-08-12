@@ -7,12 +7,14 @@ import ForgotPasswordPage from './ForgotPasswordPage';
 
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
+  setUnauthorizedHandler: vi.fn(),
 }));
 
 vi.mock('@/lib/axios', () => ({
   default: {
     post: mocks.post,
   },
+  setUnauthorizedHandler: mocks.setUnauthorizedHandler,
 }));
 
 function renderRecovery() {
@@ -66,7 +68,6 @@ describe('ForgotPasswordPage recovery flow', () => {
           maskedEmail: 'ad*****@hospital.sa',
           userId: 'user-admin',
           displayName: { en: 'Admin User', ar: 'مدير النظام' },
-          devCode: '246810',
         },
       })
       .mockResolvedValueOnce({
@@ -81,10 +82,8 @@ describe('ForgotPasswordPage recovery flow', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send Verification Code' }));
 
-    expect(
-      await screen.findByText('Your verification code:', {}, { timeout: 2000 }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('246810')).toBeVisible();
+    expect(await screen.findByText('Enter Verification Code')).toBeInTheDocument();
+    expect(screen.queryByText('Your verification code:')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Digit 1 of 6'), {
       target: { value: '246810' },
@@ -99,6 +98,31 @@ describe('ForgotPasswordPage recovery flow', () => {
       identifier: 'admin@hospital.sa',
       code: '246810',
     });
+  });
+
+  it('surfaces delivery failures instead of reporting the account as missing', async () => {
+    mocks.post.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          error: {
+            code: 'EMAIL_DELIVERY_FAILED',
+            message: 'Real email delivery is not configured. Set EMAIL_PROVIDER="resend", RESEND_API_KEY, and a valid EMAIL_FROM sender.',
+          },
+        },
+      },
+    });
+    renderRecovery();
+
+    fireEvent.change(screen.getByLabelText('Email / Employee Number'), {
+      target: { value: 'admin@hospital.sa' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send Verification Code' }));
+
+    expect(
+      await screen.findByRole('alert', {}, { timeout: 2000 }),
+    ).toHaveTextContent('Real email delivery is not configured.');
+    expect(screen.queryByText('No account found with this employee number or email.')).not.toBeInTheDocument();
   });
 
   it('shows safe guidance when the account has no email address on file', async () => {

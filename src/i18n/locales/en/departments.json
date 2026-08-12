@@ -3,11 +3,19 @@
   "subtitle": "View and edit the organizational structure of radiology departments",
   "addDepartment": "Add New Department",
   "editDepartment": "Edit Department",
+  "deleteDepartment": "Delete Department",
   "departmentHead": "Department Head",
   "employeeCount": "Employee Count",
   "employeeCountBadge": "{{count}} employees",
   "viewTeam": "View team →",
   "namePlaceholder": "e.g. CT Scan Department",
   "descriptionPlaceholder": "Describe department duties and specialty...",
-  "updateSuccess": "Department updated successfully"
+  "createSuccess": "Department created successfully",
+  "updateSuccess": "Department updated successfully",
+  "deleteSuccess": "Department deleted successfully",
+  "deleteConfirmTitle": "Delete Department",
+  "deleteConfirmMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+  "deleteHasEmployees": "Cannot delete this department because it still has employees assigned to it.",
+  "validationFailed": "Please review the department form and try again."
 }
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveApiBaseUrl } from './axios';
+import { resolveApiBaseUrl, shouldHandleUnauthorized } from './axios';
 
 describe('resolveApiBaseUrl', () => {
   it('uses the Vite proxy path during development', () => {
@@ -21,5 +21,14 @@ describe('resolveApiBaseUrl', () => {
       DEV: false,
       VITE_API_URL: '',
     })).toBe('/api');
+  });
+
+  it('handles unauthorized responses from protected endpoints', () => {
+    expect(shouldHandleUnauthorized('/employees')).toBe(true);
+    expect(shouldHandleUnauthorized('/auth/session')).toBe(true);
+  });
+
+  it('does not treat invalid login credentials as an expired app session', () => {
+    expect(shouldHandleUnauthorized('/auth/login')).toBe(false);
   });
 });

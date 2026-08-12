@@ -5,6 +5,8 @@ import type { OTShiftRow, OTUnit } from '@/types/lateSchedule';
 import type { UnifiedEmployee } from '@/lib/unifiedEmployeeRoster';
 import { cn } from '@/lib/utils';
 import { scheduleCellMarkerBackground } from '@/lib/scheduleCellMarkers';
+import { buildEmployeeDisplayLookup } from '@/lib/employeeDisplay';
+import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 
 interface LateScheduleDesktopGridProps {
   year: number;
@@ -43,9 +45,10 @@ export default function LateScheduleDesktopGrid({
   const activeRows = activeUnits.length > 0
     ? activeUnits.flatMap((unit) => rows.filter((row) => !row.archived && row.unitId === unit.id))
     : rows.filter((row) => !row.archived);
-  const employeeById = useMemo(
-    () => new Map(roster.map((employee) => [employee.employeeId, employee])),
-    [roster],
+  const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
+  const employeeLookup = useMemo(
+    () => buildEmployeeDisplayLookup(roster, directoryRecords, isRtl),
+    [directoryRecords, isRtl, roster],
   );
 
   const visibilityClass = viewMode === 'grid' ? 'block' : viewMode === 'week' ? 'hidden' : 'hidden lg:block';
@@ -174,17 +177,17 @@ export default function LateScheduleDesktopGrid({
                               </span>
                             );
                           }
-                          const employee = employeeById.get(assignment.employeeId);
-                          const code = employee?.code ?? assignment.employeeId;
-                          const name = isRtl ? employee?.fullName : employee?.fullNameEn || employee?.fullName;
+                          const display = employeeLookup.resolve({ employeeId: assignment.employeeId });
                           return (
                             <span
                               key={`${assignment.employeeId}-${index}`}
                               className="block min-w-0 rounded-md border border-primary/20 bg-primary-50 px-1.5 py-1 text-primary"
                               style={{ backgroundColor: row.backgroundColor, color: row.textColor }}
+                              title={display.tooltip}
                             >
-                              <span className="block text-center font-mono text-[10px] font-bold" dir="ltr">{code}</span>
-                              {name && <span className="mt-0.5 block max-w-20 truncate text-center text-[9px] font-medium" title={name}>{name}</span>}
+                              <span className="block max-w-24 truncate text-center text-[10px] font-bold leading-tight" title={display.tooltip}>
+                                {display.code || display.name}
+                              </span>
                             </span>
                           );
                         })}

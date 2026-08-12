@@ -5,18 +5,20 @@ import api from './axios';
 import {
   type ApiBootstrapPayload,
   type ApiViewer,
-  mapApiDepartmentToMockSource,
+  mapApiDepartmentToRecord,
   mapApiEmployeeToDirectoryRecord,
 } from './backendAdapters';
+import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
 import { useDepartmentStore } from '@/stores/departmentStore';
 import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
-import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
 import { useOperationalAuditStore } from '@/stores/operationalAuditStore';
-import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
+import {
+  normalizeScheduleMatrixData,
+  useScheduleMatrixStore,
+} from '@/stores/scheduleMatrixStore';
 import { useLateScheduleStore } from '@/stores/lateScheduleStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
-import { triggerMockDataChange } from '@/hooks/useMockData';
 import { setBackendStateUpdatedAt, suppressBackendSync } from './backendStateSync';
 
 export async function fetchSessionViewer() {
@@ -30,22 +32,41 @@ export async function fetchAndHydrateBootstrap() {
   return response.data;
 }
 
+function normalizeScheduleMonthMap(source: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(source).map(([monthKey, value]) => [
+      monthKey,
+      normalizeScheduleMatrixData(structuredClone(value) as ScheduleMatrixData),
+    ]),
+  );
+}
+
+function normalizeScheduleVersionMap(source: Record<string, unknown[]>) {
+  return Object.fromEntries(
+    Object.entries(source).map(([monthKey, versions]) => [
+      monthKey,
+      versions.map((version) => {
+        if (!version || typeof version !== 'object' || !('data' in version)) return structuredClone(version);
+        const cloned = structuredClone(version) as { data?: ScheduleMatrixData };
+        if (cloned.data) cloned.data = normalizeScheduleMatrixData(cloned.data);
+        return cloned;
+      }),
+    ]),
+  );
+}
+
 export function hydrateBackendState(payload: ApiBootstrapPayload) {
   suppressBackendSync(() => {
     setBackendStateUpdatedAt(payload);
-    useDepartmentStore.getState().setRecords(payload.departments.map(mapApiDepartmentToMockSource));
+    useDepartmentStore.getState().setRecords(payload.departments.map(mapApiDepartmentToRecord));
 
-    useEmployeeDirectoryStore.setState((state) => ({
-      ...state,
-      records: payload.employees.map(mapApiEmployeeToDirectoryRecord),
-      storageError: null,
-    }));
-
-    useEmployeeAccessStore.setState((state) => ({
-      ...state,
-      profiles: payload.accessProfiles,
-      storageError: null,
-    }));
+    useEmployeeDirectoryStore.getState().replaceRecords(
+      payload.employees.map((employee) => mapApiEmployeeToDirectoryRecord(
+        employee,
+        payload.accessProfiles[employee.id],
+      )),
+      ['backend-bootstrap'],
+    );
 
     useTargetedNotificationStore.setState((state) => ({
       ...state,
@@ -65,18 +86,22 @@ export function hydrateBackendState(payload: ApiBootstrapPayload) {
       storageError: null,
     }));
 
+    const scheduleDraftsByMonth = normalizeScheduleMonthMap(payload.schedule.draftsByMonth);
+    const scheduleMatricesByMonth = normalizeScheduleMonthMap(payload.schedule.matricesByMonth);
+    const scheduleVersionsByMonth = normalizeScheduleVersionMap(payload.schedule.versionsByMonth);
+
     useScheduleMatrixStore.setState((state) => {
       const monthKey = `${state.year}-${String(state.month + 1).padStart(2, '0')}`;
-      const currentData = payload.schedule.draftsByMonth[monthKey]
-        ?? payload.schedule.matricesByMonth[monthKey]
+      const currentData = scheduleDraftsByMonth[monthKey]
+        ?? scheduleMatricesByMonth[monthKey]
         ?? state.data;
 
       return {
         ...state,
         data: currentData as typeof state.data,
-        matricesByMonth: payload.schedule.matricesByMonth as typeof state.matricesByMonth,
-        draftsByMonth: payload.schedule.draftsByMonth as typeof state.draftsByMonth,
-        versionsByMonth: payload.schedule.versionsByMonth as typeof state.versionsByMonth,
+        matricesByMonth: scheduleMatricesByMonth as typeof state.matricesByMonth,
+        draftsByMonth: scheduleDraftsByMonth as typeof state.draftsByMonth,
+        versionsByMonth: scheduleVersionsByMonth as typeof state.versionsByMonth,
         monthStatuses: payload.schedule.monthStatuses as typeof state.monthStatuses,
         deletedMonths: payload.schedule.deletedMonths,
         snapshot: JSON.stringify(currentData ?? null),
@@ -108,5 +133,4 @@ export function hydrateBackendState(payload: ApiBootstrapPayload) {
     });
   });
 
-  triggerMockDataChange();
 }

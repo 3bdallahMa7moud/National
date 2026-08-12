@@ -23,14 +23,17 @@ async function openMobileNavigation(page: Page, accessibleName: string) {
   }
 }
 
-test('administrator signs in and opens employee management', async ({ page }) => {
+test('administrator signs in, restores the session after reload, and opens employee management', async ({ page }) => {
   await page.goto('/login');
 
-  await page.getByRole('button').filter({ hasText: 'EMP-001' }).click();
-  await expect(page.getByLabel('Email or Username')).toHaveValue('EMP-001');
-  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('123456');
+  await page.getByLabel('Email or Username').fill('EMP-001');
+  await page.getByLabel('Password', { exact: true }).fill('123456');
 
   await page.getByRole('button', { name: 'Sign In' }).click();
+  await expect(page).toHaveURL(/\/admin\/dashboard$/);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+  await page.reload();
   await expect(page).toHaveURL(/\/admin\/dashboard$/);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
@@ -49,7 +52,8 @@ test('employee uses the Arabic RTL experience and opens calendar sync', async ({
   await page.getByRole('button', { name: 'Switch to Arabic' }).click();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 
-  await page.getByRole('button').filter({ hasText: 'EMP-002' }).click();
+  await page.locator('input[name="identifier"]').fill('EMP-002');
+  await page.locator('input[name="password"]').fill('123456');
   await page.getByRole('button', { name: 'تسجيل الدخول' }).click();
 
   await expect(page).toHaveURL(/\/employee\/dashboard$/);
@@ -68,7 +72,8 @@ test('protected routes redirect to login and authenticated users can log out', a
   await page.goto('/admin/dashboard');
   await expect(page).toHaveURL(/\/login$/);
 
-  await page.getByRole('button').filter({ hasText: 'EMP-001' }).click();
+  await page.getByLabel('Email or Username').fill('EMP-001');
+  await page.getByLabel('Password', { exact: true }).fill('123456');
   await page.getByRole('button', { name: 'Sign In' }).click();
 
   await expect(page).toHaveURL(/\/admin\/dashboard$/);
@@ -79,36 +84,7 @@ test('protected routes redirect to login and authenticated users can log out', a
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test('public signup verifies email with OTP and then signs in normally', async ({ page }, testInfo) => {
-  const uniqueSuffix = `${testInfo.project.name.replace(/[^a-z0-9]/gi, '').toLowerCase()}-${testInfo.retry}-${Date.now()}`;
-  const signupEmail = `playwright.signup+${uniqueSuffix}@hospital.sa`;
-  const employeeNumber = `EMP-${uniqueSuffix.slice(-10).toUpperCase()}`;
-
-  await page.goto('/register');
-
-  await page.getByLabel('Full name').fill('Playwright Signup');
-  await page.getByLabel('Institutional email').fill(signupEmail);
-  await page.getByLabel('Employee number').fill(employeeNumber);
-  await page.getByLabel('Mobile number').fill('0501999999');
-  await page.getByLabel('Job title').fill('Technologist');
-  await page.getByLabel('Department').selectOption({ index: 1 });
-  await page.getByLabel('Password', { exact: true }).fill('signup-pass-123');
-  await page.getByLabel('Confirm password', { exact: true }).fill('signup-pass-123');
-  await page.getByRole('button', { name: 'Create account & send code' }).click();
-
-  await expect(page.getByText('Current development code')).toBeVisible();
-  const otp = (await page.locator('p').filter({ hasText: /^\d{6}$/ }).first().textContent())?.trim();
-  expect(otp).toMatch(/^\d{6}$/);
-
-  await page.getByLabel('Digit 1 of 6').fill(otp ?? '');
-  await page.getByRole('button', { name: 'Verify code & activate account' }).click();
-
-  await expect(page.getByText('Your email has been verified')).toBeVisible();
-  await page.getByRole('button', { name: 'Go to Sign In' }).click();
-
-  await page.getByLabel('Email or Username').fill(signupEmail);
-  await page.getByLabel('Password', { exact: true }).fill('signup-pass-123');
-  await page.getByRole('button', { name: 'Sign In' }).click();
-
-  await expect(page).toHaveURL(/\/employee\/dashboard$/);
+test('login page does not expose public registration', async ({ page }) => {
+  await page.goto('/login');
+  await expect(page.getByRole('link', { name: 'Create account' })).toHaveCount(0);
 });

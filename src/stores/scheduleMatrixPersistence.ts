@@ -4,7 +4,6 @@ import type {
   ScheduleMatrixVersion,
   ScheduleMonthStatus,
 } from '@/types/scheduleMatrix';
-import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
 import { cloneScheduleMatrix } from './scheduleMatrixMonthOperations';
 import { normalizeScheduleCellMarkers } from '@/lib/scheduleCellMarkers';
 
@@ -174,25 +173,15 @@ function hydrateMatrixFromStorage(
 export function readStoredMatrices(
   prepareLegacyMatrix: (matrix: ScheduleMatrixData) => void,
 ): Record<string, ScheduleMatrixData> {
-  const defaultMatrices = () => {
-    const july = generateScheduleMatrixMock(2026, 6);
-    const august = generateScheduleMatrixMock(2026, 7);
-    prepareLegacyMatrix(july);
-    prepareLegacyMatrix(august);
-    return {
-      '2026-07': july,
-      '2026-08': august,
-    };
-  };
   const storage = browserStorage();
-  if (!storage) return defaultMatrices();
+  if (!storage) return {};
 
   try {
     const value = JSON.parse(
       storage.getItem(SCHEDULE_MATRIX_HISTORY_STORAGE_KEY) || '{}',
     );
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return defaultMatrices();
+      return {};
     }
     const matrices = Object.fromEntries(
       Object.entries(value).filter(([, matrix]) => {
@@ -204,20 +193,17 @@ export function readStoredMatrices(
           && Array.isArray(candidate.vacations);
       }),
     ) as Record<string, ScheduleMatrixData>;
-    if (Object.keys(matrices).length === 0) return defaultMatrices();
+    if (Object.keys(matrices).length === 0) return {};
     for (const matrix of Object.values(matrices)) prepareLegacyMatrix(matrix);
     return matrices;
   } catch {
-    return defaultMatrices();
+    return {};
   }
 }
 
 export function readAdminControl(): Omit<PersistedScheduleAdminControl, 'version'> {
   const fallback = {
-    monthStatuses: {
-      '2026-07': 'published' as const,
-      '2026-08': 'published' as const,
-    },
+    monthStatuses: {},
     versionsByMonth: {},
     deletedMonths: [],
   };
@@ -227,11 +213,7 @@ export function readAdminControl(): Omit<PersistedScheduleAdminControl, 'version
     ) as Partial<PersistedScheduleAdminControl> | null;
     if (!parsed || parsed.version !== 1) return fallback;
     return {
-      monthStatuses: {
-        '2026-07': 'published' as const,
-        '2026-08': 'published' as const,
-        ...normalizeScheduleMonthStatuses(parsed.monthStatuses),
-      },
+      monthStatuses: normalizeScheduleMonthStatuses(parsed.monthStatuses),
       versionsByMonth:
         parsed.versionsByMonth && typeof parsed.versionsByMonth === 'object'
           ? parsed.versionsByMonth

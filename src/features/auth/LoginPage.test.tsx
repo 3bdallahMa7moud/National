@@ -45,7 +45,6 @@ function renderLogin() {
       <MemoryRouter initialEntries={['/login']}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<p>Register destination</p>} />
           <Route path="/forgot-password" element={<p>Recovery destination</p>} />
           <Route path="/admin/dashboard" element={<p>Admin destination</p>} />
           <Route path="/employee/dashboard" element={<p>Employee destination</p>} />
@@ -76,7 +75,7 @@ describe('LoginPage', () => {
 
   afterEach(cleanup);
 
-  it('fills a demo account and signs an administrator into the admin area', async () => {
+  it('signs an administrator into the admin area with backend credentials', async () => {
     mocks.post.mockResolvedValue({
       data: {
         user: {
@@ -97,10 +96,12 @@ describe('LoginPage', () => {
     mocks.fetchAndHydrateBootstrap.mockResolvedValue(undefined);
     renderLogin();
 
-    fireEvent.click(screen.getByText('EMP-003').closest('button') as HTMLButtonElement);
-
-    expect(screen.getByLabelText('Email or Username')).toHaveValue('EMP-003');
-    expect(screen.getByLabelText('Password')).toHaveValue('123456');
+    fireEvent.change(screen.getByLabelText('Email or Username'), {
+      target: { value: 'EMP-003' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: '123456' },
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 
@@ -147,7 +148,17 @@ describe('LoginPage', () => {
   });
 
   it('shows invalid-credential feedback and does not authenticate', async () => {
-    mocks.post.mockRejectedValue(new Error('Invalid credentials'));
+    mocks.post.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 401,
+        data: {
+          error: {
+            code: 'INVALID_CREDENTIALS',
+          },
+        },
+      },
+    });
     renderLogin();
 
     fireEvent.change(screen.getByLabelText('Email or Username'), {
@@ -168,6 +179,35 @@ describe('LoginPage', () => {
     expect(mocks.login).not.toHaveBeenCalled();
   });
 
+  it('shows service feedback when the sign-in request fails before authentication', async () => {
+    mocks.post.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 500,
+        data: 'Proxy error',
+      },
+    });
+    renderLogin();
+
+    fireEvent.change(screen.getByLabelText('Email or Username'), {
+      target: { value: 'EMP-003' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    expect(
+      await screen.findByText(
+        'Sign-in service is unavailable. Please try again in a moment.',
+        {},
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Invalid email/username or password')).not.toBeInTheDocument();
+    expect(mocks.login).not.toHaveBeenCalled();
+  });
+
   it('shows the verification-required message for unverified accounts', async () => {
     mocks.post.mockRejectedValue({
       isAxiosError: true,
@@ -182,10 +222,10 @@ describe('LoginPage', () => {
     renderLogin();
 
     fireEvent.change(screen.getByLabelText('Email or Username'), {
-      target: { value: 'noura.signup@hospital.sa' },
+      target: { value: 'new.employee@hospital.sa' },
     });
     fireEvent.change(screen.getByLabelText('Password'), {
-      target: { value: 'signup-pass-123' },
+      target: { value: 'setup-pass-123' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 
@@ -216,9 +256,8 @@ describe('LoginPage', () => {
     expect(screen.getByText('Recovery destination')).toBeInTheDocument();
   });
 
-  it('navigates to the registration page from login', () => {
+  it('does not show a public registration link', () => {
     renderLogin();
-    fireEvent.click(screen.getByRole('link', { name: 'Create account' }));
-    expect(screen.getByText('Register destination')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Create account' })).not.toBeInTheDocument();
   });
 });

@@ -12,7 +12,6 @@ import {
   Palmtree,
   PhoneCall,
   Timer,
-  TrendingUp,
   CheckCircle2,
   Filter,
   ExternalLink,
@@ -29,7 +28,6 @@ interface StatItem {
   label: string;
   value: number;
   subLabel?: string;
-  percent?: number;
   icon: React.ReactNode;
   accentBar: string;
   iconBox: string;
@@ -96,16 +94,6 @@ function StatCard({ item, isActive, isRtl, locale, onClick }: StatCardProps) {
             >
               <CheckCircle2 className="h-3 w-3" />
               <span>{isRtl ? 'مفلتر بالجدول' : 'Filtered'}</span>
-            </span>
-          ) : item.percent !== undefined ? (
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-tight',
-                'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 group-hover:bg-slate-200 dark:group-hover:bg-slate-700 transition-colors'
-              )}
-            >
-              <TrendingUp className="h-3 w-3 text-emerald-500" />
-              <span dir="ltr">{item.percent}%</span>
             </span>
           ) : null}
         </div>
@@ -203,9 +191,14 @@ function MatrixStatsCards({
             else if (row.colorKey === 'overtime') overtime += count;
             else {
               const lower = (row.shiftLabel || row.unitLabel || '').toLowerCase();
-              if (lower.includes('morning') || lower.includes('صباح')) morningShifts += count;
-              else if (lower.includes('evening') || lower.includes('night') || lower.includes('مساء') || lower.includes('ليل')) nightShifts += count;
-              else if (lower.includes('oncall') || lower.includes('طلب')) onCallDay += count;
+              const hasOnCall = lower.includes('oncall') || lower.includes('on call') || lower.includes('طلب');
+              const hasNight = lower.includes('night') || lower.includes('ليل');
+              const hasEvening = lower.includes('evening') || lower.includes('مساء');
+              
+              if (hasOnCall && hasNight) onCallNight += count;
+              else if (hasOnCall) onCallDay += count;
+              else if (lower.includes('morning') || lower.includes('صباح')) morningShifts += count;
+              else if (hasEvening || hasNight) nightShifts += count;
               else morningShifts += count;
             }
           });
@@ -254,7 +247,6 @@ function MatrixStatsCards({
       filterKey: 'morning',
       label: isRtl ? 'الشفت النهاري' : 'Day Shift',
       value: stats.morningShifts,
-      percent: Math.round((stats.morningShifts / stats.totalShifts) * 100),
       subLabel: isRtl ? 'فلترة صفوف الشفت النهاري' : 'Filter day-shift rows',
       icon: <Sun className="h-4 w-4 text-amber-500 dark:text-amber-400" />,
       accentBar: 'bg-gradient-to-r from-amber-400 to-orange-500',
@@ -268,7 +260,6 @@ function MatrixStatsCards({
       filterKey: 'night',
       label: isRtl ? 'الشفت الليلي' : 'Night Shift',
       value: stats.nightShifts,
-      percent: Math.round((stats.nightShifts / stats.totalShifts) * 100),
       subLabel: isRtl ? 'فلترة النوبة الليلية' : 'Filter night-shift rows',
       icon: <Moon className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />,
       accentBar: 'bg-gradient-to-r from-indigo-500 to-violet-600',
@@ -282,7 +273,6 @@ function MatrixStatsCards({
       filterKey: 'onCall',
       label: isRtl ? 'تحت الطلب نهاري' : 'On-call Day',
       value: stats.onCallDay,
-      percent: Math.round((stats.onCallDay / stats.totalShifts) * 100),
       subLabel: isRtl ? 'فلترة صفوف تحت الطلب النهارية' : 'Filter day on-call rows',
       icon: <PhoneCall className="h-4 w-4 text-rose-500 dark:text-rose-400" />,
       accentBar: 'bg-gradient-to-r from-rose-500 to-pink-500',
@@ -296,7 +286,6 @@ function MatrixStatsCards({
       filterKey: 'onCallNight',
       label: isRtl ? 'تحت الطلب ليلي' : 'On-call Night',
       value: stats.onCallNight,
-      percent: Math.round((stats.onCallNight / stats.totalShifts) * 100),
       subLabel: isRtl ? 'فلترة صفوف تحت الطلب الليلية' : 'Filter night on-call rows',
       icon: <Moon className="h-4 w-4" />,
       accentBar: 'bg-gradient-to-r from-cyan-500 to-blue-500',
@@ -310,7 +299,6 @@ function MatrixStatsCards({
       href: `/admin/late-schedule?year=${data.year}&month=${data.month + 1}`,
       label: 'OT Schedule',
       value: stats.overtime,
-      percent: Math.round((stats.overtime / stats.totalShifts) * 100),
       subLabel: isRtl ? 'فتح جدول OT Schedule' : 'Open OT Schedule',
       icon: <Timer className="h-4 w-4" />,
       accentBar: 'bg-gradient-to-r from-amber-500 to-orange-500',

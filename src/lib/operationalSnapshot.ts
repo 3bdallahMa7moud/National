@@ -197,6 +197,10 @@ export function buildOperationalSnapshot(
               metric.hours = (metric.hours ?? 0) + hours;
               otAssignments += 1;
               otHours += hours;
+            } else if (category === 'onCallDay' || category === 'onCallNight') {
+              const hours = hoursFromRange(row.timeRange);
+              otHours += hours;
+              standardAssignments += 1;
             } else {
               standardAssignments += 1;
             }

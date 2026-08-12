@@ -7,6 +7,7 @@
     "phoneMin": "Mobile number must be at least 9 digits",
     "positionMin": "Please specify a job title",
     "departmentRequired": "Please select a department",
+    "departmentNameRequired": "Department name is required",
     "passwordMin": "Password must be at least 6 characters or digits",
     "confirmPasswordRequired": "Please confirm your password",
     "passwordMismatch": "Passwords do not match",

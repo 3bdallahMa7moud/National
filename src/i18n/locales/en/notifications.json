@@ -74,31 +74,5 @@
         "replace": { "title": "Replacement request cancelled", "message": "{{requester}} cancelled the request." }
       }
     }
-  },
-  "mock": {
-    "notif-1": {
-      "title": "On-Call Assignment",
-      "message": "You have been assigned an on-call shift next Thursday"
-    },
-    "notif-2": {
-      "title": "Shift Change",
-      "message": "Your shift was changed from evening to Day Shift on Sunday"
-    },
-    "notif-3": {
-      "title": "Overtime",
-      "message": "You have been assigned overtime on Saturday from 3:00 PM to 7:00 PM"
-    },
-    "notif-4": {
-      "title": "Schedule Published",
-      "message": "The July 2026 schedule has been published"
-    },
-    "notif-5": {
-      "title": "Shift Change",
-      "message": "Your shift was changed from night to evening on Tuesday"
-    },
-    "notif-6": {
-      "title": "System Update",
-      "message": "The scheduling system has been updated. Please review your new schedule"
-    }
   }
 }

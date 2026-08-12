@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
+import { createScheduleMatrixFixture } from '@/test/fixtures/scheduleMatrix';
 import ScheduleMatrix from './ScheduleMatrix';
 
 afterEach(cleanup);
@@ -10,7 +10,7 @@ describe('ScheduleMatrix arrange mode', () => {
     // Pre-transform the production-lazy DnD module so parallel Vitest workers do not
     // turn chunk compilation time into a flaky Suspense timeout.
     await import('./MatrixOrderDnd');
-    const data = generateScheduleMatrixMock(2026, 6);
+    const data = createScheduleMatrixFixture(2026, 6);
     const facility = data.facilities.find((item) => item.units.some((unit) => unit.rows.length > 0))!;
     const unit = facility.units.find((item) => item.rows.length > 0)!;
     const row = unit.rows[0];
@@ -56,11 +56,10 @@ describe('ScheduleMatrix arrange mode', () => {
     expect(rowHandles.length).toBeGreaterThanOrEqual(1);
     expect(unitHandles.some((handle) => handle.className.includes('cursor-grab'))).toBe(true);
     expect(rowHandles.some((handle) => handle.className.includes('cursor-grab'))).toBe(true);
-    expect(screen.getAllByLabelText('Add row').length).toBeGreaterThan(0);
   }, 30000);
 
   it('adds the first unit directly from an empty facility on the mobile ordering surface', async () => {
-    const data = generateScheduleMatrixMock(2026, 6);
+    const data = createScheduleMatrixFixture(2026, 6);
     const facility = data.facilities[0];
     facility.units = [];
     const onAddUnit = vi.fn();
@@ -91,7 +90,7 @@ describe('ScheduleMatrix arrange mode', () => {
   }, 30000);
 
   it('opens direct unit actions with the affected assignment count and delegates safe deletion', async () => {
-    const data = generateScheduleMatrixMock(2026, 6);
+    const data = createScheduleMatrixFixture(2026, 6);
     const facility = data.facilities.find((item) => item.units.some((candidate) => candidate.rows.length > 0))!;
     const unit = facility.units.find((candidate) => candidate.rows.length > 0)!;
     const affectedAssignments = unit.rows.reduce((unitTotal, row) => unitTotal

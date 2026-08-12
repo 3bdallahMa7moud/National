@@ -1,6 +1,6 @@
 export type { Employee, AuthUser, LoginCredentials, UserRole, JobTitleOption } from './employee';
 export { JOB_TITLE_OPTIONS, USER_ROLES, findJobTitleOption, isAdminOrSuperAdmin, isSuperAdmin, isUserRole } from './employee';
-export type { Department, ShiftType, ShiftTypeKey } from './department';
+export type { Department, DepartmentRecord, ShiftType, ShiftTypeKey } from './department';
 export type { Shift, ShiftStatus, ScheduleDay, BulkEditPayload } from './shift';
 export type { AppNotification, NotificationType } from './notification';
 export type {
@@ -9,9 +9,11 @@ export type {
   EmployeeDirectoryMigrationReport,
   EmployeeDirectoryMutationResult,
   EmployeeDirectoryRecord,
+  EmployeeDirectorySource,
 } from './employeeDirectory';
 export type { AuditLogEntry, AuditAction, AuditEntityType } from './audit';
 export type { LocalizedText } from './localized';
+export type { OfficialEmployee, OfficialEmployeeOrigin } from './officialEmployee';
 export type {
   ShiftColorKey, FacilityColorToken, Assignment, ShiftRow, Unit, Facility,
   VacationRow, ScheduleMatrixData, MatrixCellRef, AssignmentChangePayload,

@@ -5,7 +5,7 @@ import Button from '@/components/ui/Button';
 import ShiftBadge from '@/components/common/ShiftBadge';
 import { useSchedule } from '@/hooks/useSchedule';
 import { useToast } from '@/components/ui/Toast';
-import { mockShiftTypesSource } from '@/mocks/sources';
+import { SHIFT_TYPES } from '@/data/shiftTypes';
 import { getShiftLabel } from '@/i18n/helpers';
 import { Trash2, Plus, Calendar, User, AlertCircle } from 'lucide-react';
 import type { Employee, ShiftTypeKey, Shift } from '@/types';
@@ -139,7 +139,7 @@ export default function CellEditModal({ isOpen, onClose, employee, dateStr }: Ce
           <p className="text-xs text-text-secondary mb-3">{t('schedule:cellEdit.clickToAdd')}</p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {mockShiftTypesSource.map((st) => (
+            {SHIFT_TYPES.map((st) => (
               <button
                 key={st.id}
                 onClick={() => handleAddShift(st.key)}

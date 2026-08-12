@@ -9,10 +9,13 @@ import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import EmployeeChip from './EmployeeChip';
 import { scheduleCellMarkerBackground, scheduleCellMarkerKey } from '@/lib/scheduleCellMarkers';
+import { buildEmployeeDisplayLookup } from '@/lib/employeeDisplay';
+import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import type {
   AuditEntry,
   ShiftRow,
   Assignment,
+  LegendEmployee,
   MatrixCellRef,
   HolidayRange,
   ScheduleCellMarkerMap,
@@ -34,7 +37,7 @@ interface ShiftRowCellsProps {
   daysInMonth: number;
   year: number;
   month: number;
-  legend: { code: string; fullName: string; employeeId?: string }[];
+  legend: LegendEmployee[];
   auditLog?: AuditEntry[];
   highlightedEmployeeId: string | null;
   selectedCells: MatrixCellRef[];
@@ -96,7 +99,8 @@ function ShiftRowCells({
   expandedCellsView = false,
   colorblindMode = false,
 }: ShiftRowCellsProps) {
-  const { t } = useTranslation(['schedule', 'common']);
+  const { t, i18n } = useTranslation(['schedule', 'common']);
+  const isRtl = i18n.dir() === 'rtl';
   const today = new Date();
   const todayDay = today.getFullYear() === year && today.getMonth() === month ? today.getDate() : -1;
   const monthLabel = MONTH_LABELS[month];
@@ -106,8 +110,11 @@ function ShiftRowCells({
   const fillSourceRef = useRef<MatrixCellRef | null>(null);
   const [fillTargetDay, setFillTargetDay] = useState<number | null>(null);
   const [previewCell, setPreviewCell] = useState<{ day: number; assignments: Assignment[]; cellRef: MatrixCellRef } | null>(null);
-
-  const legendMap = useMemo(() => new Map(legend.map((item) => [item.code, item.fullName])), [legend]);
+  const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
+  const employeeLookup = useMemo(
+    () => buildEmployeeDisplayLookup(legend, directoryRecords, isRtl),
+    [directoryRecords, isRtl, legend],
+  );
 
   const isCellSelected = useCallback(
     (day: number) =>
@@ -124,7 +131,7 @@ function ShiftRowCells({
 
   const makeAriaLabel = (day: number, assignments: Assignment[]) => {
     const names = assignments.length
-      ? assignments.map((assignment) => legendMap.get(assignment.employeeCode) || assignment.employeeCode).join(', ')
+      ? assignments.map((assignment) => employeeLookup.resolve(assignment).name).join(', ')
       : t('schedule:matrix.emptyCell');
     return `${names} - ${row.shiftLabel} - ${t('schedule:matrix.day', { day })} - ${facilityName} ${unitName}`;
   };
@@ -300,14 +307,18 @@ function ShiftRowCells({
 
             {expandedCellsView && assignments.length > 0 ? (
               <div className="flex flex-col items-center justify-center gap-1 w-full py-1 px-1">
-                {assignments.map((assignment, assignmentIndex) => (
+                {assignments.map((assignment, assignmentIndex) => {
+                  const employee = employeeLookup.resolve(assignment);
+                  return (
                   <EmployeeChip
                     key={`${assignment.employeeCode}-${assignmentIndex}`}
                     assignment={assignment}
                     rowColorKey={row.colorKey}
                     rowBackgroundColor={row.backgroundColor}
                     rowTextColor={row.textColor}
-                    fullName={legendMap.get(assignment.employeeCode)}
+                    fullName={employee.name}
+                    displayCode={employee.code || assignment.employeeCode}
+                    employeeNumber={employee.employeeNumber}
                     shiftLabel={row.shiftLabel}
                     timeRange={row.timeRange}
                     facilityName={facilityName}
@@ -323,18 +334,23 @@ function ShiftRowCells({
                     compact={false}
                     onClick={onChipClick ? () => onChipClick(cellRef, assignment, { hasAssignments: true }) : undefined}
                   />
-                ))}
+                  );
+                })}
               </div>
             ) : assignments.length > 2 ? (
               <div className="flex h-full w-full flex-col items-stretch justify-center gap-[2px] overflow-hidden px-[2px] py-[2px]">
-                {assignments.slice(0, 2).map((assignment, assignmentIndex) => (
+                {assignments.slice(0, 2).map((assignment, assignmentIndex) => {
+                  const employee = employeeLookup.resolve(assignment);
+                  return (
                   <EmployeeChip
                     key={`${assignment.employeeCode}-${assignmentIndex}`}
                     assignment={assignment}
                     rowColorKey={row.colorKey}
                     rowBackgroundColor={row.backgroundColor}
                     rowTextColor={row.textColor}
-                    fullName={legendMap.get(assignment.employeeCode)}
+                    fullName={employee.name}
+                    displayCode={employee.code || assignment.employeeCode}
+                    employeeNumber={employee.employeeNumber}
                     shiftLabel={row.shiftLabel}
                     timeRange={row.timeRange}
                     facilityName={facilityName}
@@ -350,7 +366,8 @@ function ShiftRowCells({
                     compact={true}
                     onClick={onChipClick ? () => onChipClick(cellRef, assignment, { hasAssignments: true }) : undefined}
                   />
-                ))}
+                  );
+                })}
                 <button
                   type="button"
                   onClick={(event) => {
@@ -364,14 +381,18 @@ function ShiftRowCells({
                 </button>
               </div>
             ) : (
-              assignments.map((assignment, assignmentIndex) => (
+              assignments.map((assignment, assignmentIndex) => {
+                const employee = employeeLookup.resolve(assignment);
+                return (
                 <EmployeeChip
                   key={`${assignment.employeeCode}-${assignmentIndex}`}
                   assignment={assignment}
                   rowColorKey={row.colorKey}
                   rowBackgroundColor={row.backgroundColor}
                   rowTextColor={row.textColor}
-                  fullName={legendMap.get(assignment.employeeCode)}
+                  fullName={employee.name}
+                  displayCode={employee.code || assignment.employeeCode}
+                  employeeNumber={employee.employeeNumber}
                   shiftLabel={row.shiftLabel}
                   timeRange={row.timeRange}
                   facilityName={facilityName}
@@ -387,7 +408,8 @@ function ShiftRowCells({
                   compact={false}
                   onClick={onChipClick ? () => onChipClick(cellRef, assignment, { hasAssignments: true }) : undefined}
                 />
-              ))
+                );
+              })
             )}
 
             {assignments.length > 0 && canEditCell && (
@@ -426,14 +448,20 @@ function ShiftRowCells({
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {previewCell.assignments.map((assignment, idx) => (
                 <div key={idx} className="flex items-center justify-between rounded-xl border border-border bg-surface-muted/50 p-2.5">
+                  {(() => {
+                    const employee = employeeLookup.resolve(assignment);
+                    return (
                   <div className="flex items-center gap-2.5">
-                    <span className="flex h-7 w-7 items-center justify-center rounded bg-primary-teal text-xs font-black text-white">
-                      {assignment.employeeCode}
+                    <span className="flex h-7 min-w-7 items-center justify-center rounded bg-primary-teal px-1 text-[10px] font-black text-white" title={employee.tooltip}>
+                      {(employee.code || assignment.employeeCode).slice(0, 4).toUpperCase()}
                     </span>
                     <div>
-                      <p className="text-sm font-bold text-text-primary">{legendMap.get(assignment.employeeCode) || assignment.employeeCode}</p>
+                      <p className="text-sm font-bold text-text-primary" title={employee.tooltip}>{employee.name}</p>
+                      {employee.employeeNumber && <p className="text-xs text-text-secondary" dir="ltr">{employee.employeeNumber}</p>}
                     </div>
                   </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>

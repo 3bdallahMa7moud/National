@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { getShiftChipStyle } from './getShiftChipClasses';
 import { scheduleCellMarkerBackground, scheduleCellMarkerKey } from '@/lib/scheduleCellMarkers';
+import { buildEmployeeDisplayLookup } from '@/lib/employeeDisplay';
+import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import type { Assignment, MatrixCellRef, ScheduleMatrixData } from '@/types/scheduleMatrix';
 
 interface MobileWeeklyScheduleProps {
@@ -22,6 +24,7 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
     : 1;
   const [selectedDay, setSelectedDay] = useState(initialDay);
   const [showAll, setShowAll] = useState(false);
+  const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
 
   useEffect(() => {
     setSelectedDay(initialDay);
@@ -42,28 +45,32 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
   const NextIcon = isRtl ? ChevronLeft : ChevronRight;
 
   const assignments = useMemo(() => {
-    const legendByCode = new Map(data.legend.map((employee) => [employee.code, employee]));
+    const employeeLookup = buildEmployeeDisplayLookup(data.legend, directoryRecords, isRtl);
     return data.facilities.flatMap((facility) =>
       facility.units.flatMap((unit) =>
         unit.rows.flatMap((row) =>
-          (row.cellsByDay[selectedDay] || []).map((assignment) => ({
-            ref: { facilityId: facility.id, unitId: unit.id, rowId: row.id, day: selectedDay },
-            facility: facility.name,
-            unit: unit.name,
-            shift: row.shiftLabel,
-            time: row.timeRange,
-            colorKey: row.colorKey,
-            backgroundColor: row.backgroundColor,
-            textColor: row.textColor,
-            assignment,
-            markerColor: data.cellMarkers[scheduleCellMarkerKey(row.id, selectedDay)],
-            code: assignment.employeeCode,
-            employee: legendByCode.get(assignment.employeeCode)?.fullName || assignment.employeeCode,
-          })),
+          (row.cellsByDay[selectedDay] || []).map((assignment) => {
+            const employee = employeeLookup.resolve(assignment);
+            return {
+              ref: { facilityId: facility.id, unitId: unit.id, rowId: row.id, day: selectedDay },
+              facility: facility.name,
+              unit: unit.name,
+              shift: row.shiftLabel,
+              time: row.timeRange,
+              colorKey: row.colorKey,
+              backgroundColor: row.backgroundColor,
+              textColor: row.textColor,
+              assignment,
+              markerColor: data.cellMarkers[scheduleCellMarkerKey(row.id, selectedDay)],
+              employee: employee.name,
+              employeeNumber: employee.employeeNumber,
+              tooltip: employee.tooltip,
+            };
+          }),
         ),
       ),
     );
-  }, [data, selectedDay]);
+  }, [data, directoryRecords, isRtl, selectedDay]);
 
   const selectedDate = new Intl.DateTimeFormat(locale, {
     weekday: 'long',
@@ -158,7 +165,7 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
           <div className="space-y-2">
             {visibleAssignments.map((entry, index) => (
               <button
-                key={`${entry.ref.rowId}-${entry.code}-${index}`}
+                key={`${entry.ref.rowId}-${entry.assignment.employeeId}-${index}`}
                 type="button"
                 onClick={() => {
                   if (onAssignmentClick) onAssignmentClick(entry.ref, entry.assignment);
@@ -167,6 +174,7 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
                 className="relative flex min-h-14 w-full items-center gap-3 overflow-hidden rounded-xl border p-3 text-start transition-transform active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-primary/30"
                 style={getShiftChipStyle(entry.colorKey, entry.backgroundColor, entry.textColor)}
                 aria-label={`${entry.employee}, ${entry.shift}, ${entry.facility}, ${entry.unit}, ${entry.time}${entry.markerColor ? `, ${t('schedule:markers.modifiedShiftMarker')}` : ''}`}
+                title={entry.tooltip}
               >
                 {entry.markerColor && (
                   <span
@@ -178,14 +186,19 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
                     title={t('schedule:markers.modifiedShiftMarker')}
                   />
                 )}
-                <span className="relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-current/20 bg-surface/70 font-mono text-xs font-bold">
-                  {entry.code}
+                <span className="relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-current/20 bg-surface/70">
+                  <UserRound className="h-4 w-4" />
                 </span>
                 <span className="relative z-[1] min-w-0 flex-1">
                   <span className="flex items-center gap-1.5 truncate text-sm font-bold">
                     <UserRound className="h-3.5 w-3.5 shrink-0" />
                     {entry.employee}
                   </span>
+                  {entry.employeeNumber && (
+                    <span className="mt-1 block truncate text-[11px] opacity-80" dir="ltr">
+                      {entry.employeeNumber}
+                    </span>
+                  )}
                   <span className="mt-1 block truncate text-xs font-semibold">{entry.shift} · {entry.unit}</span>
                   <span className="mt-0.5 flex items-center gap-1 text-[11px] opacity-80">
                     <Clock3 className="h-3 w-3" />

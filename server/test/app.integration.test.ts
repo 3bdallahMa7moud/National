@@ -14,28 +14,6 @@ import {
 const app = createApp();
 const prisma = prismaClient();
 
-function signupPayload(overrides: Partial<{
-  name: string;
-  email: string;
-  employeeNumber: string;
-  phone: string;
-  position: string;
-  departmentId: string;
-  password: string;
-  role: string;
-}> = {}) {
-  return {
-    name: 'Noura Signup',
-    email: 'noura.signup@hospital.sa',
-    employeeNumber: 'EMP-950',
-    phone: '0501555555',
-    position: 'Technologist',
-    departmentId: ids.department,
-    password: 'signup-pass-123',
-    ...overrides,
-  };
-}
-
 describe('server integration', () => {
   beforeEach(async () => {
     clearAllRateLimits();
@@ -78,252 +56,118 @@ describe('server integration', () => {
     expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
   });
 
-  it('auth: signup request validates input, rejects verified duplicates, creates an unverified account, and ignores privileged role input', async () => {
+  it('auth: public signup endpoints are disabled', async () => {
     const agent = makeAgent(app);
 
     const options = await agent.get('/api/auth/signup/options');
-    expect(options.status).toBe(200);
-    expect(options.body.departments).toEqual([
-      {
-        id: ids.department,
-        name: {
-          en: 'CT Testing Department',
-          ar: 'قسم الاختبار',
-        },
-      },
-    ]);
+    expect(options.status).toBe(404);
+    expect(options.body.error.code).toBe('SIGNUP_DISABLED');
 
-    const invalid = await agent.post('/api/auth/signup/request').send({
-      email: 'not-an-email',
+    const request = await agent.post('/api/auth/signup/request').send({
+      email: 'new.employee@hospital.sa',
     });
-    expect(invalid.status).toBe(400);
-    expect(invalid.body.error.code).toBe('VALIDATION_ERROR');
-
-    const duplicate = await agent.post('/api/auth/signup/request').send(signupPayload({
-      email: 'ali@hospital.sa',
-      employeeNumber: 'EMP-951',
-    }));
-    expect(duplicate.status).toBe(409);
-    expect(duplicate.body.error.code).toBe('EMAIL_ALREADY_REGISTERED');
-
-    const signup = await agent.post('/api/auth/signup/request').send(signupPayload({
-      role: 'admin',
-    }));
-    expect(signup.status).toBe(201);
-    expect(signup.body.verificationRequired).toBe(true);
-    expect(signup.body.maskedEmail).toContain('@hospital.sa');
-    expect(signup.body.devCode).toMatch(/^\d{6}$/);
-
-    const createdUser = await prisma.user.findUniqueOrThrow({
-      where: { email: 'noura.signup@hospital.sa' },
-      include: { emailVerificationCodes: true },
-    });
-    expect(createdUser.role).toBe('employee');
-    expect(createdUser.isActive).toBe(false);
-    expect(createdUser.emailVerifiedAt).toBeNull();
-    expect(createdUser.passwordHash).not.toBe('signup-pass-123');
-    expect(createdUser.emailVerificationCodes).toHaveLength(1);
-    expect(createdUser.emailVerificationCodes[0].codeHash).not.toBe(signup.body.devCode);
-  });
-
-  it('auth: signup options auto-seed a default department in non-production when the database is empty', async () => {
-    await resetDatabase();
-
-    const agent = makeAgent(app);
-    const response = await agent.get('/api/auth/signup/options');
-
-    expect(response.status).toBe(200);
-    expect(response.body.departments).toEqual([
-      {
-        id: 'dept-1',
-        name: {
-          en: 'CT Scan Department',
-          ar: 'قسم الأشعة المقطعية',
-        },
-      },
-    ]);
-
-    const storedDepartments = await prisma.department.findMany({
-      select: {
-        id: true,
-        nameEn: true,
-        nameAr: true,
-      },
-    });
-    expect(storedDepartments).toEqual([
-      {
-        id: 'dept-1',
-        nameEn: 'CT Scan Department',
-        nameAr: 'قسم الأشعة المقطعية',
-      },
-    ]);
-  });
-
-  it('auth: unverified signup cannot log in until OTP verification succeeds, and the verified account can then log in', async () => {
-    const agent = makeAgent(app);
-    const signup = await agent.post('/api/auth/signup/request').send(signupPayload());
-    expect(signup.status).toBe(201);
-
-    const unverifiedLogin = await agent.post('/api/auth/login').send({
-      identifier: 'noura.signup@hospital.sa',
-      password: 'signup-pass-123',
-    });
-    expect(unverifiedLogin.status).toBe(403);
-    expect(unverifiedLogin.body.error.code).toBe('EMAIL_VERIFICATION_REQUIRED');
+    expect(request.status).toBe(404);
+    expect(request.body.error.code).toBe('SIGNUP_DISABLED');
 
     const verify = await agent.post('/api/auth/signup/verify').send({
-      email: 'noura.signup@hospital.sa',
-      code: signup.body.devCode,
+      email: 'new.employee@hospital.sa',
+      code: '123456',
     });
-    expect(verify.status).toBe(200);
-    expect(verify.body.ok).toBe(true);
-
-    const verifiedUser = await prisma.user.findUniqueOrThrow({
-      where: { email: 'noura.signup@hospital.sa' },
-    });
-    expect(verifiedUser.isActive).toBe(true);
-    expect(verifiedUser.emailVerifiedAt).not.toBeNull();
-
-    const verifiedLogin = await agent.post('/api/auth/login').send({
-      identifier: 'noura.signup@hospital.sa',
-      password: 'signup-pass-123',
-    });
-    expect(verifiedLogin.status).toBe(200);
-    expect(verifiedLogin.body.user.role).toBe('employee');
-  });
-
-  it('auth: signup verification rejects incorrect, expired, max-attempt, and reused OTPs', async () => {
-    const wrongCodeAgent = makeAgent(app);
-    const signup = await wrongCodeAgent.post('/api/auth/signup/request').send(signupPayload());
-    expect(signup.status).toBe(201);
-
-    const wrongCode = await wrongCodeAgent.post('/api/auth/signup/verify').send({
-      email: 'noura.signup@hospital.sa',
-      code: '111111',
-    });
-    expect(wrongCode.status).toBe(400);
-    expect(wrongCode.body.error.code).toBe('INVALID_SIGNUP_OTP');
-
-    await prisma.emailVerificationCode.updateMany({
-      where: { userId: signup.body.userId },
-      data: {
-        expiresAt: new Date('2026-08-01T00:00:00.000Z'),
-      },
-    });
-
-    const expiredCode = await wrongCodeAgent.post('/api/auth/signup/verify').send({
-      email: 'noura.signup@hospital.sa',
-      code: signup.body.devCode,
-    });
-    expect(expiredCode.status).toBe(400);
-    expect(expiredCode.body.error.code).toBe('SIGNUP_OTP_EXPIRED');
-
-    const attemptsAgent = makeAgent(app);
-    const attemptsSignup = await attemptsAgent.post('/api/auth/signup/request').send(signupPayload({
-      email: 'attempts.signup@hospital.sa',
-      employeeNumber: 'EMP-952',
-    }));
-    expect(attemptsSignup.status).toBe(201);
-
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      const response = await attemptsAgent.post('/api/auth/signup/verify').send({
-        email: 'attempts.signup@hospital.sa',
-        code: '222222',
-      });
-      expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('INVALID_SIGNUP_OTP');
-    }
-
-    const maxAttempt = await attemptsAgent.post('/api/auth/signup/verify').send({
-      email: 'attempts.signup@hospital.sa',
-      code: '222222',
-    });
-    expect(maxAttempt.status).toBe(429);
-    expect(maxAttempt.body.error.code).toBe('SIGNUP_OTP_ATTEMPTS_EXCEEDED');
-
-    const blockedAfterMax = await attemptsAgent.post('/api/auth/signup/verify').send({
-      email: 'attempts.signup@hospital.sa',
-      code: attemptsSignup.body.devCode,
-    });
-    expect(blockedAfterMax.status).toBe(429);
-    expect(blockedAfterMax.body.error.code).toBe('SIGNUP_OTP_ATTEMPTS_EXCEEDED');
-
-    const reuseAgent = makeAgent(app);
-    const reuseSignup = await reuseAgent.post('/api/auth/signup/request').send(signupPayload({
-      email: 'reuse.signup@hospital.sa',
-      employeeNumber: 'EMP-953',
-    }));
-    expect(reuseSignup.status).toBe(201);
-
-    const firstVerify = await reuseAgent.post('/api/auth/signup/verify').send({
-      email: 'reuse.signup@hospital.sa',
-      code: reuseSignup.body.devCode,
-    });
-    expect(firstVerify.status).toBe(200);
-
-    const reusedCode = await reuseAgent.post('/api/auth/signup/verify').send({
-      email: 'reuse.signup@hospital.sa',
-      code: reuseSignup.body.devCode,
-    });
-    expect(reusedCode.status).toBe(409);
-    expect(reusedCode.body.error.code).toBe('SIGNUP_OTP_ALREADY_USED');
-  }, 20_000);
-
-  it('auth: signup resend enforces cooldown, invalidates previous codes, and rate limits repeated requests', async () => {
-    const agent = makeAgent(app);
-    const signup = await agent.post('/api/auth/signup/request').send(signupPayload());
-    expect(signup.status).toBe(201);
-
-    const cooldown = await agent.post('/api/auth/signup/resend').send({
-      email: 'noura.signup@hospital.sa',
-    });
-    expect(cooldown.status).toBe(429);
-    expect(cooldown.body.error.code).toBe('SIGNUP_OTP_RESEND_COOLDOWN');
-
-    await prisma.emailVerificationCode.updateMany({
-      where: { userId: signup.body.userId },
-      data: {
-        requestedAt: new Date('2026-07-31T00:00:00.000Z'),
-      },
-    });
+    expect(verify.status).toBe(404);
+    expect(verify.body.error.code).toBe('SIGNUP_DISABLED');
 
     const resend = await agent.post('/api/auth/signup/resend').send({
-      email: 'noura.signup@hospital.sa',
+      email: 'new.employee@hospital.sa',
     });
-    expect(resend.status).toBe(200);
-    expect(resend.body.resent).toBe(true);
-    expect(resend.body.devCode).toMatch(/^\d{6}$/);
-    expect(resend.body.devCode).not.toBe(signup.body.devCode);
+    expect(resend.status).toBe(404);
+    expect(resend.body.error.code).toBe('SIGNUP_DISABLED');
+  });
 
-    const oldCode = await agent.post('/api/auth/signup/verify').send({
-      email: 'noura.signup@hospital.sa',
-      code: signup.body.devCode,
+  it('auth: seeded accounts are active, verified, and can log in across roles', async () => {
+    const seededUsers = await prisma.user.findMany({
+      where: {
+        id: {
+          in: [ids.superAdmin, ids.admin, ids.employeeAli],
+        },
+      },
+      select: {
+        email: true,
+        role: true,
+        isActive: true,
+        emailVerifiedAt: true,
+      },
+      orderBy: { email: 'asc' },
     });
-    expect(oldCode.status).toBe(400);
-    expect(oldCode.body.error.code).toBe('INVALID_SIGNUP_OTP');
 
-    const newCode = await agent.post('/api/auth/signup/verify').send({
-      email: 'noura.signup@hospital.sa',
-      code: resend.body.devCode,
-    });
-    expect(newCode.status).toBe(200);
+    expect(seededUsers).toHaveLength(3);
+    expect(seededUsers).toEqual([
+      expect.objectContaining({
+        email: 'admin@hospital.sa',
+        role: 'admin',
+        isActive: true,
+        emailVerifiedAt: expect.any(Date),
+      }),
+      expect.objectContaining({
+        email: 'ali@hospital.sa',
+        role: 'employee',
+        isActive: true,
+        emailVerifiedAt: expect.any(Date),
+      }),
+      expect.objectContaining({
+        email: 'super@hospital.sa',
+        role: 'super_admin',
+        isActive: true,
+        emailVerifiedAt: expect.any(Date),
+      }),
+    ]);
 
-    const rateLimitAgent = makeAgent(app);
-    const requestPayload = signupPayload({
-      email: 'ratelimit.signup@hospital.sa',
-      employeeNumber: 'EMP-954',
-    });
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const response = await rateLimitAgent.post('/api/auth/signup/request').send(requestPayload);
-      expect(response.status).toBe(attempt === 0 ? 201 : 200);
+    for (const identifier of ['super@hospital.sa', 'admin@hospital.sa', 'ali@hospital.sa']) {
+      const agent = makeAgent(app);
+      const response = await login(agent, identifier);
+      expect(response.status).toBe(200);
     }
+  });
 
-    const rateLimited = await rateLimitAgent.post('/api/auth/signup/request').send(requestPayload);
-    expect(rateLimited.status).toBe(429);
-    expect(rateLimited.body.error.code).toBe('RATE_LIMITED');
-  }, 20_000);
+  it('departments: creation accepts an empty description, persists to the database, and appears in bootstrap while validation failures stay structured', async () => {
+    const adminAgent = makeAgent(app);
+    await login(adminAgent, 'admin@hospital.sa');
 
-  it('authorization: employee is blocked from admin endpoints and admin cannot modify super admin', async () => {
+    const validation = await adminAgent.post('/api/departments').send({
+      name: '',
+      description: '',
+    });
+    expect(validation.status).toBe(400);
+    expect(validation.body.error.code).toBe('VALIDATION_ERROR');
+    expect(validation.body.error.details.fieldErrors.name).toContain('Department name is required.');
+
+    const createDepartment = await adminAgent.post('/api/departments').send({
+      name: 'Interventional CT',
+      description: '',
+    });
+    expect(createDepartment.status).toBe(201);
+    expect(createDepartment.body.department.name.en).toBe('Interventional CT');
+    expect(createDepartment.body.department.description.en).toBe('');
+
+    const storedDepartment = await prisma.department.findUniqueOrThrow({
+      where: { id: createDepartment.body.department.id },
+    });
+    expect(storedDepartment.nameEn).toBe('Interventional CT');
+    expect(storedDepartment.descriptionEn).toBe('');
+
+    const bootstrap = await adminAgent.get('/api/bootstrap');
+    expect(bootstrap.status).toBe(200);
+    expect(bootstrap.body.departments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: createDepartment.body.department.id,
+          name: expect.objectContaining({ en: 'Interventional CT' }),
+          description: expect.objectContaining({ en: '' }),
+        }),
+      ]),
+    );
+  });
+
+  it('authorization: employee is blocked from admin endpoints and admin role management cannot bypass super admin control', async () => {
     const employeeAgent = makeAgent(app);
     await login(employeeAgent, 'ali@hospital.sa');
     const employeeCreateDepartment = await employeeAgent.post('/api/departments').send({
@@ -336,7 +180,7 @@ describe('server integration', () => {
     await login(adminAgent, 'admin@hospital.sa');
     const createDepartment = await adminAgent.post('/api/departments').send({
       name: 'Admin Department',
-      description: 'Created by admin',
+      description: '',
     });
     expect(createDepartment.status).toBe(201);
 
@@ -345,9 +189,84 @@ describe('server integration', () => {
     });
     expect(superAdminPatch.status).toBe(403);
     expect(superAdminPatch.body.error.code).toBe('FORBIDDEN');
+
+    const adminCreateAdmin = await adminAgent.post('/api/employees').send({
+      name: 'Unauthorized Admin',
+      employeeNumber: 'EMP-970',
+      code: 'UAD',
+      email: 'unauthorized.admin@hospital.sa',
+      position: 'Coordinator',
+      phone: '0501777000',
+      role: 'admin',
+      departmentId: ids.department,
+    });
+    expect(adminCreateAdmin.status).toBe(403);
+    expect(adminCreateAdmin.body.error.code).toBe('FORBIDDEN');
+
+    const adminSelfRolePatch = await adminAgent.patch(`/api/employees/${ids.admin}`).send({
+      role: 'employee',
+    });
+    expect(adminSelfRolePatch.status).toBe(403);
+    expect(adminSelfRolePatch.body.error.code).toBe('FORBIDDEN');
+
+    const adminPromotePatch = await adminAgent.patch(`/api/employees/${ids.employeeAli}`).send({
+      role: 'super_admin',
+    });
+    expect(adminPromotePatch.status).toBe(403);
+    expect(adminPromotePatch.body.error.code).toBe('FORBIDDEN');
+
+    const adminDeactivateSuper = await adminAgent.patch(`/api/employees/${ids.superAdmin}`).send({
+      active: false,
+    });
+    expect(adminDeactivateSuper.status).toBe(403);
+    expect(adminDeactivateSuper.body.error.code).toBe('FORBIDDEN');
+
+    const adminDeactivateSuperAccess = await adminAgent.patch(`/api/employees/${ids.superAdmin}/access`).send({
+      templateId: 'standard',
+      overrides: {},
+      active: false,
+    });
+    expect(adminDeactivateSuperAccess.status).toBe(403);
+    expect(adminDeactivateSuperAccess.body.error.code).toBe('FORBIDDEN');
+
+    const superAgent = makeAgent(app);
+    await login(superAgent, 'super@hospital.sa');
+    const promoteToAdmin = await superAgent.patch(`/api/employees/${ids.employeeAli}`).send({
+      role: 'admin',
+    });
+    expect(promoteToAdmin.status).toBe(200);
+    expect(promoteToAdmin.body.employee.role).toBe('admin');
+
+    const promotedAdminAgent = makeAgent(app);
+    await login(promotedAdminAgent, 'ali@hospital.sa');
+    const promotedAdminSelfDemote = await promotedAdminAgent.patch(`/api/employees/${ids.employeeAli}`).send({
+      role: 'employee',
+    });
+    expect(promotedAdminSelfDemote.status).toBe(403);
+    expect(promotedAdminSelfDemote.body.error.code).toBe('FORBIDDEN');
+
+    const superDemoteSelf = await superAgent.patch(`/api/employees/${ids.superAdmin}`).send({
+      role: 'admin',
+    });
+    expect(superDemoteSelf.status).toBe(400);
+    expect(superDemoteSelf.body.error.code).toBe('PROTECTED_SUPER_ADMIN');
+
+    const superDeactivateSelf = await superAgent.patch(`/api/employees/${ids.superAdmin}`).send({
+      active: false,
+    });
+    expect(superDeactivateSelf.status).toBe(400);
+    expect(superDeactivateSelf.body.error.code).toBe('PROTECTED_SUPER_ADMIN');
+
+    const superDeactivateSelfAccess = await superAgent.patch(`/api/employees/${ids.superAdmin}/access`).send({
+      templateId: 'standard',
+      overrides: {},
+      active: false,
+    });
+    expect(superDeactivateSelfAccess.status).toBe(400);
+    expect(superDeactivateSelfAccess.body.error.code).toBe('PROTECTED_SUPER_ADMIN');
   });
 
-  it('departments and employees: validation, creation, duplicate detection, update, and deactivate work', async () => {
+  it('departments and employees: validation, creation, duplicate detection, update, deactivate, and restore work', async () => {
     const adminAgent = makeAgent(app);
     await login(adminAgent, 'admin@hospital.sa');
 
@@ -397,11 +316,52 @@ describe('server integration', () => {
     expect(stored.phone).toBe('0501777777');
     expect(stored.emailVerifiedAt).toBeNull();
 
+    const bootstrap = await adminAgent.get('/api/bootstrap');
+    expect(bootstrap.status).toBe(200);
+    expect(bootstrap.body.employees.find((employee: { id: string }) => employee.id === created.body.employee.id)).toMatchObject({
+      id: created.body.employee.id,
+      isActive: false,
+    });
+    expect(bootstrap.body.accessProfiles[created.body.employee.id]).toMatchObject({
+      accountId: created.body.employee.id,
+      active: false,
+    });
+
     const setupCode = await prisma.passwordResetCode.findFirst({
       where: { userId: created.body.employee.id },
       orderBy: { requestedAt: 'desc' },
     });
     expect(setupCode).toBeTruthy();
+
+    const restored = await adminAgent.post('/api/employees').send({
+      name: 'Noura Restored',
+      employeeNumber: 'EMP-1000',
+      code: 'NUR',
+      email: 'noura.employee@hospital.sa',
+      position: 'Senior Technologist',
+      phone: '0501999000',
+      role: 'employee',
+      departmentId: ids.department,
+    });
+    expect(restored.status).toBe(200);
+    expect(restored.body.restored).toBe(true);
+    expect(restored.body.employee).toMatchObject({
+      id: created.body.employee.id,
+      employeeNumber: 'EMP-1000',
+      code: 'NUR',
+      isActive: true,
+    });
+    expect(restored.body.accessProfile).toMatchObject({
+      accountId: created.body.employee.id,
+      active: true,
+      templateId: 'standard',
+    });
+
+    const restoredStored = await prisma.user.findUniqueOrThrow({ where: { id: created.body.employee.id } });
+    expect(restoredStored.isActive).toBe(true);
+    expect(restoredStored.employeeNumber).toBe('EMP-1000');
+    expect(restoredStored.email).toBe('noura.employee@hospital.sa');
+    expect(restoredStored.passwordHash).not.toBe(stored.passwordHash);
   });
 
   it('auth: forgot-password delivers OTPs by email, handles no-email accounts safely, and the reset flow updates credentials', async () => {
@@ -414,6 +374,14 @@ describe('server integration', () => {
     expect(request.body.accountFound).toBe(true);
     expect(request.body.hasEmail).toBe(true);
     expect(request.body.devCode).toMatch(/^\d{6}$/);
+
+    const wrongOtp = request.body.devCode === '000000' ? '000001' : '000000';
+    const invalidVerify = await agent.post('/api/auth/forgot-password/verify').send({
+      identifier: 'ali@hospital.sa',
+      code: wrongOtp,
+    });
+    expect(invalidVerify.status).toBe(400);
+    expect(invalidVerify.body.error.code).toBe('INVALID_RESET_CODE');
 
     const verify = await agent.post('/api/auth/forgot-password/verify').send({
       identifier: 'ali@hospital.sa',
@@ -428,8 +396,34 @@ describe('server integration', () => {
     });
     expect(reset.status).toBe(200);
 
+    const reuse = await agent.post('/api/auth/forgot-password/reset').send({
+      identifier: 'ali@hospital.sa',
+      code: request.body.devCode,
+      password: 'new-pass-789',
+    });
+    expect(reuse.status).toBe(400);
+    expect(reuse.body.error.code).toBe('INVALID_RESET_CODE');
+
     const loginWithNewPassword = await login(agent, 'ali@hospital.sa', 'new-pass-456');
     expect(loginWithNewPassword.status).toBe(200);
+
+    const expiredRequest = await agent.post('/api/auth/forgot-password/request').send({
+      identifier: 'ali@hospital.sa',
+    });
+    expect(expiredRequest.status).toBe(200);
+    expect(expiredRequest.body.devCode).toMatch(/^\d{6}$/);
+
+    await prisma.passwordResetCode.updateMany({
+      where: { userId: ids.employeeAli, consumedAt: null },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+
+    const expiredVerify = await agent.post('/api/auth/forgot-password/verify').send({
+      identifier: 'ali@hospital.sa',
+      code: expiredRequest.body.devCode,
+    });
+    expect(expiredVerify.status).toBe(400);
+    expect(expiredVerify.body.error.code).toBe('INVALID_RESET_CODE');
 
     await prisma.user.update({
       where: { id: ids.employeeOmar },
@@ -684,5 +678,51 @@ describe('server integration', () => {
     const newFeed = await makeAgent(app).get(`/api/calendar-sync/feed/${rotateResponse.body.token}.ics`);
     expect(newFeed.status).toBe(200);
     expect(newFeed.text).toContain('BEGIN:VCALENDAR');
+  });
+
+  it('calendar feed: legacy employee accounts use default standard access and an empty feed until roster-linked', async () => {
+    const existingEmployee = await prisma.user.findUniqueOrThrow({
+      where: { id: ids.employeeAli },
+      select: { passwordHash: true },
+    });
+
+    await prisma.user.create({
+      data: {
+        id: 'user-calendar-legacy',
+        employeeNumber: 'EMP-905',
+        code: 'LEG',
+        nameEn: 'Legacy Calendar',
+        nameAr: 'Legacy Calendar',
+        email: 'legacy-calendar@hospital.sa',
+        emailVerifiedAt: new Date('2026-08-01T00:00:00.000Z'),
+        phone: '0501000005',
+        role: 'employee',
+        departmentId: ids.department,
+        positionEn: 'Technologist',
+        positionAr: 'Technologist',
+        isActive: true,
+        passwordHash: existingEmployee.passwordHash,
+        scheduleEmployeeId: null,
+      },
+    });
+
+    const legacyAgent = makeAgent(app);
+    await login(legacyAgent, 'legacy-calendar@hospital.sa');
+
+    const sessionResponse = await legacyAgent.get('/api/auth/session');
+    expect(sessionResponse.status).toBe(200);
+    expect(sessionResponse.body.user.access).toMatchObject({
+      templateId: 'standard',
+      active: true,
+    });
+
+    const tokenResponse = await legacyAgent.get('/api/calendar-sync');
+    expect(tokenResponse.status).toBe(200);
+    expect(tokenResponse.body.token).toMatch(/^[a-f0-9]{64}$/);
+
+    const feedResponse = await makeAgent(app).get(`/api/calendar-sync/feed/${tokenResponse.body.token}.ics`);
+    expect(feedResponse.status).toBe(200);
+    expect(feedResponse.text).toContain('BEGIN:VCALENDAR');
+    expect(feedResponse.text).not.toContain('BEGIN:VEVENT');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OFFICIAL_EMPLOYEE_ROSTER } from '@/data/officialEmployeeRoster';
+import { OFFICIAL_EMPLOYEE_ROSTER } from '@/test/fixtures/officialEmployeeRoster';
 import type { OTShiftRow } from '@/types/lateSchedule';
 import {
   buildLateScheduleExportModel,

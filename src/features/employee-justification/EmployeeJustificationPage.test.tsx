@@ -2,7 +2,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ToastProvider from '@/components/ui/Toast';
 import { useAuthStore } from '@/stores/authStore';
+import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
+import { useLateScheduleStore } from '@/stores/lateScheduleStore';
+import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
+import { EMPLOYEE_JUSTIFICATION_DRAFTS_STORAGE_KEY } from '@/lib/employeeJustificationDrafts';
 import type { AuthUser } from '@/types';
+import { DEFAULT_JUSTIFICATION_STATE } from '@/types/employeeJustification';
+import type { OTShiftRow } from '@/types/lateSchedule';
+import type { OfficialEmployee } from '@/types/officialEmployee';
 import EmployeeJustificationPage from './EmployeeJustificationPage';
 
 const exporterMock = vi.hoisted(() => ({
@@ -46,9 +53,49 @@ function setAuthUser(user: AuthUser | null) {
   });
 }
 
+function currentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function sourceEmployee(overrides: Partial<OfficialEmployee> = {}): OfficialEmployee {
+  return {
+    employeeId: 'late-source-employee',
+    employeeNumber: 'BN-001',
+    code: 'ESHRA',
+    fullName: 'Ahmed One',
+    fullNameEn: 'Ahmed One',
+    origin: 'directory',
+    ...overrides,
+  };
+}
+
+function otRow(employeeId = 'late-source-employee'): OTShiftRow {
+  return {
+    id: 'row-ot-1',
+    title: 'Late shift',
+    location: 'CT',
+    timeRange: '17:00 - 21:00',
+    hours: 4,
+    assignments: {
+      1: [{ kind: 'employee', employeeId }],
+    },
+  };
+}
+
 describe('EmployeeJustificationPage', () => {
   beforeEach(() => {
+    localStorage.clear();
     useAuthStore.setState({ user: null, isAuthenticated: false });
+    useEmployeeRosterStore.setState({ employees: [] });
+    useLateScheduleStore.setState({
+      rowsByMonth: {},
+      publishedRowsByMonth: {},
+    });
+    useScheduleMatrixStore.setState({
+      data: null,
+      matricesByMonth: {},
+    });
     exporterMock.exportJustificationToDocx.mockReset();
     exporterMock.exportJustificationToDocx.mockResolvedValue(undefined);
   });
@@ -57,6 +104,153 @@ describe('EmployeeJustificationPage', () => {
     cleanup();
     useAuthStore.setState({ user: null, isAuthenticated: false });
     vi.restoreAllMocks();
+  });
+
+  it('refreshes generated employee BN when roster data arrives after the first render', async () => {
+    const monthKey = currentMonthKey();
+    setAuthUser(adminUser);
+    act(() => {
+      useLateScheduleStore.setState({
+        rowsByMonth: { [monthKey]: [otRow()] },
+        publishedRowsByMonth: {},
+      });
+      useEmployeeRosterStore.setState({ employees: [] });
+    });
+
+    render(
+      <ToastProvider>
+        <EmployeeJustificationPage />
+      </ToastProvider>,
+    );
+
+    expect(await screen.findByDisplayValue('late-')).toBeInTheDocument();
+
+    act(() => {
+      useEmployeeRosterStore.setState({ employees: [sourceEmployee({ employeeNumber: 'BN-777' })] });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('BN-777')).toBeInTheDocument();
+    });
+    expect(screen.queryByDisplayValue('late-')).not.toBeInTheDocument();
+    expect(localStorage.getItem(EMPLOYEE_JUSTIFICATION_DRAFTS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('persists deleted generated employees so they do not return after remount', async () => {
+    const monthKey = currentMonthKey();
+    setAuthUser(adminUser);
+    act(() => {
+      useEmployeeRosterStore.setState({ employees: [sourceEmployee()] });
+      useLateScheduleStore.setState({
+        rowsByMonth: { [monthKey]: [otRow()] },
+        publishedRowsByMonth: {},
+      });
+    });
+
+    const view = render(
+      <ToastProvider>
+        <EmployeeJustificationPage />
+      </ToastProvider>,
+    );
+
+    expect(await screen.findByDisplayValue('BN-001')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Employee Roster|tabs\.employees/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Delete|row\.delete/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue('BN-001')).not.toBeInTheDocument();
+    });
+
+    view.unmount();
+    render(
+      <ToastProvider>
+        <EmployeeJustificationPage />
+      </ToastProvider>,
+    );
+
+    expect(screen.queryByDisplayValue('BN-001')).not.toBeInTheDocument();
+    const persisted = JSON.parse(localStorage.getItem(EMPLOYEE_JUSTIFICATION_DRAFTS_STORAGE_KEY) || '{}');
+    expect(persisted.reportsByMonth[monthKey].rows).toHaveLength(0);
+  });
+
+  it('persists manual BN edits and does not overwrite them with later roster changes', async () => {
+    const monthKey = currentMonthKey();
+    setAuthUser(adminUser);
+    act(() => {
+      useEmployeeRosterStore.setState({ employees: [sourceEmployee()] });
+      useLateScheduleStore.setState({
+        rowsByMonth: { [monthKey]: [otRow()] },
+        publishedRowsByMonth: {},
+      });
+    });
+
+    const view = render(
+      <ToastProvider>
+        <EmployeeJustificationPage />
+      </ToastProvider>,
+    );
+
+    fireEvent.change(await screen.findByDisplayValue('BN-001'), {
+      target: { value: 'BN-MANUAL' },
+    });
+    expect(screen.getByDisplayValue('BN-MANUAL')).toBeInTheDocument();
+
+    view.unmount();
+    render(
+      <ToastProvider>
+        <EmployeeJustificationPage />
+      </ToastProvider>,
+    );
+
+    expect(await screen.findByDisplayValue('BN-MANUAL')).toBeInTheDocument();
+
+    act(() => {
+      useEmployeeRosterStore.setState({ employees: [sourceEmployee({ employeeNumber: 'BN-777' })] });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('BN-MANUAL')).toBeInTheDocument();
+    });
+    expect(screen.queryByDisplayValue('BN-777')).not.toBeInTheDocument();
+  });
+
+  it('relinks legacy saved rows by employee name and applies BN changes from Employees', async () => {
+    const monthKey = currentMonthKey();
+    setAuthUser(adminUser);
+    localStorage.setItem(EMPLOYEE_JUSTIFICATION_DRAFTS_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      reportsByMonth: {
+        [monthKey]: {
+          ...DEFAULT_JUSTIFICATION_STATE,
+          month: 'AUG 2026',
+          numberOfStaff: '1',
+          rows: [{
+            id: 'row-legacy',
+            bn: 'ESHRA',
+            name: 'Ahmed One',
+            branch: 'General',
+            totalShifts: 1,
+            claimedHours: 4,
+          }],
+        },
+      },
+    }));
+    act(() => {
+      useEmployeeRosterStore.setState({ employees: [sourceEmployee({ employeeNumber: '5555555' })] });
+    });
+
+    render(
+      <ToastProvider>
+        <EmployeeJustificationPage />
+      </ToastProvider>,
+    );
+
+    expect(await screen.findByDisplayValue('5555555')).toBeInTheDocument();
+    const persisted = JSON.parse(localStorage.getItem(EMPLOYEE_JUSTIFICATION_DRAFTS_STORAGE_KEY) || '{}');
+    expect(persisted.reportsByMonth[monthKey].rows[0]).toMatchObject({
+      employeeId: 'late-source-employee',
+      bn: '5555555',
+    });
   });
 
   it('safely mounts and removes content across auth and role transitions', () => {

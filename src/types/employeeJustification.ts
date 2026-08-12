@@ -5,9 +5,15 @@
 /** A single row in the OT employee table */
 export interface JustificationEmployeeRow {
   id: string;
+  /** Source employee id when the row came from the official OT roster. */
+  employeeId?: string;
   /** Badge Number */
   bn: string;
+  /** True once the report row BN has been manually edited. */
+  manualBn?: boolean;
   name: string;
+  /** True once the report row name has been manually edited. */
+  manualName?: boolean;
   branch: string;
   totalShifts: number;
   claimedHours: number;

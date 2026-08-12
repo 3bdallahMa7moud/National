@@ -63,7 +63,9 @@ export function buildEmployeeScheduleView(
   const totals = { day: 0, night: 0, onCallDay: 0, onCallNight: 0, ot: 0, otHours: 0 };
   for (const occurrence of occurrences) {
     totals[occurrence.category] += 1;
-    if (occurrence.category === 'ot') totals.otHours += occurrence.hours;
+    if (occurrence.category === 'ot' || occurrence.category === 'onCallDay' || occurrence.category === 'onCallNight') {
+      totals.otHours += occurrence.hours;
+    }
   }
   return {
     employeeId,

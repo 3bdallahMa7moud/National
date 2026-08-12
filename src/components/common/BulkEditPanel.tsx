@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import ShiftBadge from '@/components/common/ShiftBadge';
-import { mockShiftTypesSource } from '@/mocks/sources';
+import { SHIFT_TYPES } from '@/data/shiftTypes';
 import type { ShiftTypeKey } from '@/types';
 
 interface BulkEditPanelProps {
@@ -34,7 +34,7 @@ export default function BulkEditPanel({ isOpen, onClose, selectedCount, onApply 
         <div>
           <label className="block text-sm font-medium text-text-primary mb-3">{t('schedule:bulkEdit.selectShiftType')}</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {mockShiftTypesSource.map((st) => (
+            {SHIFT_TYPES.map((st) => (
               <button
                 key={st.id}
                 onClick={() => setSelectedShift(st.id)}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateScheduleMatrixMock } from '@/mocks/scheduleMatrixMock';
+import { createScheduleMatrixFixture } from '@/test/fixtures/scheduleMatrix';
 import {
   countScheduleConflicts,
   generateConflictFreeScheduleMonth,
@@ -23,7 +23,7 @@ function forEachAssignment(
 
 describe('conflict-free schedule generator', () => {
   it('generates a month with zero current app conflicts', () => {
-    const source = generateScheduleMatrixMock(2026, 6);
+    const source = createScheduleMatrixFixture(2026, 6);
     const result = generateConflictFreeScheduleMonth(source);
 
     expect(result.assignedCount).toBeGreaterThan(0);
@@ -32,7 +32,7 @@ describe('conflict-free schedule generator', () => {
   });
 
   it('reuses employees only across conflict-free shifts in the same facility', () => {
-    const source = generateScheduleMatrixMock(2026, 6);
+    const source = createScheduleMatrixFixture(2026, 6);
     const result = generateConflictFreeScheduleMonth(source);
     const occurrencesByEmployeeDay = new Map<string, Array<{
       facilityId: string;
@@ -59,7 +59,7 @@ describe('conflict-free schedule generator', () => {
   });
 
   it('does not assign employees on registered vacation days', () => {
-    const source = generateScheduleMatrixMock(2026, 6);
+    const source = createScheduleMatrixFixture(2026, 6);
     const result = generateConflictFreeScheduleMonth(source);
     const vacationByEmployee = new Map(source.vacations.map((vacation) => [
       vacation.employeeId,
@@ -72,7 +72,7 @@ describe('conflict-free schedule generator', () => {
   });
 
   it('generates vacation rows when the month has no vacation plan yet', () => {
-    const source = generateScheduleMatrixMock(2026, 6);
+    const source = createScheduleMatrixFixture(2026, 6);
     source.vacations = [];
 
     const result = generateConflictFreeScheduleMonth(source);
@@ -91,7 +91,7 @@ describe('conflict-free schedule generator', () => {
   });
 
   it('leaves eligible cells empty when there are not enough safe employees', () => {
-    const source = generateScheduleMatrixMock(2026, 6);
+    const source = createScheduleMatrixFixture(2026, 6);
     source.legend = source.legend.slice(0, 1);
     source.vacations = [];
 
@@ -108,7 +108,7 @@ describe('conflict-free schedule generator', () => {
   });
 
   it('covers WHH fairly and supports multiple employees in one cell', () => {
-    const source = generateScheduleMatrixMock(2026, 6);
+    const source = createScheduleMatrixFixture(2026, 6);
     const result = generateConflictFreeScheduleMonth(source, { rotationSeed: 17 });
     const whh = result.data.facilities.find((facility) => facility.id === 'whh');
 
@@ -130,7 +130,7 @@ describe('conflict-free schedule generator', () => {
   });
 
   it('changes employee placement when a new rotation seed is used', () => {
-    const source = generateScheduleMatrixMock(2026, 6);
+    const source = createScheduleMatrixFixture(2026, 6);
     const first = generateConflictFreeScheduleMonth(source, { rotationSeed: 101 });
     const second = generateConflictFreeScheduleMonth(source, { rotationSeed: 202 });
     const placementSignature = (data: ScheduleMatrixData) => data.facilities.flatMap((facility) =>

@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeAccessStore } from '@/stores/employeeAccessStore';
 import { useUIStore } from '@/stores/uiStore';
 import { resolveEffectiveEmployeeAccess, type EmployeePermission } from '@/types/employeeAccess';
-import { isAdminOrSuperAdmin } from '@/types';
+import { isAdminOrSuperAdmin, isSuperAdmin } from '@/types';
 import {
   LayoutDashboard, Calendar, Users, Building2, BarChart3, FileText,
   RefreshCw, Bell, User, Menu, X, Clock, ArrowLeftRight, FileBarChart2,
@@ -20,6 +20,7 @@ interface SidebarLink {
   icon: typeof LayoutDashboard;
   labelKey: string;
   permissions?: EmployeePermission[];
+  superAdminOnly?: boolean;
 }
 
 const adminLinks: SidebarLink[] = [
@@ -27,11 +28,12 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/schedule', icon: Calendar, labelKey: 'common:nav.scheduleAdmin' },
   { to: '/admin/late-schedule', icon: Clock, labelKey: 'common:nav.lateSchedule' },
   { to: '/admin/employees', icon: Users, labelKey: 'common:nav.employees' },
-  { to: '/admin/reports', icon: BarChart3, labelKey: 'common:nav.reports' },
   { to: '/admin/departments', icon: Building2, labelKey: 'common:nav.departments' },
+  { to: '/admin/reports', icon: BarChart3, labelKey: 'common:nav.reports' },
   { to: '/admin/audit-log', icon: FileText, labelKey: 'common:nav.auditLog' },
   { to: '/admin/shift-requests', icon: ArrowLeftRight, labelKey: 'common:nav.shiftRequests' },
   { to: '/admin/employee-justification', icon: FileBarChart2, labelKey: 'common:nav.employeeJustification' },
+  { to: '/admin/calendar-sync', icon: RefreshCw, labelKey: 'common:nav.calendarSync', superAdminOnly: true },
   { href: 'https://www.ctgate.cc', external: true, icon: Palmtree, labelKey: 'common:nav.ctGate' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
 ];
@@ -75,7 +77,7 @@ export default function Sidebar() {
     ? resolveEffectiveEmployeeAccess(user, accessProfile)
     : null;
   const links = isAdminOrSuperAdmin(user)
-    ? adminLinks
+    ? adminLinks.filter((link) => !link.superAdminOnly || isSuperAdmin(user))
     : employeeLinks.filter((link) => !link.permissions?.length
       || (employeeAccess?.active && link.permissions.some((permission) => employeeAccess.permissions[permission])));
   const isCollapsed = sidebarCollapsed && !sidebarOpen;
