@@ -288,6 +288,24 @@ function normalizeComparableText(value?: string): string {
   return value?.trim().toLowerCase() ?? '';
 }
 
+function slugifyComparableText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'shift';
+}
+
+function parseTimeRangeParts(timeRange: string): Pick<ShiftDefinition, 'startTime' | 'endTime'> {
+  const match = /^\s*(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})\s*$/.exec(timeRange);
+  if (!match) return {};
+  return {
+    startTime: match[1],
+    endTime: match[2],
+  };
+}
+
 function definitionMatchesRow(definition: ShiftDefinition, row: ShiftRow): boolean {
   const rowTimeRange = normalizeComparableText(row.timeRange);
   const definitionTimeRange = normalizeComparableText(normalizeTimeRange(definition));
@@ -334,6 +352,79 @@ function resolveShiftDefinitionForRow(
   if (sameColor.length === 1) return sameColor[0];
 
   return exactMatches[0];
+}
+
+function ensureFacilitySettings(data: ScheduleMatrixData): void {
+  const settingsByFacilityId = new Map(data.settings.map((entry) => [entry.facilityId, entry]));
+
+  data.settings = data.facilities.map((facility) => {
+    const existing = settingsByFacilityId.get(facility.id);
+    const shiftDefinitions = [...(existing?.shiftDefinitions ?? [])];
+    const shouldBackfillShiftDefinitions = shiftDefinitions.length === 0;
+    const units = facility.units.map((unit) => {
+      const existingUnit = existing?.units.find((definition) => definition.id === unit.id);
+      return {
+        id: unit.id,
+        facilityId: facility.id,
+        name: unit.name,
+        archived: unit.archived ?? existingUnit?.archived,
+      };
+    });
+
+    const existingDefinitionIds = new Set(shiftDefinitions.map((definition) => definition.id));
+    const existingDefinitionKeys = new Set(shiftDefinitions.map((definition) => [
+      normalizeComparableText(definitionDisplayName(definition)),
+      normalizeComparableText(normalizeTimeRange(definition)),
+      definition.colorKey,
+    ].join('|')));
+
+    if (shouldBackfillShiftDefinitions) {
+      for (const unit of facility.units) {
+        for (const row of unit.rows) {
+          const matchedDefinition = resolveShiftDefinitionForRow(shiftDefinitions, row, row.shiftDefinitionId);
+          if (matchedDefinition) continue;
+
+          const label = row.shiftLabel?.trim() || row.rowLabel.trim() || unit.name.trim() || 'Shift';
+          const definitionKey = [
+            normalizeComparableText(label),
+            normalizeComparableText(row.timeRange),
+            row.colorKey,
+          ].join('|');
+          if (existingDefinitionKeys.has(definitionKey)) continue;
+
+          let nextId = row.shiftDefinitionId
+            || `${facility.id}-${slugifyComparableText(label)}-${slugifyComparableText(row.timeRange)}-${row.colorKey}`;
+          if (existingDefinitionIds.has(nextId)) {
+            nextId = `${nextId}-${shiftDefinitions.length + 1}`;
+          }
+
+          const nextDefinition: ShiftDefinition = {
+            id: nextId,
+            facilityId: facility.id,
+            label,
+            englishName: label,
+            timeRange: row.timeRange,
+            colorKey: row.colorKey,
+            backgroundColor: row.backgroundColor,
+            textColor: row.textColor,
+            icon: row.icon,
+            archived: row.archived,
+            effectiveFromDay: 1,
+            ...parseTimeRangeParts(row.timeRange),
+          };
+          shiftDefinitions.push(nextDefinition);
+          existingDefinitionIds.add(nextDefinition.id);
+          existingDefinitionKeys.add(definitionKey);
+        }
+      }
+    }
+
+    return {
+      facilityId: facility.id,
+      shiftDefinitions,
+      units,
+    };
+  });
 }
 
 function linkShiftDefinitionIds(data: ScheduleMatrixData): void {
@@ -462,6 +553,7 @@ function synchronizeRowsWithShiftDefinitions(data: ScheduleMatrixData): void {
 
 function prepareLegacyStoredMatrix(data: ScheduleMatrixData): void {
   data.cellMarkers = normalizeScheduleCellMarkers(data.cellMarkers);
+  ensureFacilitySettings(data);
   linkShiftDefinitionIds(data);
   synchronizeRowsWithShiftDefinitions(data);
 }

@@ -2,7 +2,7 @@
 // ScheduleSettingsPanel - Responsive Shift definitions, units, and rows
 // ============================================================
 
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import {
   Archive,
   ArchiveRestore,
@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 import Time24Select from '@/components/ui/Time24Select';
 import { SHIFT_COLOR_PALETTE } from '@/lib/shiftColorPalette';
 import { useTheme } from '@/hooks/useTheme';
-import type { ScheduleMatrixData, ShiftColorKey, ShiftDefinition, ShiftRow } from '@/types/scheduleMatrix';
+import type { ScheduleMatrixData, ShiftColorKey, ShiftDefinition, ShiftRow, UnitDefinition } from '@/types/scheduleMatrix';
 
 interface ScheduleSettingsPanelProps {
   data: ScheduleMatrixData;
@@ -59,6 +59,15 @@ const DEFAULT_SHIFT_FORM = {
   icon: '',
 };
 
+function reconcileDraftMap(
+  current: Record<string, string>,
+  entries: Array<{ id: string; value: string }>,
+): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const entry of entries) next[entry.id] = current[entry.id] ?? entry.value;
+  return next;
+}
+
 function assignmentCount(row: ShiftRow): number {
   return Object.values(row.cellsByDay).reduce((sum, assignments) => sum + assignments.length, 0);
 }
@@ -94,6 +103,9 @@ function ScheduleSettingsPanel({
   const [newShift, setNewShift] = useState(DEFAULT_SHIFT_FORM);
   const [rowDrafts, setRowDrafts] = useState<Record<string, { label: string; definitionId: string }>>({});
   const [openIconPickerId, setOpenIconPickerId] = useState<string | null>(null);
+  const [shiftNameDrafts, setShiftNameDrafts] = useState<Record<string, string>>({});
+  const [unitNameDrafts, setUnitNameDrafts] = useState<Record<string, string>>({});
+  const [rowLabelDrafts, setRowLabelDrafts] = useState<Record<string, string>>({});
 
   const facility = useMemo(
     () => data.facilities.find((item) => item.id === facilityId) || data.facilities[0],
@@ -104,6 +116,36 @@ function ScheduleSettingsPanel({
     () => data.settings.find((item) => item.facilityId === facility?.id),
     [data.settings, facility?.id],
   );
+
+  useEffect(() => {
+    setShiftNameDrafts((current) => reconcileDraftMap(
+      current,
+      (settings?.shiftDefinitions ?? []).map((shift) => ({
+        id: shift.id,
+        value: shift.englishName || shift.label,
+      })),
+    ));
+  }, [settings?.shiftDefinitions]);
+
+  useEffect(() => {
+    setUnitNameDrafts((current) => reconcileDraftMap(
+      current,
+      (settings?.units ?? []).map((unit) => ({
+        id: unit.id,
+        value: unit.name,
+      })),
+    ));
+  }, [settings?.units]);
+
+  useEffect(() => {
+    setRowLabelDrafts((current) => reconcileDraftMap(
+      current,
+      (facility?.units ?? []).flatMap((unit) => unit.rows.map((row) => ({
+        id: row.id,
+        value: row.rowLabel,
+      }))),
+    ));
+  }, [facility?.units]);
 
   if (!facility || !settings) return null;
 
@@ -125,6 +167,57 @@ function ScheduleSettingsPanel({
       backgroundColor: palette.background,
       textColor: palette.text,
     }));
+  };
+
+  const withDraftKeyboardCommit = (
+    event: KeyboardEvent<HTMLInputElement>,
+    reset: () => void,
+    commit: () => void,
+  ) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commit();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      reset();
+    }
+  };
+
+  const commitShiftName = (shift: ShiftDefinition) => {
+    const draft = shiftNameDrafts[shift.id] ?? (shift.englishName || shift.label);
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      setShiftNameDrafts((current) => ({ ...current, [shift.id]: shift.englishName || shift.label }));
+      return;
+    }
+    if (trimmed !== (shift.englishName || shift.label)) {
+      onUpdateShift(facility.id, shift.id, { englishName: trimmed, label: trimmed });
+    }
+    if (draft !== trimmed) {
+      setShiftNameDrafts((current) => ({ ...current, [shift.id]: trimmed }));
+    }
+  };
+
+  const commitUnitName = (unitDef: UnitDefinition) => {
+    const draft = unitNameDrafts[unitDef.id] ?? unitDef.name;
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      setUnitNameDrafts((current) => ({ ...current, [unitDef.id]: unitDef.name }));
+      return;
+    }
+    if (trimmed !== unitDef.name) onRenameUnit(facility.id, unitDef.id, trimmed);
+    if (draft !== trimmed) {
+      setUnitNameDrafts((current) => ({ ...current, [unitDef.id]: trimmed }));
+    }
+  };
+
+  const commitRowLabel = (row: ShiftRow) => {
+    const draft = rowLabelDrafts[row.id] ?? row.rowLabel;
+    const trimmed = draft.trim();
+    if (trimmed !== row.rowLabel) onUpdateRow(row.id, { rowLabel: trimmed });
+    if (draft !== trimmed) {
+      setRowLabelDrafts((current) => ({ ...current, [row.id]: trimmed }));
+    }
   };
 
 
@@ -237,8 +330,9 @@ function ScheduleSettingsPanel({
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-text-secondary">English Name</label>
+                    <label htmlFor="new-shift-english-name" className="text-[11px] font-bold text-text-secondary">English Name</label>
                     <input
+                      id="new-shift-english-name"
                       value={newShift.englishName}
                       onChange={(event) => setNewShift((current) => ({ ...current, englishName: event.target.value }))}
                       placeholder="e.g. Morning / Evening"
@@ -406,11 +500,18 @@ function ScheduleSettingsPanel({
                     {/* Editable Form Inputs */}
                     <div className="space-y-3 flex-1">
                       <div>
-                        <label className="text-[10px] font-bold text-text-secondary block mb-0.5">English Name</label>
+                        <label htmlFor={`shift-name-${facility.id}-${shift.id}`} className="text-[10px] font-bold text-text-secondary block mb-0.5">English Name</label>
                         <input
-                          value={shift.englishName || shift.label}
+                          id={`shift-name-${facility.id}-${shift.id}`}
+                          value={shiftNameDrafts[shift.id] ?? (shift.englishName || shift.label)}
                           disabled={shift.archived}
-                          onChange={(event) => onUpdateShift(facility.id, shift.id, { englishName: event.target.value, label: event.target.value })}
+                          onChange={(event) => setShiftNameDrafts((current) => ({ ...current, [shift.id]: event.target.value }))}
+                          onBlur={() => commitShiftName(shift)}
+                          onKeyDown={(event) => withDraftKeyboardCommit(
+                            event,
+                            () => setShiftNameDrafts((current) => ({ ...current, [shift.id]: shift.englishName || shift.label })),
+                            () => commitShiftName(shift),
+                          )}
                           placeholder="English"
                           className="h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2.5 text-xs font-semibold text-ink focus:border-primary-teal focus:bg-surface focus:outline-none"
                         />
@@ -609,7 +710,9 @@ function ScheduleSettingsPanel({
                   <Plus className="h-4 w-4 text-primary-teal" />
                   <span>Add Organizational Unit:</span>
                 </div>
+                <label htmlFor="new-unit-name" className="sr-only">New unit name</label>
                 <input
+                  id="new-unit-name"
                   value={newUnitName}
                   onChange={(event) => setNewUnitName(event.target.value)}
                   placeholder="e.g. ICU - Ward A / Emergency Department"
@@ -649,10 +752,18 @@ function ScheduleSettingsPanel({
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-teal/10 text-primary-teal font-extrabold text-xs">
                           {idx + 1}
                         </div>
+                        <label htmlFor={`unit-name-${facility.id}-${unitDef.id}`} className="sr-only">Unit name</label>
                         <input
-                          value={unitDef.name}
+                          id={`unit-name-${facility.id}-${unitDef.id}`}
+                          value={unitNameDrafts[unitDef.id] ?? unitDef.name}
                           disabled={unitDef.archived}
-                          onChange={(event) => onRenameUnit(facility.id, unitDef.id, event.target.value)}
+                          onChange={(event) => setUnitNameDrafts((current) => ({ ...current, [unitDef.id]: event.target.value }))}
+                          onBlur={() => commitUnitName(unitDef)}
+                          onKeyDown={(event) => withDraftKeyboardCommit(
+                            event,
+                            () => setUnitNameDrafts((current) => ({ ...current, [unitDef.id]: unitDef.name })),
+                            () => commitUnitName(unitDef),
+                          )}
                           placeholder="Unit Name"
                           className="h-9 w-full max-w-md rounded-xl border border-border bg-surface px-3 text-sm font-extrabold text-ink focus:border-primary-teal focus:outline-none shadow-sm"
                         />
@@ -697,10 +808,18 @@ function ScheduleSettingsPanel({
                                 {/* Row Label Input */}
                                 <div className="flex-1 min-w-0 flex items-center gap-2">
                                   <span className="text-xs font-mono font-bold text-text-secondary/70 shrink-0 w-6">#{rowIndex + 1}</span>
+                                  <label htmlFor={`row-label-${row.id}`} className="sr-only">Row label</label>
                                   <input
-                                    value={row.rowLabel}
+                                    id={`row-label-${row.id}`}
+                                    value={rowLabelDrafts[row.id] ?? row.rowLabel}
                                     disabled={row.archived}
-                                    onChange={(event) => onUpdateRow(row.id, { rowLabel: event.target.value })}
+                                    onChange={(event) => setRowLabelDrafts((current) => ({ ...current, [row.id]: event.target.value }))}
+                                    onBlur={() => commitRowLabel(row)}
+                                    onKeyDown={(event) => withDraftKeyboardCommit(
+                                      event,
+                                      () => setRowLabelDrafts((current) => ({ ...current, [row.id]: row.rowLabel })),
+                                      () => commitRowLabel(row),
+                                    )}
                                     placeholder="Row / Bed Label"
                                     className="h-8.5 w-full rounded-lg border border-border bg-surface px-3 text-xs font-bold text-ink focus:border-primary-teal focus:outline-none shadow-sm"
                                   />
@@ -778,7 +897,9 @@ function ScheduleSettingsPanel({
 
                         {/* Add Row Bar */}
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-3 border-t border-border/60">
+                          <label htmlFor={`new-row-name-${unitDef.id}`} className="sr-only">New row name</label>
                           <input
+                            id={`new-row-name-${unitDef.id}`}
                             value={draft.label}
                             onChange={(event) =>
                               setRowDrafts((current) => ({ ...current, [unitDef.id]: { ...draft, label: event.target.value } }))

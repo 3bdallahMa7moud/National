@@ -32,8 +32,6 @@ export interface LateScheduleExportModel {
   roster: UnifiedEmployee[];
 }
 
-// Matches the "Late_Schedule_JULY_LATE_SHIFT_2026.xlsx" reference template:
-// slate title/header bar, amber notice + weekend highlighting, teal employee legend.
 const EXPORT_COLORS = {
   brand: 'FF0F172A',
   headerFill: 'FFF1F5F9',
@@ -54,8 +52,45 @@ const EXPORT_COLORS = {
   legendHeader: 'FF0D9488',
 } as const;
 
+const MAX_EXCEL_DAYS_PER_SHEET = 14;
+const MAX_PDF_DAYS_PER_PAGE = 10;
+const MAX_PDF_ROWS_PER_PAGE = 10;
+const UNKNOWN_EMPLOYEE_CODE = 'N/A';
+const UNKNOWN_EMPLOYEE_EN = 'Unknown employee';
+const UNKNOWN_EMPLOYEE_AR = 'موظف غير معروف';
+
+function chunkItems<T>(items: T[], size: number): T[][] {
+  if (items.length === 0) return [[]];
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
 function printableEmployeeCode(employee: LateScheduleExportEmployee): string {
   return employee.unresolved ? `${employee.code}?` : employee.code;
+}
+
+function resolveUnknownEmployee(): LateScheduleExportEmployee {
+  return {
+    code: UNKNOWN_EMPLOYEE_CODE,
+    nameEn: UNKNOWN_EMPLOYEE_EN,
+    nameAr: UNKNOWN_EMPLOYEE_AR,
+    unresolved: true,
+  };
+}
+
+function exportEmployeeName(employee: LateScheduleExportEmployee, isRtl: boolean): string {
+  if (employee.unresolved) {
+    return isRtl ? `غير مرتبط (${employee.code})` : `Unresolved (${employee.code})`;
+  }
+  return (isRtl ? employee.nameAr || employee.nameEn : employee.nameEn || employee.nameAr).trim()
+    || (isRtl ? UNKNOWN_EMPLOYEE_AR : UNKNOWN_EMPLOYEE_EN);
+}
+
+function exportEmployeeNameForExcel(employee: LateScheduleExportEmployee): string {
+  return exportEmployeeName(employee, false);
 }
 
 export function buildLateScheduleExportModel(
@@ -63,40 +98,51 @@ export function buildLateScheduleExportModel(
   roster: UnifiedEmployee[],
 ): LateScheduleExportModel {
   const employeeById = new Map(roster.map((employee) => [employee.employeeId, employee]));
-  return {
-    rows: rows.filter((row) => !row.archived).map((row) => ({
-      id: row.id,
-      title: row.title,
-      location: row.location,
-      timeRange: row.timeRange,
-      hours: row.hours,
-      backgroundColor: row.backgroundColor,
-      textColor: row.textColor,
-      highlightedDays: row.highlightedDays,
-      assignments: Object.fromEntries(
-        Object.entries(row.assignments).map(([day, assignments]) => [
-          Number(day),
-          assignments.map((assignment): LateScheduleExportEmployee => {
-            if (assignment.kind === 'unresolved') {
-              return {
-                code: assignment.legacyCode,
-                nameEn: 'Unresolved',
-                nameAr: 'Unresolved',
-                unresolved: true,
-              };
-            }
-            const employee = employeeById.get(assignment.employeeId);
+  const legendEntries = new Map<string, UnifiedEmployee>();
+
+  const exportRows = rows.filter((row) => !row.archived).map((row) => ({
+    id: row.id,
+    title: row.title,
+    location: row.location,
+    timeRange: row.timeRange,
+    hours: row.hours,
+    backgroundColor: row.backgroundColor,
+    textColor: row.textColor,
+    highlightedDays: row.highlightedDays,
+    assignments: Object.fromEntries(
+      Object.entries(row.assignments).map(([day, assignments]) => [
+        Number(day),
+        assignments.map((assignment): LateScheduleExportEmployee => {
+          if (assignment.kind === 'unresolved') {
             return {
-              code: employee?.code ?? assignment.employeeId,
-              nameEn: employee?.fullNameEn || employee?.fullName || assignment.employeeId,
-              nameAr: employee?.fullName || employee?.fullNameEn || assignment.employeeId,
-              ...(!employee ? { unresolved: true } : {}),
+              code: assignment.legacyCode,
+              nameEn: 'Unresolved',
+              nameAr: 'غير مرتبط',
+              unresolved: true,
             };
-          }),
-        ]),
-      ),
-    })),
-    roster: roster.slice(0, 29),
+          }
+          const employee = employeeById.get(assignment.employeeId);
+          if (!employee) return resolveUnknownEmployee();
+          legendEntries.set(employee.employeeId, employee);
+          return {
+            code: employee.code,
+            nameEn: employee.fullNameEn || employee.fullName,
+            nameAr: employee.fullName || employee.fullNameEn || UNKNOWN_EMPLOYEE_AR,
+          };
+        }),
+      ]),
+    ),
+  }));
+
+  const exportRoster = Array.from(legendEntries.values()).sort((left, right) => {
+    const leftName = left.fullNameEn || left.fullName;
+    const rightName = right.fullNameEn || right.fullName;
+    return leftName.localeCompare(rightName) || left.code.localeCompare(right.code);
+  });
+
+  return {
+    rows: exportRows,
+    roster: exportRoster,
   };
 }
 
@@ -174,23 +220,30 @@ function monthLabel(year: number, monthIndex: number): string {
     .format(new Date(year, monthIndex, 1));
 }
 
-export function buildLateScheduleWorkbook(
-  rows: OTShiftRow[],
-  roster: UnifiedEmployee[],
+function buildLegendEmployees(roster: UnifiedEmployee[]): LateScheduleExportEmployee[] {
+  return roster.map((employee) => ({
+    code: employee.code,
+    nameEn: employee.fullNameEn || employee.fullName,
+    nameAr: employee.fullName || employee.fullNameEn || UNKNOWN_EMPLOYEE_AR,
+  }));
+}
+
+function createScheduleWorksheet(
+  workbook: ExcelJS.Workbook,
+  rows: LateScheduleExportRow[],
   currentTitle: string,
   year: number,
   monthIndex: number,
-  daysList: LateScheduleCalendarDay[],
-  notice = '',
-): ExcelJS.Workbook {
-  const model = buildLateScheduleExportModel(rows, roster);
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'CT Scan Department - Specialized Medical Center';
-  workbook.created = new Date(year, monthIndex, 1);
-
-  const lastColumn = 4 + daysList.length;
+  daysChunk: LateScheduleCalendarDay[],
+  notice: string,
+  chunkCount: number,
+): void {
+  const sheetName = chunkCount === 1
+    ? 'Late Roster'
+    : `Late Roster ${daysChunk[0]?.dayNum ?? 1}-${daysChunk[daysChunk.length - 1]?.dayNum ?? 1}`;
+  const lastColumn = 4 + daysChunk.length;
   const lastColumnLetter = columnLetter(lastColumn);
-  const schedule = workbook.addWorksheet('Late Roster', {
+  const schedule = workbook.addWorksheet(sheetName, {
     views: [{ state: 'frozen', xSplit: 4, ySplit: 3, topLeftCell: 'E4' }],
     pageSetup: {
       orientation: 'landscape',
@@ -205,8 +258,9 @@ export function buildLateScheduleWorkbook(
   schedule.mergeCells(`A1:${lastColumnLetter}1`);
   schedule.mergeCells(`A2:${lastColumnLetter}2`);
 
+  const rangeLabel = chunkCount === 1 ? '' : ` · Days ${daysChunk[0]?.dayNum ?? 1}-${daysChunk[daysChunk.length - 1]?.dayNum ?? 1}`;
   const title = schedule.getCell('A1');
-  title.value = `${currentTitle} — ${monthLabel(year, monthIndex)}`;
+  title.value = `${currentTitle} — ${monthLabel(year, monthIndex)}${rangeLabel}`;
   styleCell(title, { fill: EXPORT_COLORS.brand, color: EXPORT_COLORS.surface, bold: true, size: 14, borderVariant: 'none' });
   schedule.getRow(1).height = 36;
 
@@ -218,8 +272,9 @@ export function buildLateScheduleWorkbook(
     italic: true,
     size: 10,
     borderVariant: 'none',
+    horizontal: 'left',
   });
-  schedule.getRow(2).height = notice ? 24 : 10;
+  schedule.getRow(2).height = notice ? Math.max(24, notice.split('\n').length * 14) : 10;
 
   const metadataHeaders = ['Shift', 'Location', 'Time', 'Hours'];
   metadataHeaders.forEach((label, index) => {
@@ -233,7 +288,7 @@ export function buildLateScheduleWorkbook(
       borderVariant: 'header',
     });
   });
-  daysList.forEach((day, index) => {
+  daysChunk.forEach((day, index) => {
     const cell = schedule.getCell(3, index + 5);
     cell.value = `${day.weekdayName}\n${day.dayNum}`;
     styleCell(cell, {
@@ -243,9 +298,9 @@ export function buildLateScheduleWorkbook(
       borderVariant: 'header',
     });
   });
-  schedule.getRow(3).height = 28;
+  schedule.getRow(3).height = 30;
 
-  model.rows.forEach((row, rowIndex) => {
+  rows.forEach((row, rowIndex) => {
     const excelRow = rowIndex + 4;
     const metadata = [row.title, row.location, row.timeRange, row.hours];
     metadata.forEach((value, index) => {
@@ -258,11 +313,13 @@ export function buildLateScheduleWorkbook(
         horizontal: index < 3 ? 'left' : 'center',
       });
     });
-    daysList.forEach((day, dayIndex) => {
+
+    let maxLines = 1;
+    daysChunk.forEach((day, dayIndex) => {
       const cell = schedule.getCell(excelRow, dayIndex + 5);
       const assignments = row.assignments[day.dayNum] ?? [];
       cell.value = assignments.length > 0
-        ? assignments.map(printableEmployeeCode).join('-')
+        ? assignments.map(exportEmployeeNameForExcel).join('\n')
         : null;
       const hasUnresolved = assignments.some((assignment) => assignment.unresolved);
       const hasAssignment = assignments.length > 0;
@@ -285,21 +342,45 @@ export function buildLateScheduleWorkbook(
           ? colorArgb(row.textColor, EXPORT_COLORS.text)
           : hasUnresolved ? EXPORT_COLORS.unresolvedText : EXPORT_COLORS.text,
         bold: hasAssignment,
+        size: hasAssignment ? 9 : 11,
       });
+      maxLines = Math.max(maxLines, assignments.length || 1);
     });
+    schedule.getRow(excelRow).height = Math.max(28, 16 * maxLines);
   });
 
   schedule.getColumn(1).width = 28;
-  schedule.getColumn(2).width = 14;
+  schedule.getColumn(2).width = 18;
   schedule.getColumn(3).width = 16;
   schedule.getColumn(4).width = 9;
-  for (let column = 5; column <= lastColumn; column += 1) schedule.getColumn(column).width = 13;
-  schedule.pageSetup.printArea = `A1:${lastColumnLetter}${Math.max(4, model.rows.length + 3)}`;
+  for (let column = 5; column <= lastColumn; column += 1) schedule.getColumn(column).width = 18;
+  schedule.pageSetup.printArea = `A1:${lastColumnLetter}${Math.max(4, rows.length + 3)}`;
+}
 
-  const employees = workbook.addWorksheet('Employee Legend', {
-    pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+export function buildLateScheduleWorkbook(
+  rows: OTShiftRow[],
+  roster: UnifiedEmployee[],
+  currentTitle: string,
+  year: number,
+  monthIndex: number,
+  daysList: LateScheduleCalendarDay[],
+  notice = '',
+): ExcelJS.Workbook {
+  const model = buildLateScheduleExportModel(rows, roster);
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'CT Scan Department - Specialized Medical Center';
+  workbook.created = new Date(year, monthIndex, 1);
+  const dayChunks = chunkItems(daysList, MAX_EXCEL_DAYS_PER_SHEET);
+
+  dayChunks.forEach((daysChunk) => {
+    createScheduleWorksheet(workbook, model.rows, currentTitle, year, monthIndex, daysChunk, notice, dayChunks.length);
   });
-  ['Employee Code', 'English Name', 'Arabic Name'].forEach((label, index) => {
+
+  const legendEntries = buildLegendEmployees(model.roster);
+  const employees = workbook.addWorksheet('Employee Directory', {
+    pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  ['Employee Name', 'Code', 'Arabic Name', 'Status'].forEach((label, index) => {
     const cell = employees.getCell(1, index + 1);
     cell.value = label;
     styleCell(cell, {
@@ -311,9 +392,15 @@ export function buildLateScheduleWorkbook(
     });
   });
   employees.getRow(1).height = 24;
-  model.roster.forEach((employee, index) => {
+  legendEntries.forEach((employee, index) => {
     const excelRow = index + 2;
-    [employee.code, employee.fullNameEn || employee.fullName, employee.fullName || employee.fullNameEn].forEach((value, cellIndex) => {
+    const cells = [
+      employee.nameEn,
+      printableEmployeeCode(employee),
+      employee.nameAr,
+      employee.unresolved ? 'Needs review' : 'Assigned',
+    ];
+    cells.forEach((value, cellIndex) => {
       const cell = employees.getCell(excelRow, cellIndex + 1);
       cell.value = value;
       styleCell(cell, {
@@ -323,9 +410,10 @@ export function buildLateScheduleWorkbook(
       });
     });
   });
-  employees.getColumn(1).width = 18;
-  employees.getColumn(2).width = 24;
-  employees.getColumn(3).width = 13;
+  employees.getColumn(1).width = 28;
+  employees.getColumn(2).width = 16;
+  employees.getColumn(3).width = 28;
+  employees.getColumn(4).width = 16;
 
   return workbook;
 }
@@ -379,58 +467,89 @@ export function buildLateSchedulePrintHtml(
   const direction = isRtl ? 'rtl' : 'ltr';
   const language = isRtl ? 'ar' : 'en';
   const labels = isRtl
-    ? { shift: 'الشفت', location: 'الموقع', time: 'الوقت', hours: 'الساعات', employees: 'دليل الموظفين', code: 'الكود', name: 'الاسم' }
-    : { shift: 'Shift', location: 'Location', time: 'Time', hours: 'Hours', employees: 'Employee directory', code: 'Code', name: 'Employee name' };
-  const dayHeaders = daysList.map((day) => (
-    `<th class="day-column ${day.isWeekend ? 'weekend' : ''}"><span>${escapeHtml(day.weekdayName)}</span><strong>${day.dayNum}</strong></th>`
-  )).join('');
-  const pages: LateScheduleExportRow[][] = [];
-  for (let index = 0; index < model.rows.length; index += 12) pages.push(model.rows.slice(index, index + 12));
-  if (pages.length === 0) pages.push([]);
+    ? {
+      shift: 'الشفت',
+      location: 'الموقع',
+      time: 'الوقت',
+      hours: 'الساعات',
+      employees: 'دليل الموظفين',
+      code: 'الكود',
+      name: 'الاسم',
+      arabicName: 'الاسم بالعربية',
+      status: 'الحالة',
+      days: 'الأيام',
+      unresolved: 'يحتاج مراجعة',
+      assigned: 'مجدول',
+    }
+    : {
+      shift: 'Shift',
+      location: 'Location',
+      time: 'Time',
+      hours: 'Hours',
+      employees: 'Employee directory',
+      code: 'Code',
+      name: 'Employee name',
+      arabicName: 'Arabic name',
+      status: 'Status',
+      days: 'Days',
+      unresolved: 'Needs review',
+      assigned: 'Assigned',
+    };
 
-  const schedulePages = pages.map((pageRows, pageIndex) => {
+  const dayChunks = chunkItems(daysList, MAX_PDF_DAYS_PER_PAGE);
+  const rowChunks = chunkItems(model.rows, MAX_PDF_ROWS_PER_PAGE);
+
+  const schedulePages = dayChunks.flatMap((dayChunk) => rowChunks.map((pageRows, pageIndex) => {
+    const dayRange = `${dayChunk[0]?.dayNum ?? 1}-${dayChunk[dayChunk.length - 1]?.dayNum ?? 1}`;
+    const dayHeaders = dayChunk.map((day) => (
+      `<th class="day-column ${day.isWeekend ? 'weekend' : ''}"><span>${escapeHtml(day.weekdayName)}</span><strong>${day.dayNum}</strong></th>`
+    )).join('');
     const body = pageRows.map((row) => {
       const rowBackground = safeCssColor(row.backgroundColor);
       const rowText = safeCssColor(row.textColor);
       const rowStyle = rowBackground
         ? ` style="background:${rowBackground};color:${rowText || '#101b2d'}"`
         : '';
-      const dayCells = daysList.map((day) => {
+      const dayCells = dayChunk.map((day) => {
         const assignments = row.assignments[day.dayNum] ?? [];
         const classes = [
           day.isWeekend ? 'weekend' : '',
           row.highlightedDays?.includes(day.dayNum) ? 'highlighted' : '',
           assignments.some((assignment) => assignment.unresolved) ? 'unresolved' : '',
         ].filter(Boolean).join(' ');
-        const assignmentStyle = assignments.length > 0
-          && !assignments.some((assignment) => assignment.unresolved)
-          && rowBackground
-          ? ` style="background:${rowBackground};color:${rowText || '#101b2d'}"`
-          : '';
-        return `<td class="${classes}"${assignmentStyle}>${assignments.map((assignment) => escapeHtml(printableEmployeeCode(assignment))).join('-')}</td>`;
+        const chips = assignments.length === 0
+          ? '<span class="empty-mark">-</span>'
+          : assignments.map((assignment) => {
+            const chipStyle = assignment.unresolved || !rowBackground
+              ? ''
+              : ` style="background:${rowBackground};color:${rowText || '#101b2d'}"`;
+            return `<span class="assignment-chip${assignment.unresolved ? ' unresolved-chip' : ''}"${chipStyle}>${escapeHtml(exportEmployeeName(assignment, isRtl))}</span>`;
+          }).join('');
+        return `<td class="${classes}"><div class="assignment-stack">${chips}</div></td>`;
       }).join('');
       return `<tr><th class="metadata-column shift-name"${rowStyle}>${escapeHtml(row.title)}</th><td class="metadata-column">${escapeHtml(row.location)}</td><td class="metadata-column time" dir="ltr">${escapeHtml(row.timeRange)}</td><td class="metadata-column">${row.hours}</td>${dayCells}</tr>`;
     }).join('');
-    return `<main class="schedule-page" data-schedule-page="${pageIndex + 1}">
-      <header class="print-header"><div><span class="brand-kicker">CT Scan Department</span><h1>OT Schedule</h1><p>${escapeHtml(currentTitle)}</p></div>${notice ? `<aside>${escapeHtml(notice)}</aside>` : ''}</header>
+    return `<main class="schedule-page" data-schedule-page="${dayRange}-${pageIndex + 1}">
+      <header class="print-header"><div><span class="brand-kicker">CT Scan Department</span><h1>OT Schedule</h1><p>${escapeHtml(currentTitle)}</p></div><div class="page-meta"><span>${labels.days}: ${escapeHtml(dayRange)}</span>${notice ? `<aside>${escapeHtml(notice)}</aside>` : ''}</div></header>
       <table class="schedule-table" dir="ltr"><thead><tr><th class="metadata-column">${labels.shift}</th><th class="metadata-column">${labels.location}</th><th class="metadata-column">${labels.time}</th><th class="metadata-column">${labels.hours}</th>${dayHeaders}</tr></thead><tbody>${body}</tbody></table>
     </main>`;
-  }).join('');
+  })).join('');
 
-  const employeeEntries = model.roster.map((employee, index) => (
-    `<tr data-employee-entry="${index + 1}"><td>${index + 1}</td><td dir="ltr"><strong>${escapeHtml(employee.code)}</strong></td><td>${escapeHtml(isRtl ? employee.fullName : employee.fullNameEn || employee.fullName)}</td></tr>`
+  const employeeEntries = buildLegendEmployees(model.roster).map((employee, index) => (
+    `<tr data-employee-entry="${index + 1}"><td>${index + 1}</td><td>${escapeHtml(employee.nameEn)}</td><td dir="ltr"><strong>${escapeHtml(printableEmployeeCode(employee))}</strong></td><td>${escapeHtml(employee.nameAr)}</td><td>${employee.unresolved ? labels.unresolved : labels.assigned}</td></tr>`
   )).join('');
 
   return `<!doctype html>
 <html dir="${direction}" lang="${language}">
 <head><meta charset="UTF-8"><title>OT Schedule — ${escapeHtml(currentTitle)}</title><style>
 @page{size:A4 landscape;margin:8mm}
-*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#101b2d;font-family:Arial,sans-serif}body{font-size:7px}
+*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#101b2d;font-family:Arial,sans-serif}body{font-size:8px}
 .schedule-page{width:100%;break-inside:avoid;page-break-inside:avoid}.schedule-page+.schedule-page{break-before:page;page-break-before:always}
-.print-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8mm;margin-bottom:4mm;border-bottom:2px solid #0f6b78;padding:0 0 3mm}.brand-kicker{color:#0f6b78;font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}.print-header h1{margin:1mm 0 0;color:#173952;font-size:18px}.print-header p{margin:1mm 0 0;color:#5b6472;font-size:9px}.print-header aside{max-width:42%;border-radius:3mm;background:#f1f5f7;padding:2.5mm;color:#5b6472;font-size:8px;white-space:pre-wrap}
-table{width:100%;border-collapse:collapse;table-layout:fixed}.schedule-table th,.schedule-table td{height:8mm;border:1px solid #b8c7cd;padding:.7mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}.schedule-table thead th{background:#173952;color:#fff;font-weight:700}.schedule-table thead .day-column{width:5.8mm;background:#f1f5f7;color:#101b2d}.day-column span{display:block;font-size:5.5px;color:#5b6472}.day-column strong{display:block;margin-top:.4mm;font-size:7px}.schedule-table .metadata-column{width:14mm}.schedule-table .shift-name{width:34mm;text-align:start}.schedule-table .time{width:19mm}.schedule-table td{background:#fff}.schedule-table td.weekend,.schedule-table thead th.weekend{background:#e4eef1;color:#101b2d}.schedule-table td.highlighted{background:#f9e298}.schedule-table td.unresolved{background:#ffe4e6;color:#9f1239;font-weight:700}
+.print-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8mm;margin-bottom:4mm;border-bottom:2px solid #0f6b78;padding:0 0 3mm}.brand-kicker{color:#0f6b78;font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}.print-header h1{margin:1mm 0 0;color:#173952;font-size:18px}.print-header p{margin:1mm 0 0;color:#5b6472;font-size:9px}.page-meta{display:flex;max-width:42%;flex-direction:column;gap:2mm;align-items:flex-end}.page-meta>span{display:inline-flex;border-radius:999px;background:#e2e8f0;padding:1.5mm 3mm;color:#173952;font-size:8px;font-weight:700}.print-header aside{border-radius:3mm;background:#f1f5f7;padding:2.5mm;color:#5b6472;font-size:8px;white-space:pre-wrap}
+table{width:100%;border-collapse:collapse;table-layout:fixed}.schedule-table th,.schedule-table td{border:1px solid #b8c7cd;padding:1mm;text-align:center;vertical-align:top;overflow-wrap:anywhere}.schedule-table thead th{background:#173952;color:#fff;font-weight:700}.schedule-table thead .day-column{width:17mm;background:#f1f5f7;color:#101b2d}.day-column span{display:block;font-size:5.5px;color:#5b6472}.day-column strong{display:block;margin-top:.4mm;font-size:7px}.schedule-table .metadata-column{width:18mm}.schedule-table .shift-name{width:36mm;text-align:start}.schedule-table .time{width:22mm}.schedule-table td{background:#fff}.schedule-table td.weekend,.schedule-table thead th.weekend{background:#e4eef1;color:#101b2d}.schedule-table td.highlighted{background:#f9e298}.schedule-table td.unresolved{background:#ffe4e6}
+.assignment-stack{display:flex;min-height:10mm;flex-direction:column;gap:.8mm;justify-content:flex-start}.assignment-chip{display:block;border:1px solid #cbd5e1;border-radius:2mm;padding:1mm .8mm;font-weight:700;line-height:1.25;background:#f8fafc;color:#101b2d}.assignment-chip.unresolved-chip{background:#fee2e2;color:#9f1239;border-color:#fecaca}.empty-mark{display:block;color:#94a3b8;font-weight:700;padding-top:3mm}
 .employee-directory{break-before:page;page-break-before:always;padding-top:2mm}.employee-directory h2{margin:0 0 4mm;color:#173952;font-size:16px}.employee-directory table{font-size:9px}.employee-directory th{background:#173952;color:#fff}.employee-directory th,.employee-directory td{border:1px solid #b8c7cd;padding:2mm}.employee-directory tbody tr:nth-child(even){background:#f1f5f7}
-</style></head><body>${schedulePages}<section class="employee-directory"><h2>${labels.employees}</h2><table><thead><tr><th>No.</th><th>${labels.code}</th><th>${labels.name}</th></tr></thead><tbody>${employeeEntries}</tbody></table></section></body></html>`;
+</style></head><body>${schedulePages}<section class="employee-directory"><h2>${labels.employees}</h2><table><thead><tr><th>No.</th><th>${labels.name}</th><th>${labels.code}</th><th>${labels.arabicName}</th><th>${labels.status}</th></tr></thead><tbody>${employeeEntries}</tbody></table></section></body></html>`;
 }
 
 export function exportLateSchedulePdf(

@@ -22,12 +22,12 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
   const [form, setForm] = useState<OTShiftInput>({ title: '', location: '', timeRange: '17:00-21:00', hours: 4, backgroundColor: '#E0F2FE', textColor: '#075985' });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const activeUnits = units.filter((unit) => !unit.archived);
 
   const TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
 
   useEffect(() => {
     if (!isOpen) return;
-    const activeUnits = units.filter((unit) => !unit.archived);
     const firstUnit = activeUnits[0];
     setForm(row
       ? {
@@ -54,7 +54,7 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
       });
     setErrors({});
     setConfirmArchive(false);
-  }, [isOpen, row, units]);
+  }, [activeUnits, isOpen, row, units]);
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
@@ -67,7 +67,7 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
     const nextErrors = validate();
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
-    const selectedUnitName = units.find((u) => u.id === form.unitId)?.name || form.title.trim() || 'General OT';
+    const selectedUnitName = units.find((u) => u.id === form.unitId)?.name || form.location.trim() || form.title.trim() || 'General OT';
     onSave({
       title: form.title.trim(),
       location: selectedUnitName,
@@ -76,12 +76,13 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
       unitId: form.unitId,
       backgroundColor: form.backgroundColor,
       textColor: form.textColor,
-      shortCode: '',
-      icon: '',
+      shortCode: form.shortCode?.trim(),
+      icon: form.icon?.trim(),
     });
   };
 
   const [fromTime = '17:00', toTime = '21:00'] = form.timeRange.split('-');
+  const selectedUnitName = units.find((unit) => unit.id === form.unitId)?.name || form.location || 'General OT';
 
   return (
     <Modal
@@ -99,14 +100,33 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
           <select
             className="input-field min-h-11 w-full"
             value={form.unitId || ''}
+            disabled={activeUnits.length === 0}
             onChange={(event) => {
               const unit = units.find((item) => item.id === event.target.value);
               setForm({ ...form, unitId: event.target.value, location: unit?.name || form.location });
             }}
           >
-            {units.filter((unit) => !unit.archived).map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+            {activeUnits.length === 0
+              ? <option value="">{isRtl ? 'لا توجد وحدات متاحة بعد' : 'No units available yet'}</option>
+              : activeUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
           </select>
         </label>
+        {activeUnits.length === 0 && (
+          <p className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-xs text-text-secondary">
+            {isRtl
+              ? 'أضف وحدة OT أولاً من قسم إدارة الوحدات، أو احفظ الشفت الآن وسيُستخدم موقع عام مؤقتًا.'
+              : 'Add an OT unit first from the management section, or save now and this shift will use a temporary general location.'}
+          </p>
+        )}
+        <div className="rounded-xl border border-border bg-surface-muted px-3 py-2.5">
+          <p className="text-xs font-bold text-text-primary">{isRtl ? 'الموقع الحالي' : 'Current location'}</p>
+          <p className="mt-1 text-sm font-semibold text-text-primary">{selectedUnitName}</p>
+          <p className="mt-1 text-xs text-text-secondary">
+            {isRtl
+              ? 'تغيير الوحدة يحدّث اسم الموقع المعروض لهذا الشفت في الجدول والتصدير.'
+              : 'Changing the unit updates the location label shown for this shift in the schedule and exports.'}
+          </p>
+        </div>
 
         <div>
           <label className="block text-sm font-medium text-text-primary mb-1.5">

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  normalizeScheduleMatrixData,
   SCHEDULE_ADMIN_CONTROL_STORAGE_KEY,
   SCHEDULE_MATRIX_HISTORY_STORAGE_KEY,
   SCHEDULE_MONTHLY_STORAGE_KEY,
@@ -419,6 +420,28 @@ describe('scheduleMatrixStore administration', () => {
     expect(nightDefinitions.every((definition) => (
       definition.backgroundColor === '#312E81' && definition.textColor === '#EEF2FF'
     ))).toBe(true);
+  });
+
+  it('reconstructs missing facility settings from legacy schedule rows so settings remain editable', () => {
+    const legacyMonth = structuredClone(createScheduleMatrixFixture(2026, 7));
+    legacyMonth.settings = [];
+    const normalized = normalizeScheduleMatrixData(legacyMonth);
+
+    expect(normalized.settings).toHaveLength(normalized.facilities.length);
+
+    for (const facility of normalized.facilities) {
+      const facilitySettings = normalized.settings.find((entry) => entry.facilityId === facility.id);
+      expect(facilitySettings).toBeDefined();
+      expect(facilitySettings!.units.map((unit) => unit.id)).toEqual(facility.units.map((unit) => unit.id));
+      expect(facilitySettings!.shiftDefinitions.length).toBeGreaterThan(0);
+
+      for (const row of facility.units.flatMap((unit) => unit.rows)) {
+        expect(row.shiftDefinitionId).toBeTruthy();
+        const linkedDefinition = facilitySettings!.shiftDefinitions.find((definition) => definition.id === row.shiftDefinitionId);
+        expect(linkedDefinition).toBeDefined();
+        expect(row.shiftLabel).toBe(linkedDefinition!.englishName || linkedDefinition!.label);
+      }
+    }
   });
 
   it('treats a legacy locked month as published and allows edits immediately', () => {

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArchiveRestore, BellRing, Edit3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useLateScheduleStore } from '@/stores/lateScheduleStore';
 import { useToast } from '@/components/ui/Toast';
@@ -83,8 +84,8 @@ export default function LateSchedulePage() {
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
   const [noticeDraft, setNoticeDraft] = useState(notice);
   const [archiveView, setArchiveView] = useState<'active' | 'archived'>('active');
-  const searchParams = useMemo(() => new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search), []);
-  const deepLinkHandled = useRef(false);
+  const [searchParams] = useSearchParams();
+  const deepLinkHandled = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isEditMode) setActiveCellMarkerTool(null);
@@ -105,23 +106,32 @@ export default function LateSchedulePage() {
   }, [activeCellMarkerTool]);
 
   useEffect(() => {
-    if (deepLinkHandled.current) return;
-    const rowId = searchParams.get('rowId');
-    const day = Number(searchParams.get('day'));
     const targetYear = Number(searchParams.get('year'));
     const targetMonth = Number(searchParams.get('month')) - 1;
-    if (!rowId || !Number.isInteger(day) || !Number.isInteger(targetYear) || !Number.isInteger(targetMonth)) return;
+    if (!Number.isInteger(targetYear) || !Number.isInteger(targetMonth) || targetMonth < 0 || targetMonth > 11) return;
     if (year !== targetYear || month !== targetMonth) {
       setMonth(targetYear, targetMonth);
+    }
+  }, [month, searchParams, setMonth, year]);
+
+  useEffect(() => {
+    const rowId = searchParams.get('rowId');
+    const day = Number(searchParams.get('day'));
+    if (!rowId || !Number.isInteger(day)) return;
+    const targetYear = Number(searchParams.get('year'));
+    const targetMonth = Number(searchParams.get('month')) - 1;
+    if (Number.isInteger(targetYear) && Number.isInteger(targetMonth) && (year !== targetYear || month !== targetMonth)) {
       return;
     }
+    const handledKey = `${searchParams.toString()}|${year}-${month}`;
+    if (deepLinkHandled.current === handledKey) return;
     const row = rows.find((entry) => entry.id === rowId && !entry.archived);
     if (row && day >= 1 && day <= new Date(year, month + 1, 0).getDate() && isAdmin) {
       setActiveCell({ rowId, day });
     } else if (!row) {
       addToast({ type: 'warning', title: isRtl ? 'العنصر غير متاح' : 'Schedule item unavailable', message: isRtl ? 'قد يكون الصف مؤرشفًا أو غير موجود.' : 'The row may be archived or no longer exist.' });
     }
-    deepLinkHandled.current = true;
+    deepLinkHandled.current = handledKey;
   }, [addToast, isAdmin, isRtl, month, rows, searchParams, setMonth, year]);
 
   const roster = useEmployeeRosterStore((state) => state.employees);

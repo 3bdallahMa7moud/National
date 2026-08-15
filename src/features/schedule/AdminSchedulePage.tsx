@@ -1015,11 +1015,6 @@ export default function AdminSchedulePage() {
               onAddRow={addMatrixRow}
               onUpdateRow={(rowId, updates) => {
                 updateMatrixRow(rowId, updates);
-                addToast({
-                  type: 'success',
-                  title: t('schedule:toast.rowUpdatedTitle'),
-                  message: t('schedule:toast.rowUpdatedMsg'),
-                });
               }}
               onArchiveRow={(rowId) => {
                 archiveMatrixRow(rowId);

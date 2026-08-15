@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Archive, ArchiveRestore, Edit3, ListOrdered, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Button from '@/components/ui/Button';
@@ -30,6 +30,7 @@ export default function OTStructureControl(props: OTStructureControlProps) {
   const isRtl = i18n.language === 'ar';
   const [newUnit, setNewUnit] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [unitNameDrafts, setUnitNameDrafts] = useState<Record<string, string>>({});
   const orderUnits = useMemo(() => props.units
     .filter((unit) => !unit.archived)
     .map((unit) => ({
@@ -44,6 +45,27 @@ export default function OTStructureControl(props: OTStructureControlProps) {
           color: row.backgroundColor,
         })),
     })), [props.rows, props.units]);
+
+  useEffect(() => {
+    setUnitNameDrafts((current) => {
+      const next: Record<string, string> = {};
+      for (const unit of props.units) next[unit.id] = current[unit.id] ?? unit.name;
+      return next;
+    });
+  }, [props.units]);
+
+  const commitUnitRename = (unit: OTUnit) => {
+    const draft = unitNameDrafts[unit.id] ?? unit.name;
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      setUnitNameDrafts((current) => ({ ...current, [unit.id]: unit.name }));
+      return;
+    }
+    if (trimmed !== unit.name) props.onRenameUnit(unit.id, trimmed);
+    if (draft !== trimmed) {
+      setUnitNameDrafts((current) => ({ ...current, [unit.id]: trimmed }));
+    }
+  };
 
   return (
     <section className="space-y-4">
@@ -65,6 +87,7 @@ export default function OTStructureControl(props: OTStructureControlProps) {
           <div className="min-w-0">
             <h2 className="text-sm sm:text-base font-extrabold text-text-primary">{isRtl ? 'إدارة وحدات وشفتات OT' : 'Manage OT units and shifts'}</h2>
             <p className="mt-1 text-xs sm:text-sm text-text-secondary">{isRtl ? 'الإضافة والتعديل والأرشفة منفصلة عن الترتيب.' : 'Add, edit and archive here; ordering stays in the panel above.'}</p>
+            <p className="mt-1 text-xs text-text-secondary">{isRtl ? 'إعادة تسمية الوحدة تحدّث موقع شفتات OT المرتبطة بها تلقائيًا.' : 'Renaming a unit automatically updates the location label for its OT shifts.'}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <input className="input-field min-h-10 flex-1 sm:flex-initial sm:w-48" value={newUnit} onChange={(event) => setNewUnit(event.target.value)} placeholder={isRtl ? 'اسم الوحدة' : 'Unit name'} />
@@ -82,9 +105,18 @@ export default function OTStructureControl(props: OTStructureControlProps) {
                 <div className="flex flex-wrap items-center gap-2 bg-surface-muted p-3">
                   <input
                     className="input-field min-h-9 min-w-[140px] sm:min-w-48 flex-1 font-bold text-xs sm:text-sm"
-                    value={unit.name}
+                    value={unitNameDrafts[unit.id] ?? unit.name}
                     disabled={unit.archived}
-                    onChange={(event) => props.onRenameUnit(unit.id, event.target.value)}
+                    onChange={(event) => setUnitNameDrafts((current) => ({ ...current, [unit.id]: event.target.value }))}
+                    onBlur={() => commitUnitRename(unit)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commitUnitRename(unit);
+                      } else if (event.key === 'Escape') {
+                        setUnitNameDrafts((current) => ({ ...current, [unit.id]: unit.name }));
+                      }
+                    }}
                     aria-label={isRtl ? 'اسم الوحدة' : 'Unit name'}
                   />
                   <div className="flex items-center gap-1 shrink-0">
