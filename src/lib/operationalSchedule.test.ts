@@ -67,4 +67,44 @@ describe('operational occurrence colors', () => {
       borderColor: 'var(--chip-night-border)',
     });
   });
+
+  it('treats custom on-call abbreviations as on-call occurrences', () => {
+    const matrix = createScheduleMatrixFixture(2026, 6);
+    const scheduleEmployee = OFFICIAL_EMPLOYEE_ROSTER[0];
+
+    for (const facility of matrix.facilities) {
+      for (const unit of facility.units) {
+        for (const row of unit.rows) {
+          row.cellsByDay = Object.fromEntries(
+            Object.keys(row.cellsByDay).map((day) => [Number(day), []]),
+          );
+        }
+      }
+    }
+
+    const scheduleRow = matrix.facilities[0].units[0].rows[0];
+
+    scheduleRow.colorKey = 'morning';
+    scheduleRow.shiftLabel = 'Call DSY';
+    scheduleRow.rowLabel = 'On Cal';
+    scheduleRow.shiftDefinitionId = 'custom-oncall-day';
+    scheduleRow.cellsByDay[2] = [{
+      employeeId: scheduleEmployee.employeeId,
+      employeeCode: scheduleEmployee.code,
+      status: 'published',
+    }];
+
+    const occurrences = collectPublishedOperationalOccurrences(
+      { startDate: '2026-07-02', endDate: '2026-07-02' },
+      { '2026-07': matrix },
+      {},
+      OFFICIAL_EMPLOYEE_ROSTER,
+    );
+
+    expect(occurrences).toHaveLength(1);
+    expect(occurrences[0]).toMatchObject({
+      category: 'onCallDay',
+      label: 'Call DSY',
+    });
+  });
 });

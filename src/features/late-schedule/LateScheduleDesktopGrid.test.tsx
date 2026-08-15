@@ -31,7 +31,7 @@ function makeRows(): OTShiftRow[] {
 
 describe('LateScheduleDesktopGrid', () => {
   it('renders employee names and employee numbers instead of internal IDs', () => {
-    render(
+    const { container } = render(
       <LateScheduleDesktopGrid
         year={2026}
         month={6}
@@ -42,8 +42,8 @@ describe('LateScheduleDesktopGrid', () => {
       />,
     );
 
-    expect(screen.getByText('Ahmed')).toBeInTheDocument();
-    expect(screen.getByText('EMP-003')).toBeInTheDocument();
+    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(container.querySelector('[title="Ahmed (EMP-003)"]')).toBeInTheDocument();
     expect(screen.queryByText('emp-m-1')).not.toBeInTheDocument();
   });
 });

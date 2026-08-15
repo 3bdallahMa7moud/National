@@ -41,6 +41,7 @@ import {
   readJustificationReportDraft,
   writeJustificationReportDraft,
 } from '@/lib/employeeJustificationDrafts';
+import { resolveScheduleShiftType } from '@/lib/scheduleShiftCategory';
 
 /** Parse "HH:MM - HH:MM" time ranges into hours (handles overnight). */
 function hoursFromTimeRange(timeRange: string): number {
@@ -85,6 +86,111 @@ function shouldUseEnglishReport(report: Pick<JustificationReportState, 'kingdomL
 
 function normalizeRosterLookup(value: string): string {
   return value.trim().toLowerCase();
+}
+
+interface EmployeeSourceSummary {
+  totalShifts: number;
+  claimedHours: number;
+}
+
+function roundHourValue(hours: number): number {
+  return Math.round(hours * 10) / 10;
+}
+
+function accumulateEmployeeSourceHours(
+  summaryMap: Record<string, { shifts: number; hours: number }>,
+  employeeId: string,
+  shiftHours: number,
+) {
+  if (!summaryMap[employeeId]) summaryMap[employeeId] = { shifts: 0, hours: 0 };
+  summaryMap[employeeId].shifts += 1;
+  summaryMap[employeeId].hours += shiftHours;
+}
+
+function buildEmployeeSourceSummaryMap({
+  monthKey,
+  publishedRowsByMonth,
+  rowsByMonth,
+  matricesByMonth,
+  currentMatrixData,
+}: {
+  monthKey: string;
+  publishedRowsByMonth: ReturnType<typeof useLateScheduleStore.getState>['publishedRowsByMonth'];
+  rowsByMonth: ReturnType<typeof useLateScheduleStore.getState>['rowsByMonth'];
+  matricesByMonth: ReturnType<typeof useScheduleMatrixStore.getState>['matricesByMonth'];
+  currentMatrixData: ReturnType<typeof useScheduleMatrixStore.getState>['data'];
+}): Record<string, EmployeeSourceSummary> {
+  if (!monthKey) return {};
+
+  const summaryMap: Record<string, { shifts: number; hours: number }> = {};
+  const publishedRows = publishedRowsByMonth[monthKey] ?? [];
+  const draftRows = rowsByMonth[monthKey] ?? [];
+  const activeOTRows = publishedRows.length > 0 ? publishedRows : draftRows;
+
+  for (const row of activeOTRows) {
+    if (row.archived) continue;
+    const shiftHours = typeof row.hours === 'number' && row.hours > 0
+      ? row.hours
+      : hoursFromTimeRange(row.timeRange);
+    for (const dayStr of Object.keys(row.assignments)) {
+      const assignments = row.assignments[parseInt(dayStr, 10)];
+      if (!assignments) continue;
+      for (const assignment of assignments) {
+        if (assignment.kind !== 'employee') continue;
+        accumulateEmployeeSourceHours(summaryMap, assignment.employeeId, shiftHours);
+      }
+    }
+  }
+
+  const [yearStr, monthStr] = monthKey.split('-');
+  const monthIdx = parseInt(monthStr, 10) - 1;
+  const yearNum = parseInt(yearStr, 10);
+  const matrixData = matricesByMonth[monthKey] ?? (
+    currentMatrixData && currentMatrixData.year === yearNum && currentMatrixData.month === monthIdx
+      ? currentMatrixData
+      : null
+  );
+
+  if (matrixData) {
+    for (const facility of matrixData.facilities) {
+      for (const unit of facility.units) {
+        for (const row of unit.rows) {
+          if (row.archived) continue;
+          const category = resolveScheduleShiftType({
+            colorKey: row.colorKey,
+            shiftLabel: row.shiftLabel,
+            rowLabel: row.rowLabel,
+            unitLabel: row.unitLabel || unit.name,
+            shiftDefinitionId: row.shiftDefinitionId,
+          });
+          if (category !== 'ot' && category !== 'onCallDay' && category !== 'onCallNight') continue;
+          const shiftHours = hoursFromTimeRange(row.timeRange);
+          for (const dayStr of Object.keys(row.cellsByDay)) {
+            const assignments = row.cellsByDay[Number(dayStr)];
+            if (!assignments?.length) continue;
+            for (const assignment of assignments) {
+              if (!assignment.employeeId) continue;
+              accumulateEmployeeSourceHours(
+                summaryMap,
+                assignment.employeeId,
+                shiftHours > 0 ? shiftHours : 8,
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return Object.fromEntries(
+    Object.entries(summaryMap).map(([employeeId, summary]) => [
+      employeeId,
+      {
+        totalShifts: summary.shifts,
+        claimedHours: roundHourValue(summary.hours),
+      },
+    ]),
+  );
 }
 
 function reconcileReportRowsWithRoster(
@@ -138,6 +244,28 @@ function reconcileReportRowsWithRoster(
   return changed ? { ...report, rows } : report;
 }
 
+function syncReportRowsWithEmployeeHours(
+  report: JustificationReportState,
+  employeeSourceSummaryMap: Record<string, EmployeeSourceSummary>,
+): JustificationReportState {
+  if (report.rows.length === 0) return report;
+  let changed = false;
+  const rows = report.rows.map((row) => {
+    if (!row.employeeId) return row;
+    const summary = employeeSourceSummaryMap[row.employeeId] ?? { totalShifts: 0, claimedHours: 0 };
+    if (row.totalShifts === summary.totalShifts && row.claimedHours === summary.claimedHours) {
+      return row;
+    }
+    changed = true;
+    return {
+      ...row,
+      totalShifts: summary.totalShifts,
+      claimedHours: summary.claimedHours,
+    };
+  });
+  return changed ? { ...report, rows } : report;
+}
+
 const ARABIC_MONTHS = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
@@ -175,6 +303,7 @@ function InlineEditSpan({
   multiline = false,
   rows = 3,
   type = 'text',
+  readOnly = false,
 }: {
   value: string | number;
   onChange: (val: string) => void;
@@ -183,6 +312,7 @@ function InlineEditSpan({
   multiline?: boolean;
   rows?: number;
   type?: 'text' | 'number';
+  readOnly?: boolean;
 }) {
   const contentLen = String(value || placeholder || '').length;
   
@@ -194,19 +324,27 @@ function InlineEditSpan({
       {multiline ? (
         <textarea
           value={String(value)}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            if (!readOnly) onChange(e.target.value);
+          }}
           placeholder={placeholder}
           rows={rows}
-          className={`print:hidden bg-transparent border border-transparent hover:border-primary/40 focus:border-primary focus:bg-primary/5 rounded px-1.5 py-0.5 outline-none resize-none w-full transition-all cursor-text text-inherit font-inherit ${className}`}
+          readOnly={readOnly}
+          aria-readonly={readOnly}
+          className={`print:hidden bg-transparent border border-transparent hover:border-primary/40 focus:border-primary focus:bg-primary/5 rounded px-1.5 py-0.5 outline-none resize-none w-full transition-all text-inherit font-inherit ${readOnly ? 'cursor-default opacity-90' : 'cursor-text'} ${className}`}
         />
       ) : (
         <input
           type={type}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            if (!readOnly) onChange(e.target.value);
+          }}
           placeholder={placeholder}
           size={Math.max(contentLen, 1)}
-          className={`print:hidden bg-transparent border border-transparent hover:border-primary/40 focus:border-primary focus:bg-primary/5 rounded px-1 py-0.5 outline-none w-full transition-all cursor-text text-inherit font-inherit ${className}`}
+          readOnly={readOnly}
+          aria-readonly={readOnly}
+          className={`print:hidden bg-transparent border border-transparent hover:border-primary/40 focus:border-primary focus:bg-primary/5 rounded px-1 py-0.5 outline-none w-full transition-all text-inherit font-inherit ${readOnly ? 'cursor-default opacity-90' : 'cursor-text'} ${className}`}
           style={{ minWidth: 'min-content' }}
         />
       )}
@@ -333,6 +471,23 @@ function EmployeeJustificationContent() {
     ).slice(0, 20);
   }, [officialEmployeeRoster, rosterSearch]);
 
+  const employeeSourceSummaryMap = useMemo(
+    () => buildEmployeeSourceSummaryMap({
+      monthKey: selectedMonthKey,
+      publishedRowsByMonth,
+      rowsByMonth,
+      matricesByMonth,
+      currentMatrixData,
+    }),
+    [
+      selectedMonthKey,
+      publishedRowsByMonth,
+      rowsByMonth,
+      matricesByMonth,
+      currentMatrixData,
+    ],
+  );
+
   const updateReportDraft = useCallback(
     (updater: (prev: JustificationReportState) => JustificationReportState) => {
       setReport((prev) => {
@@ -348,11 +503,6 @@ function EmployeeJustificationContent() {
   function executeGenerateReport(targetMonthKey?: string) {
     const monthKey = typeof targetMonthKey === 'string' && targetMonthKey ? targetMonthKey : selectedMonthKey;
     if (!monthKey) return;
-
-    // ── Source 1: OT Schedule (lateScheduleStore) ──────────────────────────
-    const publishedRows = publishedRowsByMonth[monthKey] ?? [];
-    const draftRows = rowsByMonth[monthKey] ?? [];
-    const activeOTRows = publishedRows.length > 0 ? publishedRows : draftRows;
     const [yearStr, monthStr] = monthKey.split('-');
     const monthIdx = parseInt(monthStr, 10) - 1;
     const yearNum = parseInt(yearStr, 10);
@@ -361,65 +511,19 @@ function EmployeeJustificationContent() {
     const monthLabel = currentIsEngReport
       ? `${ENGLISH_MONTHS[monthIdx]} ${yearNum}`
       : `${ARABIC_MONTHS[monthIdx]} ${yearNum}`;
-
-    // employeeId -> { shifts, hours }
-    const summaryMap: Record<string, { shifts: number; hours: number }> = {};
-
-    // ── Merge from OT Schedule ─────────────────────────────────────────────
-    // Use row.hours (the actual shift duration defined in the OT schedule row)
-    for (const row of activeOTRows) {
-      if (row.archived) continue;
-      const shiftHours = typeof row.hours === 'number' && row.hours > 0
-        ? row.hours
-        : hoursFromTimeRange(row.timeRange);
-      for (const dayStr of Object.keys(row.assignments)) {
-        const assignments = row.assignments[parseInt(dayStr, 10)];
-        if (!assignments) continue;
-        for (const assignment of assignments) {
-          if (assignment.kind !== 'employee') continue;
-          const { employeeId } = assignment;
-          if (!summaryMap[employeeId]) summaryMap[employeeId] = { shifts: 0, hours: 0 };
-          summaryMap[employeeId].shifts += 1;
-          summaryMap[employeeId].hours += shiftHours;
-        }
-      }
-    }
-
-    // ── Merge from Schedule Management (overtime color rows only) ──────────
-    // Prefer the published snapshot for the selected month; fall back to the
-    // live draft when no published snapshot exists yet.
-    const matrixData = matricesByMonth[monthKey] ?? (
-      currentMatrixData && currentMatrixData.year === yearNum && currentMatrixData.month === monthIdx
-        ? currentMatrixData
-        : null
-    );
-    if (matrixData) {
-      for (const facility of matrixData.facilities) {
-        for (const unit of facility.units) {
-          for (const row of unit.rows) {
-            if (row.archived) continue;
-            // Only pick up overtime, onCall, and onCallNight coloured rows from schedule management
-            if (row.colorKey !== 'overtime' && row.colorKey !== 'onCall' && row.colorKey !== 'onCallNight') continue;
-            const shiftHours = hoursFromTimeRange(row.timeRange);
-            for (const dayStr of Object.keys(row.cellsByDay)) {
-              const assignments = row.cellsByDay[Number(dayStr)];
-              if (!assignments?.length) continue;
-              for (const assignment of assignments) {
-                const empId = assignment.employeeId;
-                if (!empId) continue;
-                if (!summaryMap[empId]) summaryMap[empId] = { shifts: 0, hours: 0 };
-                summaryMap[empId].shifts += 1;
-                summaryMap[empId].hours += shiftHours > 0 ? shiftHours : 8;
-              }
-            }
-          }
-        }
-      }
-    }
+    const sourceSummaryMap = monthKey === selectedMonthKey
+      ? employeeSourceSummaryMap
+      : buildEmployeeSourceSummaryMap({
+        monthKey,
+        publishedRowsByMonth,
+        rowsByMonth,
+        matricesByMonth,
+        currentMatrixData,
+      });
 
     // ── Build final rows ───────────────────────────────────────────────────
     const newRows: JustificationEmployeeRow[] = [];
-    for (const [empId, summary] of Object.entries(summaryMap)) {
+    for (const [empId, summary] of Object.entries(sourceSummaryMap)) {
       const rosterEmp = officialEmployeeRoster.find((r) => r.employeeId === empId);
       newRows.push({
         id: getSourceRowId(empId),
@@ -429,8 +533,8 @@ function EmployeeJustificationContent() {
         name: rosterEmp ? getReportEmployeeName(rosterEmp, currentIsEngReport) : empId,
         manualName: false,
         branch: getEmployeeBranch(rosterEmp),
-        totalShifts: summary.shifts,
-        claimedHours: Math.round(summary.hours),
+        totalShifts: summary.totalShifts,
+        claimedHours: summary.claimedHours,
       });
     }
 
@@ -455,10 +559,14 @@ function EmployeeJustificationContent() {
         officialEmployeeRoster,
         isSavedEngReport,
       );
-      if (reconciledDraft !== savedDraft) {
-        writeJustificationReportDraft(selectedMonthKey, reconciledDraft);
+      const syncedDraft = syncReportRowsWithEmployeeHours(
+        reconciledDraft,
+        employeeSourceSummaryMap,
+      );
+      if (syncedDraft !== savedDraft) {
+        writeJustificationReportDraft(selectedMonthKey, syncedDraft);
       }
-      setReport(reconciledDraft);
+      setReport(syncedDraft);
       return;
     }
 
@@ -471,6 +579,7 @@ function EmployeeJustificationContent() {
     rowsByMonth,
     matricesByMonth,
     currentMatrixData,
+    employeeSourceSummaryMap,
     isEngLocale,
   ]);
 
@@ -523,12 +632,20 @@ function EmployeeJustificationContent() {
   const updateRow = useCallback((id: string, updates: Partial<JustificationEmployeeRow>) => {
     updateReportDraft((prev) => ({
       ...prev,
-      rows: prev.rows.map((r) => (r.id === id ? {
-        ...r,
-        ...updates,
-        manualBn: updates.bn !== undefined ? true : r.manualBn,
-        manualName: updates.name !== undefined ? true : r.manualName,
-      } : r)),
+      rows: prev.rows.map((r) => {
+        if (r.id !== id) return r;
+        const nextUpdates = { ...updates };
+        if (r.employeeId) {
+          delete nextUpdates.totalShifts;
+          delete nextUpdates.claimedHours;
+        }
+        return {
+          ...r,
+          ...nextUpdates,
+          manualBn: nextUpdates.bn !== undefined ? true : r.manualBn,
+          manualName: nextUpdates.name !== undefined ? true : r.manualName,
+        };
+      }),
     }));
   }, [updateReportDraft]);
 
@@ -563,6 +680,10 @@ function EmployeeJustificationContent() {
         !report.kingdomLabel.includes('المملكة');
 
       const currentIsEngReport = shouldUseEnglishReport(report, isEngLocale) || isEngReport;
+      const sourceSummary = employeeSourceSummaryMap[employee.employeeId] ?? {
+        totalShifts: 0,
+        claimedHours: 0,
+      };
       const newRow: JustificationEmployeeRow = {
         id: getSourceRowId(employee.employeeId),
         employeeId: employee.employeeId,
@@ -571,8 +692,8 @@ function EmployeeJustificationContent() {
         name: getReportEmployeeName(employee, currentIsEngReport),
         manualName: false,
         branch: getEmployeeBranch(employee),
-        totalShifts: 1,
-        claimedHours: 8,
+        totalShifts: sourceSummary.totalShifts,
+        claimedHours: sourceSummary.claimedHours,
       };
 
       updateReportDraft((prev) => ({
@@ -582,7 +703,7 @@ function EmployeeJustificationContent() {
       }));
       addToast({ type: 'success', title: `${employee.fullName} added.` });
     },
-    [report, isEngLocale, addToast, updateReportDraft],
+    [report, isEngLocale, addToast, updateReportDraft, employeeSourceSummaryMap],
   );
 
   async function handleExport() {
@@ -1138,7 +1259,7 @@ function EmployeeJustificationContent() {
                             <InlineEditSpan value={row.name} onChange={(v) => updateRow(row.id, { name: v })} className="font-semibold text-inherit" />
                           </td>
                           <td className="border border-black dark:border-slate-700 print:!border-black p-1.5 text-center font-bold">
-                            <InlineEditSpan value={row.claimedHours} onChange={(v) => updateRow(row.id, { claimedHours: Number(v) || 0 })} type="number" className="text-center font-bold text-inherit" />
+                            <InlineEditSpan value={row.claimedHours} onChange={(v) => updateRow(row.id, { claimedHours: Number(v) || 0 })} type="number" readOnly={Boolean(row.employeeId)} className="text-center font-bold text-inherit" />
                           </td>
                         </tr>
                       ))}
@@ -1176,10 +1297,10 @@ function EmployeeJustificationContent() {
                             <InlineEditSpan value={row.name} onChange={(v) => updateRow(row.id, { name: v })} className="font-semibold text-right text-inherit" />
                           </td>
                           <td className="border border-[#2B3A55] dark:border-slate-700 print:!border-[#2B3A55] p-1.5 text-center font-bold">
-                            <InlineEditSpan value={row.totalShifts} onChange={(v) => updateRow(row.id, { totalShifts: Number(v) || 0 })} type="number" className="text-center font-bold text-inherit" />
+                            <InlineEditSpan value={row.totalShifts} onChange={(v) => updateRow(row.id, { totalShifts: Number(v) || 0 })} type="number" readOnly={Boolean(row.employeeId)} className="text-center font-bold text-inherit" />
                           </td>
                           <td className="border border-[#2B3A55] dark:border-slate-700 print:!border-[#2B3A55] p-1.5 text-center font-bold">
-                            <InlineEditSpan value={row.claimedHours} onChange={(v) => updateRow(row.id, { claimedHours: Number(v) || 0 })} type="number" className="text-center font-bold text-inherit" />
+                            <InlineEditSpan value={row.claimedHours} onChange={(v) => updateRow(row.id, { claimedHours: Number(v) || 0 })} type="number" readOnly={Boolean(row.employeeId)} className="text-center font-bold text-inherit" />
                           </td>
                         </tr>
                       ))}
@@ -1348,6 +1469,7 @@ function EmployeeRowEditor({
 }) {
   const { t, i18n } = useTranslation(['employeeJustification']);
   const isEngLocale = i18n.language.startsWith('en') || !i18n.language.startsWith('ar');
+  const isSourceLinkedRow = Boolean(row.employeeId);
 
   return (
     <div className="rounded-lg border border-border bg-surface-muted transition-colors">
@@ -1431,6 +1553,8 @@ function EmployeeRowEditor({
                 type="number"
                 className="input-field w-full text-xs"
                 value={row.totalShifts}
+                readOnly={isSourceLinkedRow}
+                aria-readonly={isSourceLinkedRow}
                 onChange={(e) => onUpdate({ totalShifts: Number(e.target.value) })}
               />
             </EditorField>
@@ -1439,6 +1563,8 @@ function EmployeeRowEditor({
                 type="number"
                 className="input-field w-full text-xs font-semibold"
                 value={row.claimedHours}
+                readOnly={isSourceLinkedRow}
+                aria-readonly={isSourceLinkedRow}
                 onChange={(e) => onUpdate({ claimedHours: Number(e.target.value) })}
               />
             </EditorField>

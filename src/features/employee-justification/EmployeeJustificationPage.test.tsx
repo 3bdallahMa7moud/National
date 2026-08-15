@@ -83,6 +83,11 @@ function otRow(employeeId = 'late-source-employee'): OTShiftRow {
   };
 }
 
+function readPersistedMonthRows(monthKey: string) {
+  const persisted = JSON.parse(localStorage.getItem(EMPLOYEE_JUSTIFICATION_DRAFTS_STORAGE_KEY) || '{}');
+  return persisted.reportsByMonth?.[monthKey]?.rows ?? [];
+}
+
 describe('EmployeeJustificationPage', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -212,6 +217,124 @@ describe('EmployeeJustificationPage', () => {
       expect(screen.getByDisplayValue('BN-MANUAL')).toBeInTheDocument();
     });
     expect(screen.queryByDisplayValue('BN-777')).not.toBeInTheDocument();
+  });
+
+  it('replaces saved linked hours with the employee overtime hours from source data', async () => {
+    const monthKey = currentMonthKey();
+    setAuthUser(adminUser);
+    localStorage.setItem(EMPLOYEE_JUSTIFICATION_DRAFTS_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      reportsByMonth: {
+        [monthKey]: {
+          ...DEFAULT_JUSTIFICATION_STATE,
+          month: 'AUG 2026',
+          numberOfStaff: '1',
+          rows: [{
+            id: 'row-linked-hours',
+            employeeId: 'late-source-employee',
+            bn: 'BN-001',
+            manualBn: false,
+            name: 'Ahmed One',
+            manualName: false,
+            branch: 'General',
+            totalShifts: 9,
+            claimedHours: 99,
+          }],
+        },
+      },
+    }));
+
+    act(() => {
+      useEmployeeRosterStore.setState({ employees: [sourceEmployee()] });
+      useLateScheduleStore.setState({
+        rowsByMonth: { [monthKey]: [otRow()] },
+        publishedRowsByMonth: {},
+      });
+    });
+
+    render(
+      <ToastProvider>
+        <EmployeeJustificationPage />
+      </ToastProvider>,
+    );
+
+    await waitFor(() => {
+      expect(readPersistedMonthRows(monthKey)[0]).toMatchObject({
+        employeeId: 'late-source-employee',
+        totalShifts: 1,
+        claimedHours: 4,
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Employee Roster|tabs\.employees/i }));
+    expect(await screen.findByText(/1 shifts · 4h/i)).toBeInTheDocument();
+    expect(screen.queryByText(/9 shifts · 99h/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps linked employee hours synced when the overtime source hours change later', async () => {
+    const monthKey = currentMonthKey();
+    setAuthUser(adminUser);
+    localStorage.setItem(EMPLOYEE_JUSTIFICATION_DRAFTS_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      reportsByMonth: {
+        [monthKey]: {
+          ...DEFAULT_JUSTIFICATION_STATE,
+          month: 'AUG 2026',
+          numberOfStaff: '1',
+          rows: [{
+            id: 'row-linked-live-sync',
+            employeeId: 'late-source-employee',
+            bn: 'BN-001',
+            manualBn: false,
+            name: 'Ahmed One',
+            manualName: false,
+            branch: 'General',
+            totalShifts: 1,
+            claimedHours: 4,
+          }],
+        },
+      },
+    }));
+
+    act(() => {
+      useEmployeeRosterStore.setState({ employees: [sourceEmployee()] });
+      useLateScheduleStore.setState({
+        rowsByMonth: { [monthKey]: [otRow()] },
+        publishedRowsByMonth: {},
+      });
+    });
+
+    render(
+      <ToastProvider>
+        <EmployeeJustificationPage />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Employee Roster|tabs\.employees/i }));
+    expect(await screen.findByText(/1 shifts · 4h/i)).toBeInTheDocument();
+
+    act(() => {
+      useLateScheduleStore.setState({
+        rowsByMonth: {
+          [monthKey]: [{
+            ...otRow(),
+            hours: 7.5,
+            timeRange: '17:00 - 00:30',
+          }],
+        },
+        publishedRowsByMonth: {},
+      });
+    });
+
+    await waitFor(() => {
+      expect(readPersistedMonthRows(monthKey)[0]).toMatchObject({
+        employeeId: 'late-source-employee',
+        totalShifts: 1,
+        claimedHours: 7.5,
+      });
+    });
+
+    expect(await screen.findByText(/1 shifts · 7.5h/i)).toBeInTheDocument();
   });
 
   it('relinks legacy saved rows by employee name and applies BN changes from Employees', async () => {

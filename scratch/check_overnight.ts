@@ -5,6 +5,33 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+interface ScheduleAssignment {
+  employeeId?: string;
+  status?: string;
+}
+
+interface ScheduleRow {
+  shiftLabel?: string;
+  timeRange: string;
+  cellsByDay?: Record<string, ScheduleAssignment[]>;
+}
+
+interface ScheduleUnit {
+  name: string;
+  rows: ScheduleRow[];
+}
+
+interface ScheduleFacility {
+  name: string;
+  units: ScheduleUnit[];
+}
+
+interface PublishedScheduleMatrix {
+  year: number;
+  month: number;
+  facilities: ScheduleFacility[];
+}
+
 function parseJson<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback;
   try { return JSON.parse(value) as T; }
@@ -33,7 +60,7 @@ async function main() {
   let badEvents = 0;
 
   for (const month of scheduleMonths) {
-    const matrix = parseJson<any>(month.publishedJson, null);
+    const matrix = parseJson<PublishedScheduleMatrix | null>(month.publishedJson, null);
     if (!matrix?.facilities || typeof matrix.year !== 'number' || typeof matrix.month !== 'number') continue;
 
     for (const facility of matrix.facilities) {
@@ -42,8 +69,8 @@ async function main() {
           for (const [dayText, assignments] of Object.entries(row.cellsByDay ?? {})) {
             const day = Number(dayText);
             if (!Number.isInteger(day)) continue;
-            const assignment = (assignments as any[]).find(
-              (item: any) => item.employeeId === userScheduleEmployeeId && item.status !== 'draft'
+            const assignment = assignments.find(
+              (item) => item.employeeId === userScheduleEmployeeId && item.status !== 'draft',
             );
             if (!assignment) continue;
             const date = `${matrix.year}-${String(matrix.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;

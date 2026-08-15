@@ -13,6 +13,7 @@ import type {
   ShiftRequestParty,
   ShiftRequestWarning,
 } from '@/types/shiftRequest';
+import { resolveScheduleShiftType } from './scheduleShiftCategory';
 
 type ScheduleState = ReturnType<typeof useScheduleMatrixStore.getState>;
 type LateScheduleStateWithPublished = LateScheduleState & {
@@ -487,11 +488,19 @@ function transferScheduleAssignment(
   const row = findScheduleRow(matrix, ref.rowId)?.row;
   if (!row) return false;
   const current = row.cellsByDay[ref.day] ?? [];
-  if (!current.some((assignment) => assignment.employeeId === fromEmployeeId)) return false;
+  const sourceIndex = current.findIndex((assignment) => assignment.employeeId === fromEmployeeId);
+  if (sourceIndex < 0) return false;
   if (current.some((assignment) => assignment.employeeId === to.employeeId)) return false;
-  const next = current.filter((assignment) => assignment.employeeId !== fromEmployeeId);
-  next.push({ employeeId: to.employeeId, employeeCode: to.employeeCode, status: 'published' });
-  row.cellsByDay[ref.day] = next;
+  current[sourceIndex] = {
+    ...current[sourceIndex],
+    employeeId: to.employeeId,
+    employeeCode: to.employeeCode,
+    status: 'published',
+    hasConflict: undefined,
+    conflictReason: undefined,
+    conflictType: undefined,
+  };
+  row.cellsByDay[ref.day] = current;
   return true;
 }
 
@@ -504,11 +513,12 @@ function transferOTAssignment(
   const row = rows.find((candidate) => candidate.id === ref.rowId);
   if (!row) return false;
   const current = row.assignments[ref.day] ?? [];
-  if (!current.some((assignment) => assignment.kind === 'employee' && assignment.employeeId === fromEmployeeId)) return false;
+  const sourceIndex = current.findIndex((assignment) => assignment.kind === 'employee' && assignment.employeeId === fromEmployeeId);
+  if (sourceIndex < 0) return false;
   if (current.some((assignment) => assignment.kind === 'employee' && assignment.employeeId === to.employeeId)) return false;
-  const next = current.filter((assignment) => assignment.kind !== 'employee' || assignment.employeeId !== fromEmployeeId);
-  next.push({ kind: 'employee', employeeId: to.employeeId });
-  row.assignments[ref.day] = next;
+  row.assignments[ref.day] = current.map((assignment, index) =>
+    index === sourceIndex ? { kind: 'employee', employeeId: to.employeeId } : assignment,
+  );
   return true;
 }
 
@@ -821,19 +831,11 @@ export function reloadPublishedAssignmentSnapshots(): void {
 export type CanonicalShiftType = 'Day' | 'Night' | 'On-call Day' | 'On-call Night' | 'Overtime';
 
 export function normalizeShiftTypeCategory(shiftLabel: string, unitLabel: string = ''): CanonicalShiftType {
-  const text = `${shiftLabel} ${unitLabel}`.toLowerCase();
-  if (text.includes('overtime') || text.includes('إضافي') || text.includes('ot')) {
-    return 'Overtime';
-  }
-  if (text.includes('night oncall') || text.includes('on-call night') || text.includes('oncall night') || text.includes('استدعاء ليلي')) {
-    return 'On-call Night';
-  }
-  if (text.includes('oncall') || text.includes('on-call') || text.includes('on call') || text.includes('استدعاء') || text.includes('طلب')) {
-    return 'On-call Day';
-  }
-  if (text.includes('night') || text.includes('ليلي') || text.includes('ليل') || text.includes('late') || text.includes('evening') || text.includes('مسائي') || text.includes('مساء')) {
-    return 'Night';
-  }
+  const category = resolveScheduleShiftType({ shiftLabel, unitLabel });
+  if (category === 'ot') return 'Overtime';
+  if (category === 'onCallNight') return 'On-call Night';
+  if (category === 'onCallDay') return 'On-call Day';
+  if (category === 'late' || category === 'night') return 'Night';
   return 'Day';
 }
 

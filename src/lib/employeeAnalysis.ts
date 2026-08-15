@@ -1,4 +1,4 @@
-import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
+import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
 import type { OTShiftRow } from '@/types/lateSchedule';
 import type { OfficialEmployee } from '@/types/officialEmployee';
 import { getOfficialEmployeeRoster } from '@/stores/employeeRosterStore';
@@ -9,6 +9,7 @@ import {
   type AnalysisPeriod,
 } from './analysisPeriod';
 import { filterActiveScheduleRows } from './scheduleMatrixArchive';
+import { resolveScheduleShiftType } from './scheduleShiftCategory';
 
 export type EmployeeAnalysisSource = 'schedule' | 'ot' | 'both' | 'none';
 
@@ -48,13 +49,23 @@ interface MutableAnalysisRow extends EmployeeAnalysisRow {
   otSourceCount: number;
 }
 
-function incrementMatrixCategory(row: MutableAnalysisRow, colorKey: ShiftColorKey): void {
-  if (colorKey === 'morning') row.day += 1;
-  else if (colorKey === 'evening') row.late += 1;
-  else if (colorKey === 'night') row.night += 1;
-  else if (colorKey === 'onCall') row.onCallDay += 1;
-  else if (colorKey === 'onCallNight') row.onCallNight += 1;
-  else if (colorKey === 'overtime') row.matrixOTShifts += 1;
+function incrementMatrixCategory(
+  row: MutableAnalysisRow,
+  shift: ScheduleMatrixData['facilities'][number]['units'][number]['rows'][number],
+): void {
+  const category = resolveScheduleShiftType({
+    colorKey: shift.colorKey,
+    shiftLabel: shift.shiftLabel,
+    rowLabel: shift.rowLabel,
+    unitLabel: shift.unitLabel,
+    shiftDefinitionId: shift.shiftDefinitionId,
+  });
+  if (category === 'day') row.day += 1;
+  else if (category === 'late') row.late += 1;
+  else if (category === 'night') row.night += 1;
+  else if (category === 'onCallDay') row.onCallDay += 1;
+  else if (category === 'onCallNight') row.onCallNight += 1;
+  else if (category === 'ot') row.matrixOTShifts += 1;
 }
 
 function resolveSource(scheduleCount: number, otCount: number): EmployeeAnalysisSource {
@@ -114,7 +125,7 @@ function accumulateMatrix(
             if (assignment.status === 'draft') continue;
             const analysis = rows.get(assignment.employeeId);
             if (!analysis) continue;
-            incrementMatrixCategory(analysis, shift.colorKey);
+            incrementMatrixCategory(analysis, shift);
             analysis.scheduleSourceCount += 1;
             analysis.totalScheduledAssignments += 1;
           }

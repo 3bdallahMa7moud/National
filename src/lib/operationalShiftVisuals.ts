@@ -4,7 +4,8 @@ import { uniqueOperationalShiftVisuals } from '@/lib/occurrenceShiftStyle';
 import type { OTShiftRow } from '@/types/lateSchedule';
 import type { CoverageCategory } from '@/types/operationalDashboard';
 import type { OperationalShiftVisual } from '@/types/operationalSchedule';
-import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
+import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
+import { resolveOperationalShiftCategory } from './scheduleShiftCategory';
 
 export type OperationalShiftVisualsByCategory = Record<CoverageCategory, OperationalShiftVisual[]>;
 
@@ -19,15 +20,6 @@ const DEFAULT_VISUALS: Record<CoverageCategory, OperationalShiftVisual> = {
 
 function emptyVisuals(): OperationalShiftVisualsByCategory {
   return { day: [], night: [], onCallDay: [], onCallNight: [], onCall: [], ot: [] };
-}
-
-function categoryFromColor(colorKey: ShiftColorKey): CoverageCategory | null {
-  if (colorKey === 'morning') return 'day';
-  if (colorKey === 'night' || colorKey === 'evening') return 'night';
-  if (colorKey === 'onCall') return 'onCallDay';
-  if (colorKey === 'onCallNight') return 'onCallNight';
-  if (colorKey === 'overtime') return 'ot';
-  return null;
 }
 
 function isoDate(year: number, month: number, day: number): string {
@@ -77,7 +69,13 @@ export function collectPublishedShiftVisualsForPeriod(
           const archivedInSettings = settings?.units.find((entry) => entry.id === unit.id)?.archived === true;
           if (unit.archived || archivedInSettings || unit.blockType === 'vacation') continue;
           for (const row of filterActiveScheduleRows(matrix, facility.id, unit.rows)) {
-            const category = categoryFromColor(row.colorKey);
+            const category = resolveOperationalShiftCategory({
+              colorKey: row.colorKey,
+              shiftLabel: row.shiftLabel,
+              rowLabel: row.rowLabel,
+              unitLabel: row.unitLabel || unit.name,
+              shiftDefinitionId: row.shiftDefinitionId,
+            });
             if (!category || row.blockType === 'vacation' || !rowContributesInPeriod(matrix, row, period)) continue;
             result[category].push({
               colorKey: row.colorKey,

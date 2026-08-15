@@ -6,7 +6,8 @@ import type {
   OperationalPeriod,
   OperationalShiftCategory,
 } from '@/types/operationalSchedule';
-import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
+import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
+import { resolveOperationalShiftCategory } from './scheduleShiftCategory';
 
 const CATEGORY_ORDER: Record<OperationalShiftCategory, number> = {
   day: 0,
@@ -36,18 +37,6 @@ function formatLocalDate(year: number, monthIndex: number, day: number): string 
 
 function monthKey(year: number, monthIndex: number): string {
   return `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-}
-
-function categoryFromColor(colorKey: ShiftColorKey): OperationalShiftCategory | null {
-  switch (colorKey) {
-    case 'morning': return 'day';
-    case 'evening': return 'night';
-    case 'night': return 'night';
-    case 'onCall': return 'onCallDay';
-    case 'onCallNight': return 'onCallNight';
-    case 'overtime': return 'ot';
-    case 'vacation': return null;
-  }
 }
 
 function hoursFromRange(timeRange: string): number {
@@ -112,7 +101,13 @@ export function collectPublishedOperationalOccurrences(
           const rows = filterActiveScheduleRows(matrix, facility.id, unit.rows);
           for (const row of rows) {
             if (row.blockType === 'vacation') continue;
-            const category = categoryFromColor(row.colorKey);
+            const category = resolveOperationalShiftCategory({
+              colorKey: row.colorKey,
+              shiftLabel: row.shiftLabel,
+              rowLabel: row.rowLabel,
+              unitLabel: row.unitLabel || unit.name,
+              shiftDefinitionId: row.shiftDefinitionId,
+            });
             if (!category) continue;
             for (const [dayText, assignments] of Object.entries(row.cellsByDay)) {
               const day = Number(dayText);

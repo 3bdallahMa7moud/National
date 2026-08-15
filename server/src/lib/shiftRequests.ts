@@ -105,7 +105,11 @@ export type ValidationResult = ValidationFailure | ValidationSuccess;
 interface ScheduleAssignment {
   employeeId: string;
   employeeCode: string;
+  colorKey?: string;
   status?: string;
+  hasConflict?: boolean;
+  conflictReason?: string;
+  conflictType?: 'crossFacility' | 'vacation' | 'timeOverlap';
 }
 
 interface ScheduleRow {
@@ -645,6 +649,110 @@ export async function inspectRequestWarnings(
   ];
 }
 
+function parseScheduleRangeMinutes(timeRange: string) {
+  const cleaned = timeRange.replace('–', '-');
+  const parts = cleaned.split('-').map((value) => value.trim());
+  if (parts.length !== 2) return null;
+  const parseMinutes = (value: string) => {
+    const match = value.match(/\b(\d{1,2}):(\d{2})\b/);
+    if (!match) return null;
+    return Number(match[1]) * 60 + Number(match[2]);
+  };
+  const start = parseMinutes(parts[0]);
+  let end = parseMinutes(parts[1]);
+  if (start === null || end === null) return null;
+  if (end <= start) end += 24 * 60;
+  return { start, end };
+}
+
+function scheduleRangesOverlap(left: string, right: string) {
+  const leftRange = parseScheduleRangeMinutes(left);
+  const rightRange = parseScheduleRangeMinutes(right);
+  if (!leftRange || !rightRange) return true;
+  return Math.max(leftRange.start, rightRange.start) < Math.min(leftRange.end, rightRange.end);
+}
+
+function recalculateScheduleConflicts(matrix: ScheduleMatrixData) {
+  type Occurrence = {
+    facilityId: string;
+    facilityName: string;
+    timeRange: string;
+    assignment: ScheduleAssignment;
+  };
+
+  const vacationsByEmployee = new Map<string, Set<number>>();
+  for (const vacation of matrix.vacations ?? []) {
+    let days = vacationsByEmployee.get(vacation.employeeId);
+    if (!days) {
+      days = new Set<number>();
+      vacationsByEmployee.set(vacation.employeeId, days);
+    }
+    for (const day of vacation.daysOff ?? []) days.add(day);
+    for (const range of vacation.ranges ?? []) {
+      if ((range.status ?? 'published') === 'draft') continue;
+      for (let day = range.startDay; day <= range.endDay; day += 1) days.add(day);
+    }
+  }
+
+  const occurrencesByEmployeeDay = new Map<string, Occurrence[]>();
+  for (const facility of matrix.facilities ?? []) {
+    for (const unit of facility.units ?? []) {
+      for (const row of unit.rows ?? []) {
+        for (const [dayKey, assignments] of Object.entries(row.cellsByDay ?? {})) {
+          const day = Number(dayKey);
+          if (!Number.isFinite(day)) continue;
+          for (const assignment of assignments ?? []) {
+            assignment.hasConflict = false;
+            assignment.conflictReason = undefined;
+            assignment.conflictType = undefined;
+            const key = `${assignment.employeeId}::${day}`;
+            const bucket = occurrencesByEmployeeDay.get(key) ?? [];
+            bucket.push({
+              facilityId: facility.id,
+              facilityName: facility.name,
+              timeRange: row.timeRange,
+              assignment,
+            });
+            occurrencesByEmployeeDay.set(key, bucket);
+          }
+        }
+      }
+    }
+  }
+
+  for (const [key, occurrences] of occurrencesByEmployeeDay.entries()) {
+    const [employeeId, dayText] = key.split('::');
+    const day = Number(dayText);
+    if (vacationsByEmployee.get(employeeId)?.has(day)) {
+      for (const occurrence of occurrences) {
+        occurrence.assignment.hasConflict = true;
+        occurrence.assignment.conflictType = 'vacation';
+        occurrence.assignment.conflictReason = 'Employee has an approved vacation on this day';
+      }
+    }
+
+    for (let index = 0; index < occurrences.length; index += 1) {
+      for (let nextIndex = index + 1; nextIndex < occurrences.length; nextIndex += 1) {
+        const left = occurrences[index];
+        const right = occurrences[nextIndex];
+        const isCrossFacility = left.facilityId !== right.facilityId;
+        const overlapsInTime = scheduleRangesOverlap(left.timeRange, right.timeRange);
+        if (!isCrossFacility && !overlapsInTime) continue;
+        const conflictType = isCrossFacility ? 'crossFacility' : 'timeOverlap';
+        const conflictReason = isCrossFacility
+          ? `Double assignment conflict between facility (${left.facilityName}) and (${right.facilityName})`
+          : `Overlapping shift schedules on the same day (${left.timeRange} & ${right.timeRange})`;
+        left.assignment.hasConflict = true;
+        left.assignment.conflictType = conflictType;
+        left.assignment.conflictReason = conflictReason;
+        right.assignment.hasConflict = true;
+        right.assignment.conflictType = conflictType;
+        right.assignment.conflictReason = conflictReason;
+      }
+    }
+  }
+}
+
 function transferScheduleAssignment(
   matrix: ScheduleMatrixData,
   ref: ShiftAssignmentRef,
@@ -654,12 +762,19 @@ function transferScheduleAssignment(
   const row = findScheduleRow(matrix, ref.rowId)?.row;
   if (!row) return false;
   const current = row.cellsByDay[String(ref.day)] ?? [];
-  if (!current.some((assignment) => assignment.employeeId === fromEmployeeId)) return false;
+  const sourceIndex = current.findIndex((assignment) => assignment.employeeId === fromEmployeeId);
+  if (sourceIndex < 0) return false;
   if (current.some((assignment) => assignment.employeeId === to.employeeId)) return false;
-  row.cellsByDay[String(ref.day)] = [
-    ...current.filter((assignment) => assignment.employeeId !== fromEmployeeId),
-    { employeeId: to.employeeId, employeeCode: to.employeeCode, status: 'published' },
-  ];
+  current[sourceIndex] = {
+    ...current[sourceIndex],
+    employeeId: to.employeeId,
+    employeeCode: to.employeeCode,
+    status: 'published',
+    hasConflict: undefined,
+    conflictReason: undefined,
+    conflictType: undefined,
+  };
+  row.cellsByDay[String(ref.day)] = current;
   return true;
 }
 
@@ -672,12 +787,12 @@ function transferOTAssignment(
   const row = rows.find((candidate) => candidate.id === ref.rowId);
   if (!row) return false;
   const current = row.assignments[String(ref.day)] ?? [];
-  if (!current.some((assignment) => assignment.kind === 'employee' && assignment.employeeId === fromEmployeeId)) return false;
+  const sourceIndex = current.findIndex((assignment) => assignment.kind === 'employee' && assignment.employeeId === fromEmployeeId);
+  if (sourceIndex < 0) return false;
   if (current.some((assignment) => assignment.kind === 'employee' && assignment.employeeId === to.employeeId)) return false;
-  row.assignments[String(ref.day)] = [
-    ...current.filter((assignment) => assignment.kind !== 'employee' || assignment.employeeId !== fromEmployeeId),
-    { kind: 'employee', employeeId: to.employeeId },
-  ];
+  row.assignments[String(ref.day)] = current.map((assignment, index) =>
+    index === sourceIndex ? { kind: 'employee', employeeId: to.employeeId } : assignment,
+  );
   return true;
 }
 
@@ -749,6 +864,11 @@ export async function applyApprovedShiftRequest(
           draftRow.cellsByDay[String(ref.day)] = clone(publishedRow.cellsByDay[String(ref.day)] ?? []);
         }
       }
+    }
+
+    for (const next of nextByKey.values()) {
+      recalculateScheduleConflicts(next.published);
+      if (next.draft) recalculateScheduleConflicts(next.draft);
     }
 
     for (const [monthKey, next] of nextByKey.entries()) {

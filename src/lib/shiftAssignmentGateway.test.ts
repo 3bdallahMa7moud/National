@@ -5,7 +5,7 @@ import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import { createShiftRequestStore } from '@/stores/shiftRequestStore';
 import type { OTShiftRow, OTUnit } from '@/types/lateSchedule';
 import type { EmployeeAccessProfile } from '@/types/employeeAccess';
-import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
+import type { Assignment, ScheduleMatrixData } from '@/types/scheduleMatrix';
 import type { ShiftRequest } from '@/types/shiftRequest';
 
 function matrix(): ScheduleMatrixData {
@@ -24,6 +24,89 @@ function matrix(): ScheduleMatrixData {
     }],
     legend: [], vacations: [], holidays: [], settings: [], auditLog: [], cellMarkers: {},
   };
+}
+
+function complexMatrix(): ScheduleMatrixData {
+  const row = (
+    id: string,
+    shiftLabel: string,
+    timeRange: string,
+    colorKey: 'morning' | 'evening' | 'night' | 'onCall' | 'onCallNight',
+    cellsByDay: Record<number, Assignment[]>,
+  ) => ({
+    id,
+    blockType: 'equipmentDay' as const,
+    unitLabel: 'Unit',
+    rowLabel: id,
+    shiftLabel,
+    timeRange,
+    colorKey,
+    weekendOnly: colorKey === 'onCall' || colorKey === 'onCallNight',
+    cellsByDay,
+  });
+
+  return {
+    departmentId: 'dept-1',
+    year: 2026,
+    month: 6,
+    facilities: [{
+      id: 'facility-a',
+      name: 'Facility A',
+      accentColorToken: 'facility-kamc',
+      units: [{
+        id: 'unit-a',
+        name: 'Unit A',
+        blockType: 'equipmentDay',
+        rows: [
+          row('row-day-a', 'Day', '08:00 - 16:00', 'morning', {
+            20: [
+              { employeeId: 'employee-a', employeeCode: 'A', status: 'published' },
+              { employeeId: 'employee-c', employeeCode: 'C', status: 'published' },
+            ],
+          }),
+          row('row-day-b', 'Day', '08:00 - 16:00', 'morning', {
+            20: [
+              { employeeId: 'employee-b', employeeCode: 'B', status: 'published' },
+              { employeeId: 'employee-d', employeeCode: 'D', status: 'published' },
+            ],
+          }),
+          row('row-late', 'Late', '15:00 - 00:00', 'evening', {
+            20: [{ employeeId: 'employee-e', employeeCode: 'E', status: 'published' }],
+          }),
+          row('row-night', 'Night', '20:00 - 08:00', 'night', {
+            21: [{ employeeId: 'employee-f', employeeCode: 'F', status: 'published' }],
+          }),
+          row('row-oncall-day', 'On-call Day', '08:00 - 20:00', 'onCall', {
+            22: [{ employeeId: 'employee-g', employeeCode: 'G', status: 'published' }],
+          }),
+          row('row-oncall-night', 'On-call Night', '20:00 - 08:00', 'onCallNight', {
+            23: [{ employeeId: 'employee-h', employeeCode: 'H', status: 'published' }],
+          }),
+        ],
+      }],
+    }],
+    legend: [],
+    vacations: [],
+    holidays: [],
+    settings: [],
+    auditLog: [],
+    cellMarkers: {},
+  };
+}
+
+function setScheduleState(data: ScheduleMatrixData, key = `${data.year}-${String(data.month + 1).padStart(2, '0')}`) {
+  useScheduleMatrixStore.setState({
+    data: structuredClone(data),
+    matricesByMonth: { [key]: structuredClone(data) },
+    draftsByMonth: { [key]: structuredClone(data) },
+    snapshot: JSON.stringify(data),
+    draftCellKeys: [],
+    undoStack: [],
+    versionsByMonth: {},
+    monthStatuses: { [key]: 'published' },
+    storageError: null,
+  });
+  return key;
 }
 
 describe('shiftAssignmentGateway references', () => {
@@ -67,12 +150,28 @@ describe('shiftAssignmentGateway published application', () => {
     requesterAssignment: NonNullable<ReturnType<typeof createScheduleAssignmentRef>> | NonNullable<ReturnType<typeof createOTAssignmentRef>>,
     offeredAssignment?: NonNullable<ReturnType<typeof createScheduleAssignmentRef>> | NonNullable<ReturnType<typeof createOTAssignmentRef>>,
   ): ShiftRequest {
+    return requestWithParties(
+      type,
+      requesterAssignment,
+      { accountId: 'account-a', employeeId: 'employee-a', employeeCode: 'A', name: 'A' },
+      { accountId: 'account-b', employeeId: 'employee-b', employeeCode: 'B', name: 'B' },
+      offeredAssignment,
+    );
+  }
+
+  function requestWithParties(
+    type: 'exchange' | 'replace',
+    requesterAssignment: NonNullable<ReturnType<typeof createScheduleAssignmentRef>> | NonNullable<ReturnType<typeof createOTAssignmentRef>>,
+    requester: ShiftRequest['requester'],
+    recipient: ShiftRequest['recipient'],
+    offeredAssignment?: NonNullable<ReturnType<typeof createScheduleAssignmentRef>> | NonNullable<ReturnType<typeof createOTAssignmentRef>>,
+  ): ShiftRequest {
     return {
       id: 'request-integration',
       type,
       departmentId: 'dept-1',
-      requester: { accountId: 'account-a', employeeId: 'employee-a', employeeCode: 'A', name: 'A' },
-      recipient: { accountId: 'account-b', employeeId: 'employee-b', employeeCode: 'B', name: 'B' },
+      requester,
+      recipient,
       requesterAssignment,
       offeredAssignment,
       status: 'pending_admin',
@@ -123,8 +222,8 @@ describe('shiftAssignmentGateway published application', () => {
     if (!result.ok) return;
     const state = useScheduleMatrixStore.getState();
     const publishedRows = state.matricesByMonth[key].facilities[0].units[0].rows;
-    expect(publishedRows[0].cellsByDay[20].map((item) => item.employeeId)).toEqual(['employee-c', 'employee-b']);
-    expect(publishedRows[1].cellsByDay[21].map((item) => item.employeeId)).toEqual(['employee-d', 'employee-a']);
+    expect(publishedRows[0].cellsByDay[20].map((item) => item.employeeId)).toEqual(['employee-b', 'employee-c']);
+    expect(publishedRows[1].cellsByDay[21].map((item) => item.employeeId)).toEqual(['employee-a', 'employee-d']);
     expect(state.draftsByMonth[key].facilities[0].units[0].rows[0].cellsByDay[20]).toEqual(publishedRows[0].cellsByDay[20]);
     expect((JSON.parse(state.snapshot) as ScheduleMatrixData).facilities[0].units[0].rows[1].cellsByDay[21]).toEqual(publishedRows[1].cellsByDay[21]);
     expect(state.undoStack[0].data.facilities[0].units[0].rows[0].cellsByDay[20]).toEqual(publishedRows[0].cellsByDay[20]);
@@ -221,10 +320,137 @@ describe('shiftAssignmentGateway published application', () => {
     });
 
     const publishedRows = useScheduleMatrixStore.getState().matricesByMonth[key].facilities[0].units[0].rows;
-    expect(publishedRows[0].cellsByDay[20].map((assignment) => assignment.employeeId)).toEqual(['employee-c', 'employee-b']);
-    expect(publishedRows[1].cellsByDay[21].map((assignment) => assignment.employeeId)).toEqual(['employee-d', 'employee-a']);
+    expect(publishedRows[0].cellsByDay[20].map((assignment) => assignment.employeeId)).toEqual(['employee-b', 'employee-c']);
+    expect(publishedRows[1].cellsByDay[21].map((assignment) => assignment.employeeId)).toEqual(['employee-a', 'employee-d']);
     expect(notify).toHaveBeenCalledTimes(3);
     expect(recordAudit).toHaveBeenCalledTimes(3);
+  });
+
+  it('replaces in place without duplicating employees and clears stale assignment metadata', () => {
+    const data = matrix();
+    data.facilities[0].units[0].rows[0].cellsByDay[20] = [
+      {
+        employeeId: 'employee-a',
+        employeeCode: 'A',
+        colorKey: 'night',
+        status: 'published',
+        hasConflict: true,
+        conflictReason: 'stale',
+        conflictType: 'timeOverlap',
+      },
+      { employeeId: 'employee-c', employeeCode: 'C', status: 'published' },
+    ];
+    const key = setScheduleState(data);
+    const ref = createScheduleAssignmentRef(data, 'row-a', 20, 'employee-a');
+    if (!ref) throw new Error('missing replace ref');
+
+    const result = browserShiftAssignmentGateway.apply(requestFrom('replace', ref), {
+      actorName: 'Administrator',
+      overrideConflicts: true,
+      now: new Date('2026-07-15T10:00:00'),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const assignments = useScheduleMatrixStore.getState().matricesByMonth[key].facilities[0].units[0].rows[0].cellsByDay[20];
+    expect(assignments).toEqual([
+      {
+        employeeId: 'employee-b',
+        employeeCode: 'B',
+        colorKey: 'night',
+        status: 'published',
+        hasConflict: false,
+        conflictReason: undefined,
+        conflictType: undefined,
+      },
+      { employeeId: 'employee-c', employeeCode: 'C', status: 'published', hasConflict: false },
+    ]);
+  });
+
+  it('keeps primary and secondary slots across same-day and cross-day schedule exchanges', () => {
+    const data = complexMatrix();
+    const key = setScheduleState(data);
+    const exchange = (rowIdA: string, dayA: number, employeeA: string, rowIdB: string, dayB: number, employeeB: string) => {
+      const state = useScheduleMatrixStore.getState().matricesByMonth[key];
+      const first = createScheduleAssignmentRef(state, rowIdA, dayA, employeeA);
+      const second = createScheduleAssignmentRef(state, rowIdB, dayB, employeeB);
+      if (!first || !second) throw new Error('missing exchange ref');
+      const result = browserShiftAssignmentGateway.apply(requestWithParties(
+        'exchange',
+        first,
+        { accountId: `account-${employeeA}`, employeeId: employeeA, employeeCode: employeeA.slice(-1).toUpperCase(), name: employeeA },
+        { accountId: `account-${employeeB}`, employeeId: employeeB, employeeCode: employeeB.slice(-1).toUpperCase(), name: employeeB },
+        second,
+      ), {
+        actorName: 'Administrator',
+        overrideConflicts: true,
+        now: new Date('2026-07-15T10:00:00'),
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('exchange failed');
+    };
+
+    exchange('row-day-a', 20, 'employee-a', 'row-day-b', 20, 'employee-b');
+    exchange('row-day-b', 20, 'employee-a', 'row-night', 21, 'employee-f');
+    exchange('row-day-a', 20, 'employee-c', 'row-late', 20, 'employee-e');
+    exchange('row-night', 21, 'employee-a', 'row-oncall-day', 22, 'employee-g');
+    exchange('row-oncall-day', 22, 'employee-a', 'row-oncall-night', 23, 'employee-h');
+
+    const rows = useScheduleMatrixStore.getState().matricesByMonth[key].facilities[0].units[0].rows;
+    expect(rows.find((row) => row.id === 'row-day-a')?.cellsByDay[20].map((item) => item.employeeId)).toEqual(['employee-b', 'employee-e']);
+    expect(rows.find((row) => row.id === 'row-day-b')?.cellsByDay[20].map((item) => item.employeeId)).toEqual(['employee-f', 'employee-d']);
+    expect(rows.find((row) => row.id === 'row-late')?.cellsByDay[20].map((item) => item.employeeId)).toEqual(['employee-c']);
+    expect(rows.find((row) => row.id === 'row-night')?.cellsByDay[21].map((item) => item.employeeId)).toEqual(['employee-g']);
+    expect(rows.find((row) => row.id === 'row-oncall-day')?.cellsByDay[22].map((item) => item.employeeId)).toEqual(['employee-h']);
+    expect(rows.find((row) => row.id === 'row-oncall-night')?.cellsByDay[23].map((item) => item.employeeId)).toEqual(['employee-a']);
+    expect(useScheduleMatrixStore.getState().data?.facilities[0].units[0].rows).toEqual(rows);
+  });
+
+  it('rejects invalid replacements that would duplicate the recipient in the same cell', () => {
+    const data = matrix();
+    data.facilities[0].units[0].rows[0].cellsByDay[20].push({
+      employeeId: 'employee-b',
+      employeeCode: 'B',
+      status: 'published',
+    });
+    setScheduleState(data);
+    const ref = createScheduleAssignmentRef(data, 'row-a', 20, 'employee-a');
+    if (!ref) throw new Error('missing duplicate-prevention ref');
+
+    expect(browserShiftAssignmentGateway.apply(requestFrom('replace', ref), {
+      actorName: 'Administrator',
+      overrideConflicts: true,
+      now: new Date('2026-07-15T10:00:00'),
+    })).toMatchObject({ ok: false, reason: 'not_found' });
+  });
+
+  it('preserves approved exchanges when the month is published afterwards', () => {
+    const data = complexMatrix();
+    const key = setScheduleState(data);
+    useScheduleMatrixStore.setState({ draftCellKeys: ['settings|publish-check'] });
+    const first = createScheduleAssignmentRef(data, 'row-day-a', 20, 'employee-a');
+    const second = createScheduleAssignmentRef(data, 'row-night', 21, 'employee-f');
+    if (!first || !second) throw new Error('missing publish refs');
+
+    const result = browserShiftAssignmentGateway.apply(requestWithParties(
+      'exchange',
+      first,
+      { accountId: 'account-a', employeeId: 'employee-a', employeeCode: 'A', name: 'A' },
+      { accountId: 'account-f', employeeId: 'employee-f', employeeCode: 'F', name: 'F' },
+      second,
+    ), {
+      actorName: 'Administrator',
+      overrideConflicts: true,
+      now: new Date('2026-07-15T10:00:00'),
+    });
+    expect(result.ok).toBe(true);
+    const publish = useScheduleMatrixStore.getState().publishDrafts('Administrator');
+    expect(publish.ok).toBe(true);
+
+    const rows = useScheduleMatrixStore.getState().matricesByMonth[key].facilities[0].units[0].rows;
+    expect(rows.find((row) => row.id === 'row-day-a')?.cellsByDay[20][0].employeeId).toBe('employee-f');
+    expect(rows.find((row) => row.id === 'row-night')?.cellsByDay[21][0].employeeId).toBe('employee-a');
+    expect(useScheduleMatrixStore.getState().draftCellKeys).toEqual([]);
   });
 
   it('blocks approval when the same Schedule cell has an unresolved draft change', () => {
@@ -294,8 +520,8 @@ describe('shiftAssignmentGateway published application', () => {
     if (!result.ok) return;
     const assignments = useLateScheduleStore.getState().publishedRowsByMonth[key][0].assignments[20];
     expect(assignments).toEqual([
-      { kind: 'employee', employeeId: 'employee-c' },
       { kind: 'employee', employeeId: 'employee-b' },
+      { kind: 'employee', employeeId: 'employee-c' },
     ]);
     expect(useLateScheduleStore.getState().rowsByMonth[key][0].assignments[20]).toEqual(assignments);
     expect(useLateScheduleStore.getState().versionsByMonth[key]).toHaveLength(1);
@@ -352,12 +578,12 @@ describe('shiftAssignmentGateway published application', () => {
     if (!result.ok) return;
     const state = useLateScheduleStore.getState();
     expect(state.publishedRowsByMonth[januaryKey][0].assignments[20]).toEqual([
-      { kind: 'employee', employeeId: 'employee-c' },
       { kind: 'employee', employeeId: 'employee-b' },
+      { kind: 'employee', employeeId: 'employee-c' },
     ]);
     expect(state.publishedRowsByMonth[februaryKey][0].assignments[21]).toEqual([
-      { kind: 'employee', employeeId: 'employee-d' },
       { kind: 'employee', employeeId: 'employee-a' },
+      { kind: 'employee', employeeId: 'employee-d' },
     ]);
     expect(state.versionsByMonth[januaryKey]).toHaveLength(1);
     expect(state.versionsByMonth[februaryKey]).toHaveLength(1);

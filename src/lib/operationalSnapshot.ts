@@ -10,7 +10,8 @@ import type {
   OperationalSnapshot,
 } from '@/types/operationalDashboard';
 import type { OperationalShiftCategory, OperationalShiftVisual } from '@/types/operationalSchedule';
-import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
+import type { ScheduleMatrixData } from '@/types/scheduleMatrix';
+import { resolveOperationalShiftCategory } from './scheduleShiftCategory';
 
 const COVERAGE_ORDER: CoverageCategory[] = ['day', 'night', 'onCallDay', 'onCallNight', 'ot'];
 const ISSUE_ORDER: Record<OperationalIssue['kind'], number> = {
@@ -28,18 +29,6 @@ function parseDate(value: string): { year: number; month: number; day: number; d
   const day = Number(match[3]);
   const date = new Date(year, month, day);
   return { year, month, day, date };
-}
-
-function categoryFromColor(colorKey: ShiftColorKey): OperationalShiftCategory | null {
-  switch (colorKey) {
-    case 'morning': return 'day';
-    case 'evening': return 'night';
-    case 'night': return 'night';
-    case 'onCall': return 'onCallDay';
-    case 'onCallNight': return 'onCallNight';
-    case 'overtime': return 'ot';
-    case 'vacation': return null;
-  }
 }
 
 function coverageCategory(category: OperationalShiftCategory): CoverageCategory {
@@ -133,7 +122,13 @@ export function buildOperationalSnapshot(
             ? settings?.shiftDefinitions.find((entry) => entry.id === row.shiftDefinitionId)
             : undefined;
           if (definition && definition.effectiveFromDay > day) continue;
-          const subcategory = categoryFromColor(row.colorKey);
+          const subcategory = resolveOperationalShiftCategory({
+            colorKey: row.colorKey,
+            shiftLabel: row.shiftLabel,
+            rowLabel: row.rowLabel,
+            unitLabel: row.unitLabel || unit.name,
+            shiftDefinitionId: row.shiftDefinitionId,
+          });
           if (!subcategory) continue;
           const category = coverageCategory(subcategory);
           const metric = metrics.get(category)!;

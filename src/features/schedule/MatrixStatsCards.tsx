@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
 import { getShiftChipStyle } from '@/components/schedule/ScheduleMatrix/getShiftChipClasses';
 import type { ScheduleMatrixData, ShiftColorKey } from '@/types/scheduleMatrix';
+import { resolveScheduleShiftType } from '@/lib/scheduleShiftCategory';
 
 interface StatItem {
   id: string;
@@ -184,23 +185,19 @@ function MatrixStatsCards({
         filterActiveScheduleRows(data, fac.id, unit.rows).forEach(row => {
           Object.values(row.cellsByDay).forEach(assignments => {
             const count = assignments.length;
-            if (row.colorKey === 'morning') morningShifts += count;
-            else if (row.colorKey === 'evening' || row.colorKey === 'night') nightShifts += count;
-            else if (row.colorKey === 'onCall') onCallDay += count;
-            else if (row.colorKey === 'onCallNight') onCallNight += count;
-            else if (row.colorKey === 'overtime') overtime += count;
-            else {
-              const lower = (row.shiftLabel || row.unitLabel || '').toLowerCase();
-              const hasOnCall = lower.includes('oncall') || lower.includes('on call') || lower.includes('طلب');
-              const hasNight = lower.includes('night') || lower.includes('ليل');
-              const hasEvening = lower.includes('evening') || lower.includes('مساء');
-              
-              if (hasOnCall && hasNight) onCallNight += count;
-              else if (hasOnCall) onCallDay += count;
-              else if (lower.includes('morning') || lower.includes('صباح')) morningShifts += count;
-              else if (hasEvening || hasNight) nightShifts += count;
-              else morningShifts += count;
-            }
+            const category = resolveScheduleShiftType({
+              colorKey: row.colorKey,
+              shiftLabel: row.shiftLabel,
+              rowLabel: row.rowLabel,
+              unitLabel: row.unitLabel || unit.name,
+              shiftDefinitionId: row.shiftDefinitionId,
+            });
+
+            if (category === 'day' || category === null) morningShifts += count;
+            else if (category === 'late' || category === 'night') nightShifts += count;
+            else if (category === 'onCallDay') onCallDay += count;
+            else if (category === 'onCallNight') onCallNight += count;
+            else if (category === 'ot') overtime += count;
           });
         });
       });

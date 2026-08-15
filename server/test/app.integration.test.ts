@@ -3,6 +3,7 @@ import { createApp } from '../src/app.js';
 import { clearAllRateLimits } from '../src/lib/rateLimit.js';
 import {
   buildRequesterAssignment,
+  buildRecipientAssignment,
   ids,
   login,
   makeAgent,
@@ -13,6 +14,48 @@ import {
 
 const app = createApp();
 const prisma = prismaClient();
+
+function requesterAssignmentWithCell(employeeIdsInCell: string[]) {
+  return {
+    ...buildRequesterAssignment(),
+    fingerprint: [
+      'schedule',
+      '2026-09',
+      'facility-kamc',
+      'unit-ct-1',
+      'schedule-row-1',
+      '15',
+      'emp-ali',
+      '',
+      'CT-1',
+      'Scanner 1',
+      'Day',
+      '08:00 - 16:00',
+      [...employeeIdsInCell].sort().join(','),
+    ].join('|'),
+  };
+}
+
+function recipientAssignmentWithCell(employeeIdsInCell: string[]) {
+  return {
+    ...buildRecipientAssignment(),
+    fingerprint: [
+      'schedule',
+      '2026-09',
+      'facility-kamc',
+      'unit-ct-1',
+      'schedule-row-2',
+      '16',
+      'emp-omar',
+      '',
+      'CT-1',
+      'Scanner 2',
+      'Night',
+      '16:00 - 23:00',
+      [...employeeIdsInCell].sort().join(','),
+    ].join('|'),
+  };
+}
 
 describe('server integration', () => {
   beforeEach(async () => {
@@ -582,8 +625,248 @@ describe('server integration', () => {
     const scheduleMonth = await prisma.scheduleMonth.findUniqueOrThrow({ where: { monthKey: '2026-09' } });
     const published = JSON.parse(scheduleMonth.publishedJson ?? '{}');
     expect(published.facilities[0].units[0].rows[0].cellsByDay['15']).toEqual([
-      { employeeId: 'emp-omar', employeeCode: 'OMR', status: 'published' },
+      { employeeId: 'emp-omar', employeeCode: 'OMR', status: 'published', hasConflict: false },
     ]);
+  });
+
+  it('shift requests: replace preserves slot metadata in the database and survives bootstrap refresh', async () => {
+    const scheduleMonth = await prisma.scheduleMonth.findUniqueOrThrow({ where: { monthKey: '2026-09' } });
+    const published = JSON.parse(scheduleMonth.publishedJson ?? '{}');
+    published.facilities[0].units[0].rows[0].cellsByDay['15'] = [
+      {
+        employeeId: 'emp-ali',
+        employeeCode: 'ALI',
+        colorKey: 'night',
+        status: 'published',
+        hasConflict: true,
+        conflictReason: 'stale conflict',
+        conflictType: 'timeOverlap',
+      },
+      { employeeId: 'emp-cover', employeeCode: 'CVR', status: 'published' },
+    ];
+    await prisma.scheduleMonth.update({
+      where: { monthKey: '2026-09' },
+      data: {
+        publishedJson: JSON.stringify(published),
+        draftJson: JSON.stringify(published),
+      },
+    });
+
+    const requesterAgent = makeAgent(app);
+    const recipientAgent = makeAgent(app);
+    const adminAgent = makeAgent(app);
+    await login(requesterAgent, 'ali@hospital.sa');
+    await login(recipientAgent, 'omar@hospital.sa');
+    await login(adminAgent, 'admin@hospital.sa');
+
+    const createResponse = await requesterAgent.post('/api/shift-requests').send({
+      type: 'replace',
+      recipientAccountId: ids.employeeOmar,
+      requesterAssignment: requesterAssignmentWithCell(['emp-ali', 'emp-cover']),
+    });
+    expect(createResponse.status).toBe(201);
+
+    const acceptResponse = await recipientAgent.post(`/api/shift-requests/${createResponse.body.request.id}/accept`);
+    expect(acceptResponse.status).toBe(200);
+
+    const approveResponse = await adminAgent.post(`/api/shift-requests/${createResponse.body.request.id}/approve`).send({
+      overrideConflicts: false,
+    });
+    expect(approveResponse.status).toBe(200);
+
+    const storedMonth = await prisma.scheduleMonth.findUniqueOrThrow({ where: { monthKey: '2026-09' } });
+    const nextPublished = JSON.parse(storedMonth.publishedJson ?? '{}');
+    const nextDraft = JSON.parse(storedMonth.draftJson ?? '{}');
+    expect(nextPublished.facilities[0].units[0].rows[0].cellsByDay['15']).toEqual([
+      {
+        employeeId: 'emp-omar',
+        employeeCode: 'OMR',
+        colorKey: 'night',
+        status: 'published',
+        hasConflict: false,
+      },
+      {
+        employeeId: 'emp-cover',
+        employeeCode: 'CVR',
+        status: 'published',
+        hasConflict: false,
+      },
+    ]);
+    expect(nextDraft.facilities[0].units[0].rows[0].cellsByDay['15']).toEqual(
+      nextPublished.facilities[0].units[0].rows[0].cellsByDay['15'],
+    );
+
+    const bootstrap = await adminAgent.get('/api/bootstrap');
+    expect(bootstrap.status).toBe(200);
+    expect(bootstrap.body.schedule.matricesByMonth['2026-09'].facilities[0].units[0].rows[0].cellsByDay['15']).toEqual(
+      nextPublished.facilities[0].units[0].rows[0].cellsByDay['15'],
+    );
+  });
+
+  it('shift requests: exchange preserves primary and secondary assignments, persists through schedule publish round-trip, and records audit', async () => {
+    const scheduleMonth = await prisma.scheduleMonth.findUniqueOrThrow({ where: { monthKey: '2026-09' } });
+    const published = JSON.parse(scheduleMonth.publishedJson ?? '{}');
+    published.facilities[0].units[0].rows[0].cellsByDay['15'] = [
+      { employeeId: 'emp-ali', employeeCode: 'ALI', status: 'published' },
+      { employeeId: 'emp-cover-a', employeeCode: 'CVA', status: 'published' },
+    ];
+    published.facilities[0].units[0].rows[1].cellsByDay['16'] = [
+      { employeeId: 'emp-omar', employeeCode: 'OMR', status: 'published' },
+      { employeeId: 'emp-cover-b', employeeCode: 'CVB', status: 'published' },
+    ];
+    await prisma.scheduleMonth.update({
+      where: { monthKey: '2026-09' },
+      data: {
+        publishedJson: JSON.stringify(published),
+        draftJson: JSON.stringify(published),
+      },
+    });
+
+    const requesterAgent = makeAgent(app);
+    const recipientAgent = makeAgent(app);
+    const adminAgent = makeAgent(app);
+    await login(requesterAgent, 'ali@hospital.sa');
+    await login(recipientAgent, 'omar@hospital.sa');
+    await login(adminAgent, 'admin@hospital.sa');
+
+    const createResponse = await requesterAgent.post('/api/shift-requests').send({
+      type: 'exchange',
+      recipientAccountId: ids.employeeOmar,
+      requesterAssignment: requesterAssignmentWithCell(['emp-ali', 'emp-cover-a']),
+      offeredAssignment: recipientAssignmentWithCell(['emp-omar', 'emp-cover-b']),
+    });
+    expect(createResponse.status).toBe(201);
+
+    const acceptResponse = await recipientAgent.post(`/api/shift-requests/${createResponse.body.request.id}/accept`);
+    expect(acceptResponse.status).toBe(200);
+
+    const approveResponse = await adminAgent.post(`/api/shift-requests/${createResponse.body.request.id}/approve`).send({
+      overrideConflicts: false,
+    });
+    expect(approveResponse.status).toBe(200);
+
+    const storedMonth = await prisma.scheduleMonth.findUniqueOrThrow({ where: { monthKey: '2026-09' } });
+    const nextPublished = JSON.parse(storedMonth.publishedJson ?? '{}');
+    const nextDraft = JSON.parse(storedMonth.draftJson ?? '{}');
+    expect(nextPublished.facilities[0].units[0].rows[0].cellsByDay['15']).toEqual([
+      { employeeId: 'emp-omar', employeeCode: 'OMR', status: 'published', hasConflict: false },
+      { employeeId: 'emp-cover-a', employeeCode: 'CVA', status: 'published', hasConflict: false },
+    ]);
+    expect(nextPublished.facilities[0].units[0].rows[1].cellsByDay['16']).toEqual([
+      { employeeId: 'emp-ali', employeeCode: 'ALI', status: 'published', hasConflict: false },
+      { employeeId: 'emp-cover-b', employeeCode: 'CVB', status: 'published', hasConflict: false },
+    ]);
+    expect(nextDraft.facilities[0].units[0].rows[0].cellsByDay['15']).toEqual(
+      nextPublished.facilities[0].units[0].rows[0].cellsByDay['15'],
+    );
+    expect(nextDraft.facilities[0].units[0].rows[1].cellsByDay['16']).toEqual(
+      nextPublished.facilities[0].units[0].rows[1].cellsByDay['16'],
+    );
+    expect(nextPublished.auditLog[0]).toMatchObject({ action: 'assign', day: 16, rowId: 'schedule-row-2' });
+    expect(nextPublished.auditLog[1]).toMatchObject({ action: 'assign', day: 15, rowId: 'schedule-row-1' });
+    expect(JSON.parse(storedMonth.versionsJson)).toHaveLength(1);
+
+    const scheduleResponse = await adminAgent.get('/api/schedule');
+    expect(scheduleResponse.status).toBe(200);
+    const publishResponse = await adminAgent.put('/api/schedule').send(scheduleResponse.body.schedule);
+    expect(publishResponse.status).toBe(200);
+
+    const afterRoundTrip = await prisma.scheduleMonth.findUniqueOrThrow({ where: { monthKey: '2026-09' } });
+    const roundTripPublished = JSON.parse(afterRoundTrip.publishedJson ?? '{}');
+    expect(roundTripPublished.facilities[0].units[0].rows[0].cellsByDay['15']).toEqual(
+      nextPublished.facilities[0].units[0].rows[0].cellsByDay['15'],
+    );
+    expect(roundTripPublished.facilities[0].units[0].rows[1].cellsByDay['16']).toEqual(
+      nextPublished.facilities[0].units[0].rows[1].cellsByDay['16'],
+    );
+
+    const bootstrap = await adminAgent.get('/api/bootstrap');
+    expect(bootstrap.status).toBe(200);
+    expect(bootstrap.body.schedule.matricesByMonth['2026-09'].facilities[0].units[0].rows[0].cellsByDay['15']).toEqual(
+      nextPublished.facilities[0].units[0].rows[0].cellsByDay['15'],
+    );
+    expect(bootstrap.body.schedule.matricesByMonth['2026-09'].facilities[0].units[0].rows[1].cellsByDay['16']).toEqual(
+      nextPublished.facilities[0].units[0].rows[1].cellsByDay['16'],
+    );
+  });
+
+  it('shift requests: conflicting exchange requires override and leaves database unchanged until approved', async () => {
+    const scheduleMonth = await prisma.scheduleMonth.findUniqueOrThrow({ where: { monthKey: '2026-09' } });
+    const published = JSON.parse(scheduleMonth.publishedJson ?? '{}');
+    published.facilities.push({
+      id: 'facility-b',
+      name: 'Facility B',
+      accentColorToken: 'facility-kamc',
+      units: [{
+        id: 'unit-cross',
+        name: 'Cross Unit',
+        blockType: 'equipmentDay',
+        rows: [{
+          id: 'schedule-row-cross',
+          unitLabel: 'Cross Unit',
+          rowLabel: 'Overlap',
+          shiftLabel: 'Day',
+          timeRange: '09:00 - 12:00',
+          colorKey: 'morning',
+          weekendOnly: false,
+          blockType: 'equipmentDay',
+          cellsByDay: {
+            15: [{ employeeId: 'emp-omar', employeeCode: 'OMR', status: 'published' }],
+          },
+        }],
+      }],
+    });
+    await prisma.scheduleMonth.update({
+      where: { monthKey: '2026-09' },
+      data: {
+        publishedJson: JSON.stringify(published),
+        draftJson: JSON.stringify(published),
+      },
+    });
+
+    const requesterAgent = makeAgent(app);
+    const recipientAgent = makeAgent(app);
+    const adminAgent = makeAgent(app);
+    await login(requesterAgent, 'ali@hospital.sa');
+    await login(recipientAgent, 'omar@hospital.sa');
+    await login(adminAgent, 'admin@hospital.sa');
+
+    const createResponse = await requesterAgent.post('/api/shift-requests').send({
+      type: 'replace',
+      recipientAccountId: ids.employeeOmar,
+      requesterAssignment: buildRequesterAssignment(),
+    });
+    expect(createResponse.status).toBe(201);
+
+    const acceptResponse = await recipientAgent.post(`/api/shift-requests/${createResponse.body.request.id}/accept`);
+    expect(acceptResponse.status).toBe(200);
+
+    const blockedApprove = await adminAgent.post(`/api/shift-requests/${createResponse.body.request.id}/approve`).send({
+      overrideConflicts: false,
+    });
+    expect(blockedApprove.status).toBe(409);
+    expect(blockedApprove.body.error.code).toBe('CONFLICT_REQUIRES_OVERRIDE');
+    expect(blockedApprove.body.warnings).toEqual([
+      expect.objectContaining({ code: 'schedule_conflict', employeeId: 'emp-omar' }),
+    ]);
+
+    const unchangedMonth = await prisma.scheduleMonth.findUniqueOrThrow({ where: { monthKey: '2026-09' } });
+    expect(JSON.parse(unchangedMonth.publishedJson ?? '{}').facilities[0].units[0].rows[0].cellsByDay['15']).toEqual([
+      { employeeId: 'emp-ali', employeeCode: 'ALI', status: 'published' },
+    ]);
+
+    const approvedWithOverride = await adminAgent.post(`/api/shift-requests/${createResponse.body.request.id}/approve`).send({
+      overrideConflicts: true,
+    });
+    expect(approvedWithOverride.status).toBe(200);
+    expect(approvedWithOverride.body.request.conflictOverride).toBe(true);
+
+    const storedMonth = await prisma.scheduleMonth.findUniqueOrThrow({ where: { monthKey: '2026-09' } });
+    expect(JSON.parse(storedMonth.publishedJson ?? '{}').facilities[0].units[0].rows[0].cellsByDay['15'][0]).toMatchObject({
+      employeeId: 'emp-omar',
+      hasConflict: true,
+      conflictType: 'crossFacility',
+    });
   });
 
   it('shift requests: invalid transition, unauthorized processing, and admin rejection validation are enforced', async () => {

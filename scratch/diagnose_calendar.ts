@@ -6,6 +6,53 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+interface ScheduleAssignment {
+  employeeId?: string;
+  status?: string;
+}
+
+interface ScheduleRow {
+  shiftLabel?: string;
+  timeRange?: string;
+  cellsByDay?: Record<string, ScheduleAssignment[]>;
+}
+
+interface ScheduleUnit {
+  name: string;
+  rows?: ScheduleRow[];
+}
+
+interface ScheduleFacility {
+  name: string;
+  units?: ScheduleUnit[];
+}
+
+interface PublishedScheduleMatrix {
+  year?: number;
+  month?: number;
+  facilities?: ScheduleFacility[];
+}
+
+interface OvertimeAssignment {
+  kind?: string;
+  employeeId?: string;
+}
+
+interface OvertimeRow {
+  title?: string;
+  location?: string;
+  timeRange?: string;
+  assignments?: Record<string, OvertimeAssignment[]>;
+}
+
+function parseJson<T>(value: string, fallback: T): T {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 async function main() {
   console.log('=== CALENDAR SYNC DIAGNOSTIC ===\n');
 
@@ -35,11 +82,11 @@ async function main() {
     console.log(`  draftJson is null: ${sm.draftJson === null}`);
     if (sm.publishedJson) {
       try {
-        const parsed = JSON.parse(sm.publishedJson);
+        const parsed = parseJson<PublishedScheduleMatrix | Record<string, unknown>>(sm.publishedJson, {});
         console.log(`  publishedJson keys: ${Object.keys(parsed).join(', ')}`);
-        console.log(`  publishedJson.year: ${parsed.year}`);
-        console.log(`  publishedJson.month: ${parsed.month}`);
-        if (parsed.facilities) {
+        console.log(`  publishedJson.year: ${'year' in parsed ? parsed.year : undefined}`);
+        console.log(`  publishedJson.month: ${'month' in parsed ? parsed.month : undefined}`);
+        if ('facilities' in parsed && Array.isArray(parsed.facilities)) {
           console.log(`  facilities count: ${parsed.facilities.length}`);
           for (const fac of parsed.facilities) {
             console.log(`    facility: ${fac.name}, units: ${fac.units?.length ?? 0}`);
@@ -82,7 +129,7 @@ async function main() {
     console.log(`  monthKey: ${om.monthKey}, status: ${om.status}, deleted: ${om.deleted}`);
     console.log(`  publishedRowsJson (first 200 chars): ${om.publishedRowsJson.substring(0, 200)}`);
     try {
-      const rows = JSON.parse(om.publishedRowsJson);
+      const rows = parseJson<OvertimeRow[] | unknown>(om.publishedRowsJson, []);
       console.log(`  publishedRows count: ${Array.isArray(rows) ? rows.length : 'not an array'}`);
       if (Array.isArray(rows)) {
         for (const row of rows) {
@@ -124,7 +171,7 @@ async function main() {
     
     for (const sm of publishedScheduleMonths) {
       try {
-        const matrix = JSON.parse(sm.publishedJson!);
+        const matrix = parseJson<PublishedScheduleMatrix | null>(sm.publishedJson!, null);
         if (!matrix?.facilities || typeof matrix.year !== 'number' || typeof matrix.month !== 'number') {
           console.log(`    ${sm.monthKey}: Invalid matrix structure`);
           continue;
@@ -135,8 +182,8 @@ async function main() {
               for (const [dayText, assignments] of Object.entries(row.cellsByDay ?? {})) {
                 const day = Number(dayText);
                 if (!Number.isInteger(day)) continue;
-                const assignment = (assignments as any[]).find(
-                  (item: any) => item.employeeId === user.scheduleEmployeeId && item.status !== 'draft'
+                const assignment = assignments.find(
+                  (item) => item.employeeId === user.scheduleEmployeeId && item.status !== 'draft',
                 );
                 if (assignment) {
                   scheduleEventCount++;
@@ -153,12 +200,12 @@ async function main() {
     let overtimeEventCount = 0;
     for (const om of overtimeMonths) {
       try {
-        const rows = JSON.parse(om.publishedRowsJson);
+        const rows = parseJson<OvertimeRow[] | unknown>(om.publishedRowsJson, []);
         if (!Array.isArray(rows)) continue;
         for (const row of rows) {
           for (const [, assignments] of Object.entries(row.assignments ?? {})) {
-            const assignment = (assignments as any[]).find(
-              (item: any) => item.kind === 'employee' && item.employeeId === user.scheduleEmployeeId
+            const assignment = assignments.find(
+              (item) => item.kind === 'employee' && item.employeeId === user.scheduleEmployeeId,
             );
             if (assignment) {
               overtimeEventCount++;
