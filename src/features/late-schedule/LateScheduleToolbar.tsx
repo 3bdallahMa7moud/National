@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -6,6 +7,7 @@ import {
   FileSpreadsheet,
   LayoutGrid,
   LayoutList,
+  ListOrdered,
   Plus,
   Printer,
   Save,
@@ -37,15 +39,18 @@ interface LateScheduleToolbarProps {
   onExportExcel(): void;
   onExportPdf(): void;
   onAddShift(): void;
+  adminTab?: 'schedule' | 'structure';
+  onAdminTabChange?(tab: 'schedule' | 'structure'): void;
 }
 
 export default function LateScheduleToolbar(props: LateScheduleToolbarProps) {
   const { t, i18n } = useTranslation(['schedule']);
   const isRtl = i18n.language === 'ar';
+  const adminTab = props.adminTab ?? 'schedule';
 
   return (
     <header className="rounded-2xl border border-border bg-surface p-4 shadow-soft space-y-4">
-      {/* Top row: Title + Month Switcher + View Mode Toggle */}
+      {/* Top row: Title + Navigation + Mode Switcher */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-pink-500/10 text-pink-700 dark:text-pink-300">
@@ -56,6 +61,42 @@ export default function LateScheduleToolbar(props: LateScheduleToolbarProps) {
             <p className="truncate text-xs text-text-secondary">{isRtl ? 'العمل الإضافي والشفتات التخصصية' : 'Overtime & specialty coverage'}</p>
           </div>
         </div>
+
+        {/* Admin Tabs (Schedule vs Structure) */}
+        {props.canEdit && props.onAdminTabChange && (
+          <div className="flex items-center rounded-xl border border-border bg-surface-muted p-1 text-xs font-bold" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={adminTab === 'schedule'}
+              onClick={() => props.onAdminTabChange?.('schedule')}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3.5 py-2 transition-all',
+                adminTab === 'schedule'
+                  ? 'bg-surface text-primary shadow-sm font-extrabold'
+                  : 'text-text-secondary hover:text-text-primary',
+              )}
+            >
+              <CalendarDays className="h-4 w-4 text-primary" />
+              <span>{isRtl ? 'جدول المناوبات' : 'Schedule Grid'}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={adminTab === 'structure'}
+              onClick={() => props.onAdminTabChange?.('structure')}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3.5 py-2 transition-all',
+                adminTab === 'structure'
+                  ? 'bg-surface text-primary shadow-sm font-extrabold'
+                  : 'text-text-secondary hover:text-text-primary',
+              )}
+            >
+              <ListOrdered className="h-4 w-4 text-primary" />
+              <span>{isRtl ? 'هيكل وترتيب الجدول' : 'Structure & Order'}</span>
+            </button>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2">
           <div className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-muted p-1">

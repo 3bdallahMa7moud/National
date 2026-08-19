@@ -2,7 +2,8 @@
 // scheduleMatrixStore - Zustand store for Schedule Matrix
 // ============================================================
 // Frontend cache/editor state. Published and draft months are hydrated from
-// the backend; empty months stay empty until users create structure.
+// the backend; empty months reconstruct their configured row structure from
+// the latest authoritative month so administrators can keep assigning staff.
 
 import { create } from 'zustand';
 import type { Language } from '@/i18n/constants';
@@ -55,6 +56,7 @@ import {
   scheduleCellMarkerKey,
 } from '@/lib/scheduleCellMarkers';
 import { getOfficialEmployeeRoster, useEmployeeRosterStore } from './employeeRosterStore';
+import { useEmployeeDirectoryStore } from './employeeDirectoryStore';
 import { useOperationalAuditStore } from './operationalAuditStore';
 import {
   addMonthVersion,
@@ -187,12 +189,12 @@ interface ScheduleMatrixState {
   recalculateConflicts: () => void;
   reloadFromStorage: () => void;
 
-  addShiftDefinition: (facilityId: string, payload: Omit<ShiftDefinition, 'id' | 'facilityId'>) => void;
+  addShiftDefinition: (facilityId: string, payload: Omit<ShiftDefinition, 'id' | 'facilityId'>) => ShiftDefinition | null;
   updateShiftDefinition: (facilityId: string, shiftId: string, updates: Partial<ShiftDefinition>) => void;
   deleteShiftDefinition: (facilityId: string, shiftId: string) => void;
   archiveShiftDefinition: (facilityId: string, shiftId: string) => void;
   restoreShiftDefinition: (facilityId: string, shiftId: string) => void;
-  addUnit: (facilityId: string, name: string) => void;
+  addUnit: (facilityId: string, name: string) => Unit | null;
   renameUnit: (facilityId: string, unitId: string, name: string) => void;
   archiveUnit: (facilityId: string, unitId: string) => void;
   restoreUnit: (facilityId: string, unitId: string) => void;
@@ -202,7 +204,7 @@ interface ScheduleMatrixState {
     rowId: string,
     updates: Partial<Pick<ShiftRow, 'rowLabel' | 'shiftLabel' | 'timeRange' | 'colorKey' | 'weekendOnly' | 'shiftDefinitionId' | 'backgroundColor' | 'textColor'>>,
   ) => void;
-  addMatrixRow: (facilityId: string, unitId: string, shiftDefinitionId: string, rowLabel: string) => void;
+  addMatrixRow: (facilityId: string, unitId: string, shiftDefinitionId: string, rowLabel: string) => ShiftRow | null;
   archiveMatrixRow: (rowId: string) => void;
   restoreMatrixRow: (rowId: string) => void;
   deleteMatrixRow: (rowId: string, removeAssignments?: boolean) => void;
@@ -247,6 +249,13 @@ function cellKey(rowId: string, day: number) {
 
 function draftWith(existing: string[], key: string) {
   return existing.includes(key) ? existing : [...existing, key];
+}
+
+let localEntitySequence = 0;
+
+function createLocalUniqueId(prefix: string) {
+  localEntitySequence += 1;
+  return `${prefix}-${Date.now()}-${localEntitySequence.toString(36)}`;
 }
 
 function formatAssignments(assignments: Assignment[], locale: Language) {
@@ -440,15 +449,30 @@ function linkShiftDefinitionIds(data: ScheduleMatrixData): void {
   }
 }
 
+function getInactiveEmployeeAccountIds(): Set<string> {
+  const records = useEmployeeDirectoryStore.getState().records;
+  const set = new Set<string>();
+  for (const record of records) {
+    if (!record.active) {
+      if (record.accountId) set.add(record.accountId);
+      if (record.scheduleEmployeeId) set.add(record.scheduleEmployeeId);
+      if (record.code) set.add(record.code.toUpperCase());
+    }
+  }
+  return set;
+}
+
 function synchronizeMatrixRoster(data: ScheduleMatrixData): void {
   const roster = getOfficialEmployeeRoster();
   const employeeById = new Map(roster.map((employee) => [employee.employeeId, employee]));
+  const inactiveIds = getInactiveEmployeeAccountIds();
   data.legend = roster.map((employee) => ({
     employeeId: employee.employeeId,
     code: employee.code,
     fullName: employee.fullName,
     fullNameEn: employee.fullNameEn,
   }));
+  data.vacations = data.vacations.filter((vacation) => !inactiveIds.has(vacation.employeeId));
   for (const vacation of data.vacations) {
     const employee = employeeById.get(vacation.employeeId);
     if (!employee) continue;
@@ -458,11 +482,18 @@ function synchronizeMatrixRoster(data: ScheduleMatrixData): void {
   for (const facility of data.facilities) {
     for (const unit of facility.units) {
       for (const shiftRow of unit.rows) {
-        for (const assignments of Object.values(shiftRow.cellsByDay)) {
-          for (const assignment of assignments) {
+        for (const [day, assignments] of Object.entries(shiftRow.cellsByDay)) {
+          const activeAssignments = assignments.filter((assignment) => {
+            if (inactiveIds.has(assignment.employeeId) || inactiveIds.has(assignment.employeeCode.toUpperCase())) {
+              return false;
+            }
+            return true;
+          });
+          for (const assignment of activeAssignments) {
             const employee = employeeById.get(assignment.employeeId);
             if (employee) assignment.employeeCode = employee.code;
           }
+          shiftRow.cellsByDay[Number(day)] = activeAssignments;
         }
       }
     }
@@ -489,6 +520,127 @@ function emptyCells(daysInMonth: number): Record<number, Assignment[]> {
   const cells: Record<number, Assignment[]> = {};
   for (let day = 1; day <= daysInMonth; day += 1) cells[day] = [];
   return cells;
+}
+
+function scheduleMonthKey(year: number, month: number): string {
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
+function scheduleMonthOrdinal(year: number, month: number): number {
+  return year * 12 + month;
+}
+
+function hasConfiguredScheduleStructure(data: ScheduleMatrixData | null | undefined): data is ScheduleMatrixData {
+  if (!data) return false;
+  if (data.facilities.some((facility) => facility.units.length > 0)) return true;
+  return data.settings.some((settings) =>
+    settings.units.length > 0 || settings.shiftDefinitions.length > 0,
+  );
+}
+
+function createStructuredMonthFromTemplate(
+  template: ScheduleMatrixData,
+  year: number,
+  month: number,
+): ScheduleMatrixData {
+  const data = cloneData(template);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  data.year = year;
+  data.month = month;
+  data.vacations = [];
+  data.holidays = [];
+  data.auditLog = [];
+  data.cellMarkers = {};
+
+  for (const facility of data.facilities) {
+    for (const unit of facility.units) {
+      for (const row of unit.rows) {
+        row.unitLabel = unit.name;
+        row.blockType = unit.blockType;
+        row.cellsByDay = emptyCells(daysInMonth);
+      }
+    }
+  }
+
+  return data;
+}
+
+function findNearestStructuredScheduleMonth(
+  targetYear: number,
+  targetMonth: number,
+  source: Pick<ScheduleMatrixState, 'matricesByMonth' | 'draftsByMonth'> & {
+    data?: ScheduleMatrixData | null;
+  },
+): ScheduleMatrixData | null {
+  const targetKey = scheduleMonthKey(targetYear, targetMonth);
+  const targetOrdinal = scheduleMonthOrdinal(targetYear, targetMonth);
+  const candidates = new Map<string, ScheduleMatrixData>();
+
+  if (hasConfiguredScheduleStructure(source.data)) {
+    candidates.set(scheduleMonthKey(source.data.year, source.data.month), source.data);
+  }
+
+  for (const key of new Set([
+    ...Object.keys(source.draftsByMonth),
+    ...Object.keys(source.matricesByMonth),
+  ])) {
+    const draft = source.draftsByMonth[key];
+    if (hasConfiguredScheduleStructure(draft)) {
+      candidates.set(key, draft);
+      continue;
+    }
+
+    const stored = source.matricesByMonth[key];
+    if (hasConfiguredScheduleStructure(stored)) {
+      candidates.set(key, stored);
+    }
+  }
+
+  const ordered = [...candidates.entries()]
+    .filter(([key]) => key !== targetKey)
+    .map(([key, data]) => ({ key, data, ordinal: data.year * 12 + data.month }))
+    .sort((left, right) => {
+      const leftIsFuture = left.ordinal > targetOrdinal;
+      const rightIsFuture = right.ordinal > targetOrdinal;
+      if (leftIsFuture !== rightIsFuture) return Number(leftIsFuture) - Number(rightIsFuture);
+
+      const distance = Math.abs(left.ordinal - targetOrdinal) - Math.abs(right.ordinal - targetOrdinal);
+      if (distance !== 0) return distance;
+
+      return leftIsFuture
+        ? left.ordinal - right.ordinal
+        : right.ordinal - left.ordinal;
+    });
+
+  return ordered[0]?.data ?? null;
+}
+
+function resolveScheduleMonthData(
+  year: number,
+  month: number,
+  source: Pick<ScheduleMatrixState, 'matricesByMonth' | 'draftsByMonth' | 'deletedMonths'> & {
+    data?: ScheduleMatrixData | null;
+  },
+): ScheduleMatrixData {
+  const key = scheduleMonthKey(year, month);
+  if (source.deletedMonths.includes(key)) {
+    return deletedMonthShell(year, month);
+  }
+
+  const draft = source.draftsByMonth[key];
+  if (draft) return cloneData(draft);
+
+  const stored = source.matricesByMonth[key];
+  if (stored) return cloneData(stored);
+
+  const template = findNearestStructuredScheduleMonth(year, month, source);
+  if (template) {
+    return createStructuredMonthFromTemplate(template, year, month);
+  }
+
+  const departmentId = source.data?.departmentId ?? 'dept-1';
+  return createEmptyScheduleMatrix(year, month, departmentId, getOfficialEmployeeRoster());
 }
 
 function normalizeTimeRange(definition: ShiftDefinition): string {
@@ -578,7 +730,7 @@ function makeShiftRowFromDefinition(
 ): ShiftRow {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const shiftRow: ShiftRow = {
-    id: `${unit.id}-row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    id: createLocalUniqueId(`${unit.id}-row`),
     shiftDefinitionId: definition.id,
     blockType: unit.blockType,
     unitLabel: unit.name,
@@ -598,7 +750,7 @@ function makeShiftRowFromDefinition(
 }
 
 function makeEmptyUnit(facilityId: string, name: string): Unit {
-  const id = `${facilityId}-${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+  const id = createLocalUniqueId(`${facilityId}-${name.toLowerCase().replace(/\s+/g, '-')}`);
 
   return {
     id,
@@ -842,13 +994,12 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
   closeDrawer: () => set({ drawerCell: null }),
 
   loadMonth: (month, year) => {
-    const key = `${year}-${String(month + 1).padStart(2, '0')}`;
-    const stored = get().matricesByMonth[key];
-    const draft = get().draftsByMonth[key];
-    const isDeleted = get().deletedMonths.includes(key);
-    const data = isDeleted
-      ? deletedMonthShell(year, month)
-      : cloneData(draft ?? stored ?? createEmptyScheduleMatrix(year, month, 'dept-1', getOfficialEmployeeRoster()));
+    const state = get();
+    const key = scheduleMonthKey(year, month);
+    const stored = state.matricesByMonth[key];
+    const draft = state.draftsByMonth[key];
+    const isDeleted = state.deletedMonths.includes(key);
+    const data = resolveScheduleMonthData(year, month, state);
     linkShiftDefinitionIds(data);
     synchronizeRowsWithShiftDefinitions(data);
     synchronizeMatrixRoster(data);
@@ -1352,9 +1503,12 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       actorName,
       'publish',
     );
+    const draftsByMonth = { ...state.draftsByMonth };
+    delete draftsByMonth[key];
     set({
       data,
       matricesByMonth,
+      draftsByMonth,
       snapshot,
       draftCellKeys: [],
       undoStack: [],
@@ -1381,14 +1535,30 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
 
   discardDraft: () => {
     const state = get();
-    if (!state.snapshot) return;
-    const data = JSON.parse(state.snapshot) as ScheduleMatrixData;
+    if (!state.data) return;
+    const key = matrixMonthKey(state.data);
+    const stored = state.matricesByMonth[key];
+    const data = stored ? cloneData(stored) : resolveScheduleMonthData(state.year, state.month, {
+      ...state,
+      draftsByMonth: {},
+    });
+    const draftsByMonth = { ...state.draftsByMonth };
+    delete draftsByMonth[key];
     addAudit(data, state.locale, {
       action: 'discard',
       oldValue: `${state.draftCellKeys.length} draft changes`,
       newValue: 'reverted to last published state',
     });
-    set({ data, draftCellKeys: [], selectedCells: [], brushEmployeeCodes: [], undoStack: [] });
+    set({
+      data,
+      draftsByMonth,
+      draftCellKeys: [],
+      selectedCells: [],
+      brushEmployeeCodes: [],
+      undoStack: [],
+      snapshot: JSON.stringify(data),
+      monthStatuses: { ...state.monthStatuses, [key]: stored ? 'published' : 'draft' },
+    });
   },
 
   undoLastEdit: () => {
@@ -1425,8 +1595,13 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
     const state = get();
     const activeKey = state.data ? matrixMonthKey(state.data) : null;
     const publishedActive = activeKey ? stored.matricesByMonth[activeKey] : undefined;
+    const draftActive = activeKey ? stored.draftsByMonth[activeKey] : undefined;
     const shouldRefreshActiveData = !!publishedActive
       && state.draftCellKeys.length === 0;
+    const shouldRebuildActiveData = !publishedActive
+      && !draftActive
+      && state.draftCellKeys.length === 0
+      && !!state.data;
 
     isSchedulePersistenceRollback = true;
     try {
@@ -1441,6 +1616,23 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
               data: cloneData(publishedActive),
               snapshot: JSON.stringify(publishedActive),
             }
+          : shouldRebuildActiveData
+            ? (() => {
+                const rebuilt = resolveScheduleMonthData(state.year, state.month, {
+                  data: state.data,
+                  matricesByMonth: stored.matricesByMonth,
+                  draftsByMonth: stored.draftsByMonth,
+                  deletedMonths: stored.deletedMonths,
+                });
+                linkShiftDefinitionIds(rebuilt);
+                synchronizeRowsWithShiftDefinitions(rebuilt);
+                synchronizeMatrixRoster(rebuilt);
+                recalculateAllConflicts(rebuilt);
+                return {
+                  data: rebuilt,
+                  snapshot: JSON.stringify(rebuilt),
+                };
+              })()
           : {}),
       });
     } finally {
@@ -1450,10 +1642,10 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
 
   addShiftDefinition: (facilityId, payload) => {
     const state = get();
-    if (!state.data) return;
+    if (!state.data) return null;
     const data = cloneData(state.data);
     const settings = data.settings.find((item) => item.facilityId === facilityId);
-    if (!settings) return;
+    if (!settings) return null;
     const label = payload.englishName?.trim() || payload.label.trim();
     const startTime = payload.startTime || payload.timeRange.split(' - ')[0] || '08:00';
     const endTime = payload.endTime || payload.timeRange.split(' - ')[1] || '17:00';
@@ -1461,7 +1653,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       .flatMap((entry) => entry.shiftDefinitions)
       .find((definition) => definition.colorKey === payload.colorKey);
     const definition: ShiftDefinition = {
-      id: `${facilityId}-shift-${Date.now()}`,
+      id: createLocalUniqueId(`${facilityId}-shift`),
       facilityId,
       ...payload,
       backgroundColor: payload.backgroundColor || existingTypeDefinition?.backgroundColor,
@@ -1472,7 +1664,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       endTime,
       timeRange: `${startTime} - ${endTime}`,
     };
-    settings.shiftDefinitions.push(definition);
+    settings.shiftDefinitions.unshift(definition);
     if (payload.backgroundColor || payload.textColor) {
       for (const facilitySettings of data.settings) {
         for (const candidate of facilitySettings.shiftDefinitions) {
@@ -1493,6 +1685,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       draftCellKeys: draftWith(state.draftCellKeys, `settings|shift|${facilityId}|${Date.now()}`),
       undoStack: pushUndo(state),
     });
+    return definition;
   },
 
   updateShiftDefinition: (facilityId, shiftId, updates) => {
@@ -1587,15 +1780,15 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
 
   addUnit: (facilityId, name) => {
     const state = get();
-    if (!state.data || !name.trim()) return;
+    if (!state.data || !name.trim()) return null;
     const data = cloneData(state.data);
     const facility = data.facilities.find((item) => item.id === facilityId);
     const settings = data.settings.find((item) => item.facilityId === facilityId);
-    if (!facility || !settings) return;
+    if (!facility || !settings) return null;
 
     const unit = makeEmptyUnit(facilityId, name.trim());
-    facility.units.push(unit);
-    settings.units.push({ id: unit.id, facilityId, name: unit.name });
+    facility.units.unshift(unit);
+    settings.units.unshift({ id: unit.id, facilityId, name: unit.name });
     addAudit(data, state.locale, {
       action: 'settings',
       facilityId,
@@ -1606,6 +1799,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       draftCellKeys: draftWith(state.draftCellKeys, `settings|unit|${unit.id}`),
       undoStack: pushUndo(state),
     });
+    return unit;
   },
 
   renameUnit: (facilityId, unitId, name) => {
@@ -1912,14 +2106,14 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
 
   addMatrixRow: (facilityId, unitId, shiftDefinitionId, rowLabel) => {
     const state = get();
-    if (!state.data || !rowLabel.trim()) return;
+    if (!state.data || !rowLabel.trim()) return null;
     const data = cloneData(state.data);
     const facility = data.facilities.find((item) => item.id === facilityId);
     const unit = facility?.units.find((item) => item.id === unitId);
     const definition = data.settings
       .find((item) => item.facilityId === facilityId)
       ?.shiftDefinitions.find((item) => item.id === shiftDefinitionId && !item.archived);
-    if (!facility || !unit || !definition) return;
+    if (!facility || !unit || !definition) return null;
 
     const row = makeShiftRowFromDefinition(facilityId, unit, definition, rowLabel, data.year, data.month);
     unit.rows.push(row);
@@ -1935,6 +2129,7 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
       draftCellKeys: draftWith(state.draftCellKeys, `settings|row-add|${row.id}`),
       undoStack: pushUndo(state),
     });
+    return row;
   },
 
   archiveMatrixRow: (rowId) => {
@@ -2168,9 +2363,11 @@ export const useScheduleMatrixStore = create<ScheduleMatrixState>((set, get) => 
 
     const versionsByMonth = addMonthVersion(state.versionsByMonth, key, state.data, actorName, 'generate');
     const deletedMonths = state.deletedMonths.filter((item) => item !== key);
+    const nextDrafts = { ...state.draftsByMonth, [key]: cloneData(generation.data) };
 
     set({
       data: generation.data,
+      draftsByMonth: nextDrafts,
       draftCellKeys: [`month-generate|${key}|${Date.now()}`],
       undoStack: pushUndo(state),
       selectedCells: [],
@@ -2254,9 +2451,6 @@ useScheduleMatrixStore.subscribe((state, previousState) => {
     }
     if (state.draftCellKeys.length > 0 && !nextDeletedMonths.includes(key)) {
       nextDrafts = { ...state.draftsByMonth, [key]: cloneData(state.data) };
-    } else if (state.draftsByMonth[key] && (state.matricesByMonth[key] || nextDeletedMonths.includes(key))) {
-      nextDrafts = { ...state.draftsByMonth };
-      delete nextDrafts[key];
     }
   }
 

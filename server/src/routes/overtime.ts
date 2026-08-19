@@ -6,15 +6,25 @@ import {
   serializeOvertimeState,
   syncOvertimeState,
 } from '../lib/scheduleState.js';
+import { syncRouteErrorResponse } from '../lib/syncRouteErrors.js';
 
 export const overtimeRouter = Router();
 
-overtimeRouter.get('/', requireAuth, async (_req, res) => {
+overtimeRouter.get('/', requireAuth, async (req, res) => {
   const months = await prisma.overtimeMonth.findMany({
     orderBy: { monthKey: 'asc' },
   });
+  const fullOvertime = serializeOvertimeState(months);
+  const overtime = req.viewer!.role === 'employee'
+    ? {
+      ...fullOvertime,
+      rowsByMonth: fullOvertime.publishedRowsByMonth,
+      unitsByMonth: fullOvertime.publishedUnitsByMonth,
+      versionsByMonth: {},
+    }
+    : fullOvertime;
   res.json({
-    overtime: serializeOvertimeState(months),
+    overtime,
   });
 });
 
@@ -35,11 +45,11 @@ overtimeRouter.put('/', requireRoles('admin', 'super_admin'), async (req, res) =
     const overtime = await prisma.$transaction((tx) => syncOvertimeState(tx, req.viewer!, parsed.data));
     res.json({ overtime });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to save overtime state.';
-    res.status(message.includes('another session') ? 409 : 400).json({
+    const response = syncRouteErrorResponse(error, 'OVERTIME_SYNC_FAILED', 'Unable to save overtime state.');
+    res.status(response.status).json({
       error: {
-        code: message.includes('another session') ? 'CONFLICT' : 'OVERTIME_SYNC_FAILED',
-        message,
+        code: response.code,
+        message: response.message,
       },
     });
   }

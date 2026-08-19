@@ -18,12 +18,24 @@ function parseTimeRange(timeRange: string) {
   return { start, end };
 }
 
-function toUtcDate(date: string, time: string) {
-  return new Date(`${date}T${time}:00`);
+function parseShiftDateTime(date: string, time: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hours, minutes] = time.split(':').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
 }
 
-function icsDate(date: Date) {
+function icsUtcDate(date: Date) {
   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+function icsLocalDateTime(date: Date) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  const h = String(date.getUTCHours()).padStart(2, '0');
+  const min = String(date.getUTCMinutes()).padStart(2, '0');
+  const s = String(date.getUTCSeconds()).padStart(2, '0');
+  return `${y}${m}${d}T${h}${min}${s}`;
 }
 
 async function ensureActiveToken(userId: string) {
@@ -56,8 +68,16 @@ function ensureCalendarSyncAccess(viewer: NonNullable<Express.Request['viewer']>
   }, 'schedule.calendar.sync');
 }
 
-function collectScheduleEvents(userScheduleEmployeeId: string, months: Array<{ publishedJson: string | null }>) {
-  const events: Array<{ title: string; description: string; start: Date; end: Date }> = [];
+interface CalendarFeedEvent {
+  id: string;
+  title: string;
+  description: string;
+  start: Date;
+  end: Date;
+}
+
+function collectScheduleEvents(userScheduleEmployeeId: string, months: Array<{ publishedJson: string | null }>): CalendarFeedEvent[] {
+  const events: CalendarFeedEvent[] = [];
 
   for (const month of months) {
     const matrix = parseJson<{
@@ -68,6 +88,7 @@ function collectScheduleEvents(userScheduleEmployeeId: string, months: Array<{ p
         units: Array<{
           name: string;
           rows: Array<{
+            id?: string;
             shiftLabel: string;
             timeRange: string;
             cellsByDay: Record<string, Array<{ employeeId: string; status?: string }>>;
@@ -87,11 +108,18 @@ function collectScheduleEvents(userScheduleEmployeeId: string, months: Array<{ p
             if (!assignment) continue;
             const date = `${matrix.year}-${String(matrix.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const { start, end } = parseTimeRange(row.timeRange);
+            const startDate = parseShiftDateTime(date, start);
+            let endDate = parseShiftDateTime(date, end);
+            if (endDate.getTime() <= startDate.getTime()) {
+              endDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
+            }
+            const rowKey = row.id || `${facility.name}-${unit.name}-${row.shiftLabel}`;
             events.push({
+              id: `schedule-${userScheduleEmployeeId}-${matrix.year}-${matrix.month}-${day}-${rowKey}`,
               title: row.shiftLabel,
               description: `${facility.name} / ${unit.name}`,
-              start: toUtcDate(date, start),
-              end: toUtcDate(date, end),
+              start: startDate,
+              end: endDate,
             });
           }
         }
@@ -102,11 +130,12 @@ function collectScheduleEvents(userScheduleEmployeeId: string, months: Array<{ p
   return events;
 }
 
-function collectOvertimeEvents(userScheduleEmployeeId: string, months: Array<{ monthKey: string; publishedRowsJson: string }>) {
-  const events: Array<{ title: string; description: string; start: Date; end: Date }> = [];
+function collectOvertimeEvents(userScheduleEmployeeId: string, months: Array<{ monthKey: string; publishedRowsJson: string }>): CalendarFeedEvent[] {
+  const events: CalendarFeedEvent[] = [];
 
   for (const month of months) {
     const rows = parseJson<Array<{
+      id?: string;
       title: string;
       location: string;
       timeRange: string;
@@ -124,11 +153,18 @@ function collectOvertimeEvents(userScheduleEmployeeId: string, months: Array<{ m
         if (!assignment) continue;
         const date = `${year}-${String(monthNumber).padStart(2, '0')}-${String(Number(dayText)).padStart(2, '0')}`;
         const { start, end } = parseTimeRange(row.timeRange);
+        const startDate = parseShiftDateTime(date, start);
+        let endDate = parseShiftDateTime(date, end);
+        if (endDate.getTime() <= startDate.getTime()) {
+          endDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
+        }
+        const rowKey = row.id || `${row.title}-${row.location}`;
         events.push({
+          id: `ot-${userScheduleEmployeeId}-${year}-${monthNumber}-${dayText}-${rowKey}`,
           title: row.title,
           description: `OT / ${row.location}`,
-          start: toUtcDate(date, start),
-          end: toUtcDate(date, end),
+          start: startDate,
+          end: endDate,
         });
       }
     }
@@ -217,7 +253,7 @@ calendarSyncRouter.get('/feed/:token.ics', async (req, res) => {
     return;
   }
 
-  let events: Array<{ title: string; description: string; start: Date; end: Date }> = [];
+  let events: CalendarFeedEvent[] = [];
 
   if (token.user.scheduleEmployeeId) {
     const [scheduleMonths, overtimeMonths] = await Promise.all([
@@ -241,12 +277,21 @@ calendarSyncRouter.get('/feed/:token.ics', async (req, res) => {
     'VERSION:2.0',
     'PRODID:-//CT Scan Scheduling//EN',
     'CALSCALE:GREGORIAN',
+    'BEGIN:VTIMEZONE',
+    'TZID:Asia/Riyadh',
+    'BEGIN:STANDARD',
+    'DTSTART:19700101T000000',
+    'TZOFFSETFROM:+0300',
+    'TZOFFSETTO:+0300',
+    'TZNAME:+03',
+    'END:STANDARD',
+    'END:VTIMEZONE',
     ...events.flatMap((event) => [
       'BEGIN:VEVENT',
-      `UID:${crypto.randomUUID()}`,
-      `DTSTAMP:${icsDate(new Date())}`,
-      `DTSTART:${icsDate(event.start)}`,
-      `DTEND:${icsDate(event.end)}`,
+      `UID:${crypto.createHash('sha256').update(event.id).digest('hex')}@ct-scan-scheduling`,
+      `DTSTAMP:${icsUtcDate(new Date())}`,
+      `DTSTART;TZID=Asia/Riyadh:${icsLocalDateTime(event.start)}`,
+      `DTEND;TZID=Asia/Riyadh:${icsLocalDateTime(event.end)}`,
       `SUMMARY:${event.title}`,
       `DESCRIPTION:${event.description}`,
       'END:VEVENT',

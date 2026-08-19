@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import type { EmployeeWorkloadRow } from '@/lib/employeeAnalysisExport';
 import { useToast } from '@/components/ui/Toast';
+import { useDepartmentStore } from '@/stores/departmentStore';
+import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import { useLateScheduleStore } from '@/stores/lateScheduleStore';
 import { useEmployeeRosterStore } from '@/stores/employeeRosterStore';
@@ -87,15 +89,25 @@ export default function ReportsPage() {
     (row) => row.totalScheduledAssignments > 0 || row.vacationDays > 0,
   );
 
+  const departments = useDepartmentStore((state) => state.records);
+  const directoryRecords = useEmployeeDirectoryStore((state) => state.records);
+
   const workloadRows: EmployeeWorkloadRow[] = useMemo(() => {
+    const directoryByEmployeeId = new Map(directoryRecords.map((rec) => [rec.scheduleEmployeeId || rec.accountId, rec]));
+    const departmentById = new Map(departments.map((dept) => [dept.id, isRtl ? dept.name.ar : dept.name.en]));
+
     return analysisRows.map((row) => {
       const total = row.totalScheduledAssignments;
       const totalHours = (row.day * 8) + (row.late * 8) + (row.night * 12) + (row.onCallDay * 8) + (row.onCallNight * 12) + row.otScheduleHours;
+      const empRecord = directoryByEmployeeId.get(row.employeeId);
+      const departmentName = (empRecord && departmentById.get(empRecord.departmentId))
+        || (departments[0] ? (isRtl ? departments[0].name.ar : departments[0].name.en) : (isRtl ? 'إدارة الجدولة' : 'Schedule Management'));
+
       return {
         ...row,
         id: row.employeeId,
         name: isRtl ? row.fullName : row.fullNameEn || row.fullName,
-        department: isRtl ? 'إدارة الجدولة' : 'Schedule Management',
+        department: departmentName,
         morning: row.day,
         evening: row.late,
         weekend: row.onCallDay + row.onCallNight,
@@ -109,7 +121,7 @@ export default function ReportsPage() {
         workloadStatus: total > 26 ? 'high' : total < 8 ? 'under' : 'balanced',
       };
     });
-  }, [analysisRows, isRtl]);
+  }, [analysisRows, departments, directoryRecords, isRtl]);
 
   const selectedEmployee = useMemo(
     () => workloadRows.find((emp) => emp.id === selectedEmployeeId),

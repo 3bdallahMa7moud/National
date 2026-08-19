@@ -14,7 +14,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useLanguage } from '@/hooks/useLanguage';
 import {
   Plus, Edit2, Trash2, Search, CheckCircle2, Copy, UserPlus,
-  Hash, Mail, RotateCcw, ShieldCheck,
+  Hash, RotateCcw, ShieldCheck, LockKeyhole,
 } from 'lucide-react';
 import { JOB_TITLE_OPTIONS, findJobTitleOption, type Employee, type UserRole } from '@/types';
 import api from '@/lib/axios';
@@ -37,16 +37,15 @@ interface AddForm {
   name: string;
   bn: string;
   code: string;
-  email: string;
   jobTitleId: string;
   phone: string;
   role: 'employee' | 'admin';
 }
 const emptyForm = (): AddForm => ({
-  name: '', bn: '', code: '', email: '', jobTitleId: JOB_TITLE_OPTIONS[0].id, phone: '', role: 'employee',
+  name: '', bn: '', code: '', jobTitleId: JOB_TITLE_OPTIONS[0].id, phone: '', role: 'employee',
 });
 
-interface AddedInfo { empNumber: string; name: string; email: string }
+interface AddedInfo { empNumber: string; name: string; defaultPassword?: string }
 
 export default function EmployeesPage() {
   const { t } = useTranslation(['employees', 'common', 'forms', 'access']);
@@ -87,7 +86,7 @@ export default function EmployeesPage() {
   const [addedInfo, setAddedInfo] = useState<AddedInfo | null>(null);  // confirmation screen
   const [form, setForm] = useState<AddForm>(emptyForm());
   const [formErrors, setFormErrors] = useState<Partial<AddForm>>({});
-  const [copied, setCopied] = useState<'num' | null>(null);
+  const [copied, setCopied] = useState<'num' | 'pwd' | null>(null);
   const [resetPasswordDialog, setResetPasswordDialog] = useState<Employee | null>(null);
   const [permissionsEmployee, setPermissionsEmployee] = useState<Employee | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -132,8 +131,6 @@ export default function EmployeesPage() {
     if (!form.name.trim()) errs.name = t('forms:validation.nameMin');
     if (!form.bn.trim()) errs.bn = t('forms:validation.nameMin', { defaultValue: 'BN required' });
     if (!form.code.trim()) errs.code = t('forms:validation.nameMin');
-    if (!form.email.trim()) errs.email = t('forms:validation.emailRequired', { defaultValue: 'Email is required' });
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = t('forms:validation.invalidEmail', { defaultValue: 'Enter a valid email address' });
     if (!form.jobTitleId) errs.jobTitleId = t('forms:validation.positionMin');
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
@@ -166,14 +163,13 @@ export default function EmployeesPage() {
         name: employeeName,
         employeeNumber: empNumber,
         code: form.code.trim().toUpperCase(),
-        email: form.email.trim(),
         position: language === 'ar' ? selectedTitle.ar : selectedTitle.en,
         phone: form.phone.trim(),
         role: form.role,
         departmentId: deptIdFilter || undefined,
       });
       await refreshEmployees();
-      setAddedInfo({ empNumber, name: employeeName, email: form.email.trim() });
+      setAddedInfo({ empNumber, name: employeeName, defaultPassword: '123456' });
       setForm(emptyForm());
       setFormErrors({});
     } catch (error) {
@@ -216,7 +212,7 @@ export default function EmployeesPage() {
     }
   };
 
-  const handleCopy = (text: string, kind: 'num') => {
+  const handleCopy = (text: string, kind: 'num' | 'pwd') => {
     navigator.clipboard.writeText(text).catch(() => { });
     setCopied(kind);
     setTimeout(() => setCopied(null), 2000);
@@ -625,7 +621,7 @@ export default function EmployeesPage() {
 
             {/* Credentials cards */}
             <div className="space-y-2">
-              {/* Employee number */}
+              {/* Employee number / Username */}
               <div className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
                 <Hash className="w-4 h-4 text-text-secondary flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -633,6 +629,7 @@ export default function EmployeesPage() {
                   <p className="text-sm font-bold text-text-primary font-mono" dir="ltr">{addedInfo.empNumber}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => handleCopy(addedInfo.empNumber, 'num')}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
                   title={t('common:actions.copy', 'Copy')}
@@ -644,17 +641,26 @@ export default function EmployeesPage() {
 
               {/* Default password */}
               <div className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
-                <Mail className="w-4 h-4 text-text-secondary flex-shrink-0" />
+                <LockKeyhole className="w-4 h-4 text-text-secondary flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-text-secondary">{t('employees:management.setupEmail')}</p>
-                  <p className="text-sm font-semibold text-text-primary" dir="ltr">{addedInfo.email}</p>
+                  <p className="text-xs text-text-secondary">{t('employees:management.defaultPassword', 'Default Password')}</p>
+                  <p className="text-sm font-bold text-primary font-mono" dir="ltr">123456</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopy('123456', 'pwd')}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  title={t('common:actions.copy', 'Copy')}
+                  aria-label={t('common:actions.copy', 'Copy')}
+                >
+                  {copied === 'pwd' ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
             {/* Hint */}
             <p className="text-xs text-text-secondary bg-surface-muted rounded-lg px-3 py-2 flex items-start gap-2">
-              <Mail className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-primary" />
+              <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-primary" />
               {t('employees:management.addedHint')}
             </p>
 
@@ -682,7 +688,7 @@ export default function EmployeesPage() {
               />
               <Input
                 label={t('employees:management.bn')}
-                placeholder="EMP-001 or 45892"
+                placeholder="45892"
                 value={form.bn}
                 onChange={(e) => setField('bn', e.target.value)}
                 error={formErrors.bn}
@@ -709,8 +715,8 @@ export default function EmployeesPage() {
               </select>
             </div>
 
-            {/* Code */}
-            <div>
+            {/* Code & Phone */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 label={t('forms:labels.code')}
                 placeholder="MS"
@@ -719,18 +725,6 @@ export default function EmployeesPage() {
                 onChange={(e) => setField('code', e.target.value.toUpperCase())}
                 error={formErrors.code}
                 hint={t('employees:management.codeHint')}
-                dir="ltr"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Input
-                label={t('forms:labels.email', 'Email')}
-                placeholder="employee@hospital.sa"
-                type="email"
-                value={form.email}
-                onChange={(e) => setField('email', e.target.value)}
-                error={formErrors.email}
                 dir="ltr"
               />
               <Input

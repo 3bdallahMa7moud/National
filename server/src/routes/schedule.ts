@@ -6,15 +6,24 @@ import {
   serializeScheduleState,
   syncScheduleState,
 } from '../lib/scheduleState.js';
+import { syncRouteErrorResponse } from '../lib/syncRouteErrors.js';
 
 export const scheduleRouter = Router();
 
-scheduleRouter.get('/', requireAuth, async (_req, res) => {
+scheduleRouter.get('/', requireAuth, async (req, res) => {
   const months = await prisma.scheduleMonth.findMany({
     orderBy: { monthKey: 'asc' },
   });
+  const fullSchedule = serializeScheduleState(months);
+  const schedule = req.viewer!.role === 'employee'
+    ? {
+      ...fullSchedule,
+      draftsByMonth: {},
+      versionsByMonth: {},
+    }
+    : fullSchedule;
   res.json({
-    schedule: serializeScheduleState(months),
+    schedule,
   });
 });
 
@@ -35,11 +44,11 @@ scheduleRouter.put('/', requireRoles('admin', 'super_admin'), async (req, res) =
     const schedule = await prisma.$transaction((tx) => syncScheduleState(tx, req.viewer!, parsed.data));
     res.json({ schedule });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to save schedule state.';
-    res.status(message.includes('another session') ? 409 : 400).json({
+    const response = syncRouteErrorResponse(error, 'SCHEDULE_SYNC_FAILED', 'Unable to save schedule state.');
+    res.status(response.status).json({
       error: {
-        code: message.includes('another session') ? 'CONFLICT' : 'SCHEDULE_SYNC_FAILED',
-        message,
+        code: response.code,
+        message: response.message,
       },
     });
   }

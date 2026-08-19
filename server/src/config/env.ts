@@ -9,7 +9,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1).default('file:./dev.db'),
   ENABLE_DEV_PASSWORD_RESET_CODES: z.coerce.boolean().default(true),
   ENABLE_DEV_SIGNUP_OTP_CODES: z.coerce.boolean().default(false),
-  SIGNUP_OTP_EXPIRY_MINUTES: z.coerce.number().int().positive().max(60).default(10),
+  SIGNUP_OTP_EXPIRY_MINUTES: z.coerce.number().int().positive().max(60).default(1),
   SIGNUP_OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().max(20).default(5),
   SIGNUP_OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().nonnegative().default(60),
   EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),

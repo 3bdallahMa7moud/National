@@ -10,6 +10,7 @@ import {
   Filter,
   Plus,
   Search,
+  Trash2,
   X,
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
@@ -21,6 +22,8 @@ import { useToast } from '@/components/ui/Toast';
 import { getStoredLanguage } from '@/i18n/constants';
 import {
   approveShiftRequest,
+  clearClosedShiftRequests,
+  deleteShiftRequest,
   rejectShiftRequestByAdmin,
 } from '@/lib/shiftRequestApi';
 import { useAuthStore } from '@/stores/authStore';
@@ -162,6 +165,8 @@ export default function AdminShiftRequestsPage() {
   const [overridePendingId, setOverridePendingId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [actionPendingId, setActionPendingId] = useState<string | null>(null);
+  const [deleteModalId, setDeleteModalId] = useState<string | null>(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   /* ---- Filtered & sorted data ---- */
   const filtered = useMemo(() => {
@@ -272,6 +277,54 @@ export default function AdminShiftRequestsPage() {
     }
   }
 
+  async function handleDeleteSubmit() {
+    if (!user || !deleteModalId || actionPendingId) return;
+    setActionPendingId(deleteModalId);
+    try {
+      const res = await deleteShiftRequest(deleteModalId);
+      if (res.ok) {
+        addToast({
+          type: 'success',
+          title: t('shiftRequests:messages.saved'),
+          message: getStoredLanguage() === 'ar' ? 'تم حذف الطلب بنجاح' : 'Request deleted successfully',
+        });
+        setDeleteModalId(null);
+      } else {
+        addToast({
+          type: 'error',
+          title: getStoredLanguage() === 'ar' ? 'خطأ' : 'Error',
+          message: res.message || (getStoredLanguage() === 'ar' ? 'فشل حذف الطلب' : 'Failed to delete request'),
+        });
+      }
+    } finally {
+      setActionPendingId(null);
+    }
+  }
+
+  async function handleClearClosedSubmit() {
+    if (!user || actionPendingId) return;
+    setActionPendingId('clear-closed');
+    try {
+      const res = await clearClosedShiftRequests();
+      if (res.ok) {
+        addToast({
+          type: 'success',
+          title: t('shiftRequests:messages.saved'),
+          message: getStoredLanguage() === 'ar' ? `تم مسح ${res.count} طلب بنجاح` : `Cleared ${res.count} closed requests successfully`,
+        });
+        setClearConfirmOpen(false);
+      } else {
+        addToast({
+          type: 'error',
+          title: getStoredLanguage() === 'ar' ? 'خطأ' : 'Error',
+          message: res.message || (getStoredLanguage() === 'ar' ? 'فشل مسح الطلبات' : 'Failed to clear closed requests'),
+        });
+      }
+    } finally {
+      setActionPendingId(null);
+    }
+  }
+
   function toggleSort(field: SortField) {
     if (sortField === field) {
       setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -295,9 +348,21 @@ export default function AdminShiftRequestsPage() {
           </h1>
           <p className="mt-1 text-sm text-text-secondary">{t('shiftRequests:subtitle')}</p>
         </div>
-        <Button className="w-full sm:w-auto" icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
-          {t('shiftRequests:newRequest')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {counts.closed > 0 && (
+            <Button
+              variant="secondary"
+              className="border-danger/30 text-danger hover:bg-danger-50 text-xs sm:text-sm font-medium"
+              icon={<Trash2 className="h-4 w-4 text-danger" />}
+              onClick={() => setClearConfirmOpen(true)}
+            >
+              {t('shiftRequests:clearClosed')} ({counts.closed})
+            </Button>
+          )}
+          <Button className="w-full sm:w-auto" icon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>
+            {t('shiftRequests:newRequest')}
+          </Button>
+        </div>
       </header>
 
       {/* Counters */}
@@ -425,25 +490,34 @@ export default function AdminShiftRequestsPage() {
                       </span>
                     </button>
 
-                    {/* Action buttons (always visible for actionable requests) */}
-                    {(['pending_recipient', 'pending_admin'] as ShiftRequestStatus[]).includes(request.status) && (
-                      <div className="flex flex-wrap items-center gap-2 px-4 pb-4" onClick={(e) => e.stopPropagation()}>
-                        {request.status === 'pending_admin' && (
-                          isOverridePending ? (
-                            <Button size="sm" variant="danger" onClick={() => handleOverrideApprove(request.id)}>
-                              {t('shiftRequests:approveOverride')}
-                            </Button>
-                          ) : (
-                            <Button size="sm" icon={<Check className="h-3.5 w-3.5" />} onClick={() => handleApprove(request.id)}>
-                              {t('shiftRequests:approve')}
-                            </Button>
-                          )
-                        )}
+                    {/* Action buttons */}
+                    <div className="flex flex-wrap items-center gap-2 px-4 pb-4" onClick={(e) => e.stopPropagation()}>
+                      {request.status === 'pending_admin' && (
+                        isOverridePending ? (
+                          <Button size="sm" variant="danger" onClick={() => handleOverrideApprove(request.id)}>
+                            {t('shiftRequests:approveOverride')}
+                          </Button>
+                        ) : (
+                          <Button size="sm" icon={<Check className="h-3.5 w-3.5" />} onClick={() => handleApprove(request.id)}>
+                            {t('shiftRequests:approve')}
+                          </Button>
+                        )
+                      )}
+                      {(['pending_recipient', 'pending_admin'] as ShiftRequestStatus[]).includes(request.status) && (
                         <Button size="sm" variant="danger" icon={<X className="h-3.5 w-3.5" />} onClick={() => handleRejectOpen(request.id)}>
                           {t('shiftRequests:rejectAdmin')}
                         </Button>
-                      </div>
-                    )}
+                      )}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="text-danger hover:bg-danger-50 border-danger/30"
+                        icon={<Trash2 className="h-3.5 w-3.5" />}
+                        onClick={() => setDeleteModalId(request.id)}
+                      >
+                        {t('shiftRequests:delete')}
+                      </Button>
+                    </div>
 
                     {/* Expanded details */}
                     {isExpanded && (
@@ -600,17 +674,41 @@ export default function AdminShiftRequestsPage() {
                           </td>
 
                           {/* Branch */}
-                          <td className="px-4 py-3 text-text-secondary">
-                            {request.requesterAssignment.facilityLabel}
+                          <td className="px-4 py-3 text-text-secondary text-xs">
+                            <div className="font-medium text-text-primary">{request.requesterAssignment.facilityLabel}</div>
+                            {request.offeredAssignment && request.offeredAssignment.facilityLabel !== request.requesterAssignment.facilityLabel && (
+                              <div className="text-[11px] text-text-muted mt-0.5">⇄ {request.offeredAssignment.facilityLabel}</div>
+                            )}
                           </td>
 
                           {/* Shift Date */}
-                          <td className="px-4 py-3 text-text-secondary">{shiftDate}</td>
+                          <td className="px-4 py-3 text-text-secondary text-xs">
+                            <div className="flex items-center gap-1 font-medium text-text-primary">
+                              {shiftDate}
+                            </div>
+                            {request.offeredAssignment && (
+                              <div className="flex items-center gap-1 font-medium text-text-secondary mt-1">
+                                {formatDate(request.offeredAssignment.startsAt, lang)}
+                              </div>
+                            )}
+                          </td>
 
                           {/* Shift Details */}
-                          <td className="px-4 py-3 text-text-secondary">
-                            <div>{request.requesterAssignment.shiftLabel}</div>
-                            <div className="text-[11px] text-text-muted">{request.requesterAssignment.timeRange}</div>
+                          <td className="px-4 py-3 text-text-secondary text-xs">
+                            <div>
+                              <span className="font-medium text-text-primary">{request.requesterAssignment.shiftLabel}</span>
+                              <span className="text-[11px] text-text-muted ms-1">({request.requesterAssignment.timeRange})</span>
+                            </div>
+                            {request.offeredAssignment ? (
+                              <div className="mt-1">
+                                <span className="font-medium text-text-secondary">⇄ {request.offeredAssignment.shiftLabel}</span>
+                                <span className="text-[11px] text-text-muted ms-1">({request.offeredAssignment.timeRange})</span>
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-primary mt-0.5 font-medium">
+                                {lang.startsWith('ar') ? 'تغطية / استبدال' : 'Replacement only'}
+                              </div>
+                            )}
                           </td>
 
                           {/* Employee Response */}
@@ -657,27 +755,27 @@ export default function AdminShiftRequestsPage() {
 
                           {/* Actions */}
                           <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                            {(['pending_recipient', 'pending_admin'] as ShiftRequestStatus[]).includes(request.status) && (
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                {request.status === 'pending_admin' && (
-                                  isOverridePending ? (
-                                    <Button
-                                      size="sm"
-                                      variant="danger"
-                                      onClick={() => handleOverrideApprove(request.id)}
-                                    >
-                                      {t('shiftRequests:approveOverride')}
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      size="sm"
-                                      icon={<Check className="h-3.5 w-3.5" />}
-                                      onClick={() => handleApprove(request.id)}
-                                    >
-                                      {t('shiftRequests:approve')}
-                                    </Button>
-                                  )
-                                )}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {request.status === 'pending_admin' && (
+                                isOverridePending ? (
+                                  <Button
+                                    size="sm"
+                                    variant="danger"
+                                    onClick={() => handleOverrideApprove(request.id)}
+                                  >
+                                    {t('shiftRequests:approveOverride')}
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    icon={<Check className="h-3.5 w-3.5" />}
+                                    onClick={() => handleApprove(request.id)}
+                                  >
+                                    {t('shiftRequests:approve')}
+                                  </Button>
+                                )
+                              )}
+                              {(['pending_recipient', 'pending_admin'] as ShiftRequestStatus[]).includes(request.status) && (
                                 <Button
                                   size="sm"
                                   variant="danger"
@@ -686,8 +784,16 @@ export default function AdminShiftRequestsPage() {
                                 >
                                   {t('shiftRequests:rejectAdmin')}
                                 </Button>
-                              </div>
-                            )}
+                              )}
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="text-danger hover:bg-danger-50 border-danger/30 px-2"
+                                icon={<Trash2 className="h-3.5 w-3.5 text-danger" />}
+                                title={t('shiftRequests:delete')}
+                                onClick={() => setDeleteModalId(request.id)}
+                              />
+                            </div>
                           </td>
                         </tr>
 
@@ -699,9 +805,14 @@ export default function AdminShiftRequestsPage() {
                                 {/* Shift info */}
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                   <div className="rounded-card border border-border bg-surface-card p-3">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">
-                                      {t('shiftRequests:requesterShift')}
-                                    </p>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                                        {t('shiftRequests:requesterShift')}
+                                      </p>
+                                      <span className="text-xs font-medium text-primary">
+                                        {formatDate(request.requesterAssignment.startsAt, lang)}
+                                      </span>
+                                    </div>
                                     <p className="text-sm font-medium text-text-primary">
                                       {request.requesterAssignment.shiftLabel} · {request.requesterAssignment.timeRange}
                                     </p>
@@ -711,9 +822,14 @@ export default function AdminShiftRequestsPage() {
                                   </div>
                                   {request.offeredAssignment && (
                                     <div className="rounded-card border border-border bg-surface-card p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">
-                                        {t('shiftRequests:offeredShift')}
-                                      </p>
+                                      <div className="flex items-center justify-between mb-1.5">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
+                                          {t('shiftRequests:offeredShift')}
+                                        </p>
+                                        <span className="text-xs font-medium text-primary">
+                                          {formatDate(request.offeredAssignment.startsAt, lang)}
+                                        </span>
+                                      </div>
                                       <p className="text-sm font-medium text-text-primary">
                                         {request.offeredAssignment.shiftLabel} · {request.offeredAssignment.timeRange}
                                       </p>
@@ -837,6 +953,66 @@ export default function AdminShiftRequestsPage() {
             </Button>
             <Button variant="danger" onClick={handleRejectSubmit}>
               {t('shiftRequests:rejectAdmin')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Single Request Modal */}
+      <Modal
+        isOpen={Boolean(deleteModalId)}
+        onClose={() => setDeleteModalId(null)}
+        title={t('shiftRequests:confirmDeleteTitle')}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary leading-relaxed">
+            {t('shiftRequests:confirmDeleteMessage')}
+          </p>
+          <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={() => setDeleteModalId(null)}>
+              {getStoredLanguage() === 'ar' ? 'إلغاء' : 'Cancel'}
+            </Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 className="h-4 w-4" />}
+              onClick={handleDeleteSubmit}
+              disabled={Boolean(actionPendingId)}
+            >
+              {t('shiftRequests:delete')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Clear All Closed Requests Modal */}
+      <Modal
+        isOpen={clearConfirmOpen}
+        onClose={() => setClearConfirmOpen(false)}
+        title={t('shiftRequests:confirmClearClosedTitle')}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary leading-relaxed">
+            {t('shiftRequests:confirmClearClosedMessage')}
+          </p>
+          <div className="rounded-card bg-surface-muted p-3 text-xs text-text-muted">
+            <strong className="text-text-primary">
+              {getStoredLanguage() === 'ar' ? 'عدد الطلبات التي سيتم مسحها: ' : 'Total closed requests to delete: '}
+            </strong>
+            <span className="text-danger font-bold ms-1">{counts.closed}</span>
+          </div>
+          <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={() => setClearConfirmOpen(false)}>
+              {getStoredLanguage() === 'ar' ? 'إلغاء' : 'Cancel'}
+            </Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 className="h-4 w-4" />}
+              onClick={handleClearClosedSubmit}
+              disabled={Boolean(actionPendingId)}
+            >
+              {t('shiftRequests:clearClosed')}
             </Button>
           </div>
         </div>

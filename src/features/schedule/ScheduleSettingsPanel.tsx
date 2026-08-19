@@ -2,7 +2,7 @@
 // ScheduleSettingsPanel - Responsive Shift definitions, units, and rows
 // ============================================================
 
-import { memo, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   Archive,
   ArchiveRestore,
@@ -17,20 +17,23 @@ import { useTranslation } from 'react-i18next';
 import Time24Select from '@/components/ui/Time24Select';
 import { SHIFT_COLOR_PALETTE } from '@/lib/shiftColorPalette';
 import { useTheme } from '@/hooks/useTheme';
-import type { ScheduleMatrixData, ShiftColorKey, ShiftDefinition, ShiftRow, UnitDefinition } from '@/types/scheduleMatrix';
+import type { ScheduleMatrixData, ShiftColorKey, ShiftDefinition, ShiftRow, Unit } from '@/types/scheduleMatrix';
+
+type ScheduleSettingsTab = 'shifts' | 'units';
 
 interface ScheduleSettingsPanelProps {
   data: ScheduleMatrixData;
-  onAddShift: (facilityId: string, payload: Omit<ShiftDefinition, 'id' | 'facilityId'>) => void;
+  onAddShift: (facilityId: string, payload: Omit<ShiftDefinition, 'id' | 'facilityId'>) => ShiftDefinition | null | void;
   onUpdateShift: (facilityId: string, shiftId: string, updates: Partial<ShiftDefinition>) => void;
   onDeleteShift: (facilityId: string, shiftId: string) => void;
   onArchiveShift: (facilityId: string, shiftId: string) => void;
   onRestoreShift: (facilityId: string, shiftId: string) => void;
-  onAddUnit: (facilityId: string, name: string) => void;
+  onAddUnit: (facilityId: string, name: string) => Unit | null | void;
   onRenameUnit: (facilityId: string, unitId: string, name: string) => void;
   onArchiveUnit: (facilityId: string, unitId: string) => void;
   onRestoreUnit: (facilityId: string, unitId: string) => void;
-  onAddRow: (facilityId: string, unitId: string, shiftDefinitionId: string, rowLabel: string) => void;
+  onDeleteUnit?: (facilityId: string, unitId: string) => void;
+  onAddRow: (facilityId: string, unitId: string, shiftDefinitionId: string, rowLabel: string) => ShiftRow | null | void;
   onUpdateRow: (
     rowId: string,
     updates: Partial<Pick<ShiftRow, 'rowLabel' | 'shiftDefinitionId' | 'weekendOnly'>>,
@@ -38,6 +41,8 @@ interface ScheduleSettingsPanelProps {
   onArchiveRow: (rowId: string) => void;
   onRestoreRow?: (rowId: string) => void;
   onDeleteRow: (rowId: string) => void;
+  availableTabs?: ScheduleSettingsTab[];
+  defaultTab?: ScheduleSettingsTab;
 }
 
 const COLOR_OPTIONS: ShiftColorKey[] = ['morning', 'evening', 'night', 'onCall', 'onCallNight', 'overtime'];
@@ -59,15 +64,6 @@ const DEFAULT_SHIFT_FORM = {
   icon: '',
 };
 
-function reconcileDraftMap(
-  current: Record<string, string>,
-  entries: Array<{ id: string; value: string }>,
-): Record<string, string> {
-  const next: Record<string, string> = {};
-  for (const entry of entries) next[entry.id] = current[entry.id] ?? entry.value;
-  return next;
-}
-
 function assignmentCount(row: ShiftRow): number {
   return Object.values(row.cellsByDay).reduce((sum, assignments) => sum + assignments.length, 0);
 }
@@ -87,25 +83,36 @@ function ScheduleSettingsPanel({
   onRenameUnit,
   onArchiveUnit,
   onRestoreUnit,
+  onDeleteUnit,
   onAddRow,
   onUpdateRow,
   onArchiveRow,
   onRestoreRow,
   onDeleteRow,
+  availableTabs = ['shifts', 'units'],
+  defaultTab = 'shifts',
 }: ScheduleSettingsPanelProps) {
   const { t } = useTranslation(['schedule', 'common']);
   const { isDark } = useTheme();
   const [facilityId, setFacilityId] = useState(data.facilities[0]?.id || 'kamc');
-  const [activeTab, setActiveTab] = useState<'shifts' | 'units'>('shifts');
+  const initialTab = availableTabs.includes(defaultTab) ? defaultTab : availableTabs[0];
+  const [activeTab, setActiveTab] = useState<ScheduleSettingsTab>(initialTab);
   const [newUnitName, setNewUnitName] = useState('');
   const [shiftArchiveView, setShiftArchiveView] = useState<'active' | 'archived'>('active');
   const [unitArchiveView, setUnitArchiveView] = useState<'active' | 'archived'>('active');
   const [newShift, setNewShift] = useState(DEFAULT_SHIFT_FORM);
   const [rowDrafts, setRowDrafts] = useState<Record<string, { label: string; definitionId: string }>>({});
   const [openIconPickerId, setOpenIconPickerId] = useState<string | null>(null);
-  const [shiftNameDrafts, setShiftNameDrafts] = useState<Record<string, string>>({});
-  const [unitNameDrafts, setUnitNameDrafts] = useState<Record<string, string>>({});
-  const [rowLabelDrafts, setRowLabelDrafts] = useState<Record<string, string>>({});
+  const [highlightedUnitId, setHighlightedUnitId] = useState<string | null>(null);
+  const [pendingUnitScrollId, setPendingUnitScrollId] = useState<string | null>(null);
+  const unitRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const showTabSwitcher = availableTabs.length > 1;
+
+  useEffect(() => {
+    if (!availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0]);
+    }
+  }, [activeTab, availableTabs]);
 
   const facility = useMemo(
     () => data.facilities.find((item) => item.id === facilityId) || data.facilities[0],
@@ -117,47 +124,54 @@ function ScheduleSettingsPanel({
     [data.settings, facility?.id],
   );
 
-  useEffect(() => {
-    setShiftNameDrafts((current) => reconcileDraftMap(
-      current,
-      (settings?.shiftDefinitions ?? []).map((shift) => ({
-        id: shift.id,
-        value: shift.englishName || shift.label,
-      })),
-    ));
-  }, [settings?.shiftDefinitions]);
+  const visibleShifts = useMemo(
+    () => settings?.shiftDefinitions.filter((shift) =>
+      shiftArchiveView === 'archived' ? shift.archived : !shift.archived,
+    ) ?? [],
+    [settings, shiftArchiveView],
+  );
+  const visibleUnits = useMemo(
+    () => settings?.units.filter((unit) =>
+      unitArchiveView === 'archived' ? unit.archived : !unit.archived,
+    ) ?? [],
+    [settings, unitArchiveView],
+  );
+  const activeShiftDefinitions = useMemo(
+    () => settings?.shiftDefinitions.filter((shift) => !shift.archived) ?? [],
+    [settings],
+  );
+  const shiftById = useMemo(
+    () => new Map((settings?.shiftDefinitions ?? []).map((shift) => [shift.id, shift])),
+    [settings],
+  );
+  const unitsById = useMemo(
+    () => new Map((facility?.units ?? []).map((unit) => [unit.id, unit])),
+    [facility],
+  );
 
   useEffect(() => {
-    setUnitNameDrafts((current) => reconcileDraftMap(
-      current,
-      (settings?.units ?? []).map((unit) => ({
-        id: unit.id,
-        value: unit.name,
-      })),
-    ));
-  }, [settings?.units]);
+    if (!highlightedUnitId) return undefined;
+    const timer = window.setTimeout(() => {
+      setHighlightedUnitId((current) => (current === highlightedUnitId ? null : current));
+    }, 2400);
+    return () => window.clearTimeout(timer);
+  }, [highlightedUnitId]);
 
   useEffect(() => {
-    setRowLabelDrafts((current) => reconcileDraftMap(
-      current,
-      (facility?.units ?? []).flatMap((unit) => unit.rows.map((row) => ({
-        id: row.id,
-        value: row.rowLabel,
-      }))),
-    ));
-  }, [facility?.units]);
+    if (!pendingUnitScrollId) return;
+    const target = unitRefs.current[pendingUnitScrollId];
+    if (!target) return;
+    if (typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const input = target.querySelector('input');
+    if (input instanceof HTMLElement) {
+      input.focus({ preventScroll: true });
+    }
+    setPendingUnitScrollId(null);
+  }, [pendingUnitScrollId, visibleUnits]);
 
   if (!facility || !settings) return null;
-
-  const visibleShifts = settings.shiftDefinitions.filter((shift) =>
-    shiftArchiveView === 'archived' ? shift.archived : !shift.archived,
-  );
-  const visibleUnits = settings.units.filter((unit) =>
-    unitArchiveView === 'archived' ? unit.archived : !unit.archived,
-  );
-  const activeShiftDefinitions = settings.shiftDefinitions.filter((shift) => !shift.archived);
-  const shiftById = new Map(settings.shiftDefinitions.map((shift) => [shift.id, shift]));
-  const unitsById = new Map(facility.units.map((unit) => [unit.id, unit]));
 
   const handleNewShiftColorKey = (colorKey: ShiftColorKey) => {
     const palette = colorForKey(colorKey, isDark);
@@ -169,55 +183,50 @@ function ScheduleSettingsPanel({
     }));
   };
 
-  const withDraftKeyboardCommit = (
-    event: KeyboardEvent<HTMLInputElement>,
-    reset: () => void,
-    commit: () => void,
-  ) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      commit();
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      reset();
-    }
+  const handleCreateShift = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const label = newShift.englishName.trim();
+    if (!label) return;
+    const palette = SHIFT_COLOR_PALETTE[newShift.colorKey];
+    const isDefaultBg = newShift.backgroundColor === palette?.light.background
+      || newShift.backgroundColor === palette?.dark.background;
+    const isDefaultText = newShift.textColor === palette?.light.text
+      || newShift.textColor === palette?.dark.text;
+    onAddShift(facility.id, {
+      label,
+      englishName: label,
+      startTime: newShift.startTime,
+      endTime: newShift.endTime,
+      timeRange: `${newShift.startTime} - ${newShift.endTime}`,
+      colorKey: newShift.colorKey,
+      backgroundColor: isDefaultBg ? undefined : newShift.backgroundColor,
+      textColor: isDefaultBg && isDefaultText ? undefined : newShift.textColor,
+      icon: newShift.icon.trim(),
+      effectiveFromDay: 1,
+    });
+    setNewShift(DEFAULT_SHIFT_FORM);
   };
 
-  const commitShiftName = (shift: ShiftDefinition) => {
-    const draft = shiftNameDrafts[shift.id] ?? (shift.englishName || shift.label);
-    const trimmed = draft.trim();
-    if (!trimmed) {
-      setShiftNameDrafts((current) => ({ ...current, [shift.id]: shift.englishName || shift.label }));
+  const handleCreateUnit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = newUnitName.trim();
+    if (!name) return;
+    const created = onAddUnit(facility.id, name);
+    if (created && typeof created === 'object' && 'id' in created) {
+      setHighlightedUnitId(created.id);
+      setPendingUnitScrollId(created.id);
+      setNewUnitName('');
       return;
     }
-    if (trimmed !== (shift.englishName || shift.label)) {
-      onUpdateShift(facility.id, shift.id, { englishName: trimmed, label: trimmed });
-    }
-    if (draft !== trimmed) {
-      setShiftNameDrafts((current) => ({ ...current, [shift.id]: trimmed }));
-    }
+    setNewUnitName('');
   };
 
-  const commitUnitName = (unitDef: UnitDefinition) => {
-    const draft = unitNameDrafts[unitDef.id] ?? unitDef.name;
-    const trimmed = draft.trim();
-    if (!trimmed) {
-      setUnitNameDrafts((current) => ({ ...current, [unitDef.id]: unitDef.name }));
-      return;
-    }
-    if (trimmed !== unitDef.name) onRenameUnit(facility.id, unitDef.id, trimmed);
-    if (draft !== trimmed) {
-      setUnitNameDrafts((current) => ({ ...current, [unitDef.id]: trimmed }));
-    }
-  };
-
-  const commitRowLabel = (row: ShiftRow) => {
-    const draft = rowLabelDrafts[row.id] ?? row.rowLabel;
-    const trimmed = draft.trim();
-    if (trimmed !== row.rowLabel) onUpdateRow(row.id, { rowLabel: trimmed });
-    if (draft !== trimmed) {
-      setRowLabelDrafts((current) => ({ ...current, [row.id]: trimmed }));
-    }
+  const handleCreateRow = (event: FormEvent<HTMLFormElement>, unitId: string, draft: { label: string; definitionId: string }) => {
+    event.preventDefault();
+    const label = draft.label.trim();
+    if (!label || !draft.definitionId) return;
+    onAddRow(facility.id, unitId, draft.definitionId, label);
+    setRowDrafts((current) => ({ ...current, [unitId]: { ...draft, label: '' } }));
   };
 
 
@@ -259,35 +268,41 @@ function ScheduleSettingsPanel({
         </div>
 
         {/* ── Section Navigation Tabs (Full Width Responsive) ── */}
-        <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border/60 pt-3">
-          <button
-            type="button"
-            onClick={() => setActiveTab('shifts')}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all',
-              activeTab === 'shifts'
-                ? 'bg-surface text-primary-teal shadow-sm border border-border'
-                : 'text-text-secondary hover:bg-hover/60 hover:text-ink',
+        {showTabSwitcher && (
+          <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border/60 pt-3">
+            {availableTabs.includes('shifts') && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('shifts')}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all',
+                  activeTab === 'shifts'
+                    ? 'bg-surface text-primary-teal shadow-sm border border-border'
+                    : 'text-text-secondary hover:bg-hover/60 hover:text-ink',
+                )}
+              >
+                <Clock3 className="h-4 w-4" />
+                <span>Shift Definitions ({activeShiftDefinitions.length})</span>
+              </button>
             )}
-          >
-            <Clock3 className="h-4 w-4" />
-            <span>Shift Definitions ({activeShiftDefinitions.length})</span>
-          </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('units')}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all',
-              activeTab === 'units'
-                ? 'bg-surface text-primary-teal shadow-sm border border-border'
-                : 'text-text-secondary hover:bg-hover/60 hover:text-ink',
+            {availableTabs.includes('units') && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('units')}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all',
+                  activeTab === 'units'
+                    ? 'bg-surface text-primary-teal shadow-sm border border-border'
+                    : 'text-text-secondary hover:bg-hover/60 hover:text-ink',
+                )}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span>Units & Rows ({visibleUnits.length})</span>
+              </button>
             )}
-          >
-            <LayoutGrid className="h-4 w-4" />
-            <span>Units & Rows ({visibleUnits.length})</span>
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ── Main Panel Content ── */}
@@ -303,22 +318,38 @@ function ScheduleSettingsPanel({
                 <h3 className="text-sm font-extrabold text-ink sm:text-base">Shift Types & Schedule Codes</h3>
                 <p className="text-xs text-text-secondary">Configure shift hours, colors, short codes, and icons used across the schedule grid</p>
               </div>
-              <div className="flex rounded-xl border border-border bg-surface-muted p-0.5 shadow-sm">
-                {(['active', 'archived'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setShiftArchiveView(tab)}
-                    className={cn(
-                      'min-h-8 rounded-lg px-3.5 text-xs font-bold transition-all',
-                      shiftArchiveView === tab ? 'bg-surface text-primary-teal shadow-sm' : 'text-text-secondary hover:text-ink',
-                    )}
-                  >
-                    {tab === 'active' ? 'Active' : 'Archived'}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <span className="inline-flex min-h-8 items-center rounded-full border border-primary-teal/20 bg-primary-teal/10 px-3 text-xs font-bold text-primary-teal">
+                  {t('schedule:settingsPanel.shiftVisibleCountBadge', { count: visibleShifts.length })}
+                </span>
+                <div className="flex rounded-xl border border-border bg-surface-muted p-0.5 shadow-sm">
+                  {(['active', 'archived'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setShiftArchiveView(tab)}
+                      className={cn(
+                        'min-h-8 rounded-lg px-3.5 text-xs font-bold transition-all',
+                        shiftArchiveView === tab ? 'bg-surface text-primary-teal shadow-sm' : 'text-text-secondary hover:text-ink',
+                      )}
+                    >
+                      {tab === 'active' ? 'Active' : 'Archived'}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
+
+            {visibleShifts.length > 6 && (
+              <div className="rounded-xl border border-border bg-surface-muted/40 px-3 py-2 text-xs text-text-secondary">
+                {t(
+                  shiftArchiveView === 'active'
+                    ? 'schedule:settingsPanel.shiftScrollHintActive'
+                    : 'schedule:settingsPanel.shiftScrollHintArchived',
+                  { count: visibleShifts.length },
+                )}
+              </div>
+            )}
 
             {/* Create New Shift Card (Only when viewing active shifts) */}
             {shiftArchiveView === 'active' && (
@@ -328,11 +359,10 @@ function ScheduleSettingsPanel({
                   <span>Create New Shift Definition</span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                <form noValidate onSubmit={handleCreateShift} className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
                   <div className="space-y-1">
-                    <label htmlFor="new-shift-english-name" className="text-[11px] font-bold text-text-secondary">English Name</label>
+                    <label className="text-[11px] font-bold text-text-secondary">English Name</label>
                     <input
-                      id="new-shift-english-name"
                       value={newShift.englishName}
                       onChange={(event) => setNewShift((current) => ({ ...current, englishName: event.target.value }))}
                       placeholder="e.g. Morning / Evening"
@@ -436,36 +466,15 @@ function ScheduleSettingsPanel({
 
                   <div className="flex items-end sm:col-span-2 md:col-span-1">
                     <button
-                      type="button"
-                      onClick={() => {
-                        if (!newShift.englishName.trim()) return;
-                        const label = newShift.englishName.trim();
-                        const palette = SHIFT_COLOR_PALETTE[newShift.colorKey];
-                        const isDefaultBg = newShift.backgroundColor === palette?.light.background
-                          || newShift.backgroundColor === palette?.dark.background;
-                        const isDefaultText = newShift.textColor === palette?.light.text
-                          || newShift.textColor === palette?.dark.text;
-                        onAddShift(facility.id, {
-                          label,
-                          englishName: label,
-                          startTime: newShift.startTime,
-                          endTime: newShift.endTime,
-                          timeRange: `${newShift.startTime} - ${newShift.endTime}`,
-                          colorKey: newShift.colorKey,
-                          backgroundColor: isDefaultBg ? undefined : newShift.backgroundColor,
-                          textColor: isDefaultBg && isDefaultText ? undefined : newShift.textColor,
-                          icon: newShift.icon.trim(),
-                          effectiveFromDay: 1,
-                        });
-                        setNewShift(DEFAULT_SHIFT_FORM);
-                      }}
+                      type="submit"
+                      disabled={!newShift.englishName.trim()}
                       className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-primary-teal px-4 text-xs font-bold text-white shadow-md hover:bg-primary-teal/90 transition-all active:scale-95"
                     >
                       <Plus className="h-4 w-4" />
                       Add Shift Definition
                     </button>
                   </div>
-                </div>
+                </form>
               </div>
             )}
 
@@ -500,18 +509,11 @@ function ScheduleSettingsPanel({
                     {/* Editable Form Inputs */}
                     <div className="space-y-3 flex-1">
                       <div>
-                        <label htmlFor={`shift-name-${facility.id}-${shift.id}`} className="text-[10px] font-bold text-text-secondary block mb-0.5">English Name</label>
+                        <label className="text-[10px] font-bold text-text-secondary block mb-0.5">English Name</label>
                         <input
-                          id={`shift-name-${facility.id}-${shift.id}`}
-                          value={shiftNameDrafts[shift.id] ?? (shift.englishName || shift.label)}
+                          value={shift.englishName || shift.label}
                           disabled={shift.archived}
-                          onChange={(event) => setShiftNameDrafts((current) => ({ ...current, [shift.id]: event.target.value }))}
-                          onBlur={() => commitShiftName(shift)}
-                          onKeyDown={(event) => withDraftKeyboardCommit(
-                            event,
-                            () => setShiftNameDrafts((current) => ({ ...current, [shift.id]: shift.englishName || shift.label })),
-                            () => commitShiftName(shift),
-                          )}
+                          onChange={(event) => onUpdateShift(facility.id, shift.id, { englishName: event.target.value, label: event.target.value })}
                           placeholder="English"
                           className="h-8.5 w-full rounded-xl border border-border bg-surface-muted/50 px-2.5 text-xs font-semibold text-ink focus:border-primary-teal focus:bg-surface focus:outline-none"
                         />
@@ -685,6 +687,9 @@ function ScheduleSettingsPanel({
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex min-h-8 items-center rounded-full border border-primary-teal/20 bg-primary-teal/10 px-3 text-xs font-bold text-primary-teal">
+                  {t('schedule:settingsPanel.unitVisibleCountBadge', { count: visibleUnits.length })}
+                </span>
                 <div className="flex rounded-xl border border-border bg-surface-muted p-0.5 shadow-sm">
                   {(['active', 'archived'] as const).map((tab) => (
                     <button
@@ -705,32 +710,30 @@ function ScheduleSettingsPanel({
 
             {/* Quick Add New Unit Card */}
             {unitArchiveView === 'active' && (
-              <div className="rounded-2xl border border-border bg-surface-muted/40 p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <form
+                noValidate
+                onSubmit={handleCreateUnit}
+                className="rounded-2xl border border-border bg-surface-muted/40 p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
+              >
                 <div className="flex items-center gap-2 text-xs font-extrabold text-ink shrink-0">
                   <Plus className="h-4 w-4 text-primary-teal" />
                   <span>Add Organizational Unit:</span>
                 </div>
-                <label htmlFor="new-unit-name" className="sr-only">New unit name</label>
                 <input
-                  id="new-unit-name"
                   value={newUnitName}
                   onChange={(event) => setNewUnitName(event.target.value)}
                   placeholder="e.g. ICU - Ward A / Emergency Department"
                   className="h-9 flex-1 rounded-xl border border-border bg-surface px-3 text-xs font-semibold text-ink focus:border-primary-teal focus:outline-none shadow-sm"
                 />
                 <button
-                  type="button"
-                  onClick={() => {
-                    if (!newUnitName.trim()) return;
-                    onAddUnit(facility.id, newUnitName.trim());
-                    setNewUnitName('');
-                  }}
+                  type="submit"
+                  disabled={!newUnitName.trim()}
                   className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-primary-teal px-5 text-xs font-bold text-white shadow-sm hover:bg-primary-teal/90 transition-all active:scale-95 shrink-0"
                 >
                   <Plus className="h-4 w-4" />
                   Add Unit
                 </button>
-              </div>
+              </form>
             )}
 
             {/* Units & Rows List */}
@@ -741,8 +744,13 @@ function ScheduleSettingsPanel({
                 return (
                   <div
                     key={unitDef.id}
+                    ref={(element) => {
+                      unitRefs.current[unitDef.id] = element;
+                    }}
+                    data-highlighted={unitDef.id === highlightedUnitId ? 'true' : 'false'}
                     className={cn(
                       'rounded-2xl border border-border bg-surface shadow-sm overflow-hidden transition-all',
+                      unitDef.id === highlightedUnitId && 'border-primary-teal/60 ring-2 ring-primary-teal/30 shadow-lg',
                       unitDef.archived && 'opacity-70 bg-surface-muted/40',
                     )}
                   >
@@ -752,18 +760,10 @@ function ScheduleSettingsPanel({
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-teal/10 text-primary-teal font-extrabold text-xs">
                           {idx + 1}
                         </div>
-                        <label htmlFor={`unit-name-${facility.id}-${unitDef.id}`} className="sr-only">Unit name</label>
                         <input
-                          id={`unit-name-${facility.id}-${unitDef.id}`}
-                          value={unitNameDrafts[unitDef.id] ?? unitDef.name}
+                          value={unitDef.name}
                           disabled={unitDef.archived}
-                          onChange={(event) => setUnitNameDrafts((current) => ({ ...current, [unitDef.id]: event.target.value }))}
-                          onBlur={() => commitUnitName(unitDef)}
-                          onKeyDown={(event) => withDraftKeyboardCommit(
-                            event,
-                            () => setUnitNameDrafts((current) => ({ ...current, [unitDef.id]: unitDef.name })),
-                            () => commitUnitName(unitDef),
-                          )}
+                          onChange={(event) => onRenameUnit(facility.id, unitDef.id, event.target.value)}
                           placeholder="Unit Name"
                           className="h-9 w-full max-w-md rounded-xl border border-border bg-surface px-3 text-sm font-extrabold text-ink focus:border-primary-teal focus:outline-none shadow-sm"
                         />
@@ -787,6 +787,17 @@ function ScheduleSettingsPanel({
                         >
                           {unitDef.archived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
                         </button>
+                        {!unitDef.archived && onDeleteUnit && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteUnit(facility.id, unitDef.id)}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-danger/30 bg-surface text-danger shadow-sm transition-colors hover:bg-danger hover:text-white"
+                            aria-label="Delete unit"
+                            title="Delete unit"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -808,18 +819,10 @@ function ScheduleSettingsPanel({
                                 {/* Row Label Input */}
                                 <div className="flex-1 min-w-0 flex items-center gap-2">
                                   <span className="text-xs font-mono font-bold text-text-secondary/70 shrink-0 w-6">#{rowIndex + 1}</span>
-                                  <label htmlFor={`row-label-${row.id}`} className="sr-only">Row label</label>
                                   <input
-                                    id={`row-label-${row.id}`}
-                                    value={rowLabelDrafts[row.id] ?? row.rowLabel}
+                                    value={row.rowLabel}
                                     disabled={row.archived}
-                                    onChange={(event) => setRowLabelDrafts((current) => ({ ...current, [row.id]: event.target.value }))}
-                                    onBlur={() => commitRowLabel(row)}
-                                    onKeyDown={(event) => withDraftKeyboardCommit(
-                                      event,
-                                      () => setRowLabelDrafts((current) => ({ ...current, [row.id]: row.rowLabel })),
-                                      () => commitRowLabel(row),
-                                    )}
+                                    onChange={(event) => onUpdateRow(row.id, { rowLabel: event.target.value })}
                                     placeholder="Row / Bed Label"
                                     className="h-8.5 w-full rounded-lg border border-border bg-surface px-3 text-xs font-bold text-ink focus:border-primary-teal focus:outline-none shadow-sm"
                                   />
@@ -896,10 +899,12 @@ function ScheduleSettingsPanel({
                         </div>
 
                         {/* Add Row Bar */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-3 border-t border-border/60">
-                          <label htmlFor={`new-row-name-${unitDef.id}`} className="sr-only">New row name</label>
+                        <form
+                          noValidate
+                          onSubmit={(event) => handleCreateRow(event, unitDef.id, draft)}
+                          className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-3 border-t border-border/60"
+                        >
                           <input
-                            id={`new-row-name-${unitDef.id}`}
                             value={draft.label}
                             onChange={(event) =>
                               setRowDrafts((current) => ({ ...current, [unitDef.id]: { ...draft, label: event.target.value } }))
@@ -919,18 +924,14 @@ function ScheduleSettingsPanel({
                             ))}
                           </select>
                           <button
-                            type="button"
-                            disabled={!draft.label.trim() || !draft.definitionId}
-                            onClick={() => {
-                              onAddRow(facility.id, unitDef.id, draft.definitionId, draft.label.trim());
-                              setRowDrafts((current) => ({ ...current, [unitDef.id]: { ...draft, label: '' } }));
-                            }}
+                            type="submit"
+                            disabled={!draft.definitionId || !draft.label.trim()}
                             className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-primary-teal px-4 text-xs font-bold text-white shadow-sm hover:bg-primary-teal/90 disabled:opacity-40 transition-all active:scale-95 shrink-0"
                           >
                             <Plus className="h-4 w-4" />
                             Add Row
                           </button>
-                        </div>
+                        </form>
                       </div>
                     )}
                   </div>

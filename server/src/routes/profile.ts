@@ -75,9 +75,7 @@ profileRouter.patch('/', requireAuth, async (req, res) => {
     where: { id: req.viewer!.id },
     data: {
       email: normalizedEmail,
-      emailVerifiedAt: normalizedEmail === req.viewer!.email
-        ? undefined
-        : null,
+      emailVerifiedAt: new Date(),
     },
     include: {
       department: true,

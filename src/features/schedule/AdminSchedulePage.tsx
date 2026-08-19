@@ -32,12 +32,14 @@ import ScheduleViewControls from './ScheduleViewControls';
 import AssignmentDrawer from './AssignmentDrawer';
 import { mergeBrushAssignments } from '@/lib/scheduleAssignments';
 import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
+import { sanitizeSyncErrorMessage } from '@/lib/syncErrorMessages';
 import { useRole } from '@/hooks/useRole';
 import { useAuthStore } from '@/stores/authStore';
 import { useScheduleMatrixStore } from '@/stores/scheduleMatrixStore';
 import ConflictPanel from './ConflictPanel';
 import SchedulePublishDialog from './SchedulePublishDialog';
 import { countScheduleCellMarkers } from '@/lib/scheduleCellMarkers';
+import { buildAdminScheduleDisplayData } from './adminScheduleFilters';
 import type {
   MatrixCellRef,
   Assignment,
@@ -682,6 +684,39 @@ export default function AdminSchedulePage() {
     });
   }, [data]);
 
+  const handleAddShiftDefinition = useCallback((facilityId: string, payload: Parameters<typeof addShiftDefinition>[1]) => {
+    const created = addShiftDefinition(facilityId, payload);
+    if (!created) return null;
+    addToast({
+      type: 'success',
+      title: t('schedule:toast.shiftAddedTitle'),
+      message: t('schedule:toast.shiftAddedMsg', { name: created.englishName || created.label }),
+    });
+    return created;
+  }, [addShiftDefinition, addToast, t]);
+
+  const handleAddUnit = useCallback((facilityId: string, name: string) => {
+    const created = addUnit(facilityId, name);
+    if (!created) return null;
+    addToast({
+      type: 'success',
+      title: t('schedule:toast.unitAddedTitle'),
+      message: t('schedule:toast.unitAddedMsg', { name: created.name }),
+    });
+    return created;
+  }, [addToast, addUnit, t]);
+
+  const handleAddMatrixRow = useCallback((facilityId: string, unitId: string, shiftDefinitionId: string, rowLabel: string) => {
+    const created = addMatrixRow(facilityId, unitId, shiftDefinitionId, rowLabel);
+    if (!created) return null;
+    addToast({
+      type: 'success',
+      title: t('schedule:toast.rowAddedTitle'),
+      message: t('schedule:toast.rowAddedMsg', { name: created.rowLabel }),
+    });
+    return created;
+  }, [addMatrixRow, addToast, t]);
+
   const handleReorder = useCallback((command: MatrixReorderCommand): MatrixReorderResult => {
     const result = reorderMatrixItem(command, user?.name);
     if (result.ok) {
@@ -716,37 +751,16 @@ export default function AdminSchedulePage() {
 
   // Filtered display data (search & shift filter & conflict filter applied)
   const displayData = useMemo(() => {
-    if (!data) return null;
-
-    const facilities = data.facilities
-      .filter((facility) => !facilityFilter || facility.id === facilityFilter)
-      .map((facility) => {
-        const units = facility.units
-          .filter((unit) => !unit.archived)
-          .map((unit) => {
-            let rows = filterActiveScheduleRows(data, facility.id, unit.rows);
-
-            if (shiftFilter) {
-              rows = rows.filter((row) => row.colorKey === shiftFilter);
-            }
-
-            if (conflictsOnly) {
-              rows = rows.filter((row) =>
-                Object.values(row.cellsByDay).some((assignments) =>
-                  assignments.some((assignment) => assignment.hasConflict),
-                ),
-              );
-            }
-
-            return rows === unit.rows ? unit : { ...unit, rows };
-          })
-          .filter((unit) => unit.rows.length > 0);
-
-        return units === facility.units ? facility : { ...facility, units };
-      });
-
-    return facilities === data.facilities ? data : { ...data, facilities };
+    return buildAdminScheduleDisplayData(data, {
+      facilityFilter,
+      shiftFilter,
+      conflictsOnly,
+    });
   }, [data, facilityFilter, shiftFilter, conflictsOnly]);
+  const visibleStorageError = useMemo(
+    () => storageError ? sanitizeSyncErrorMessage(storageError, 'Unable to sync schedule state.') : null,
+    [storageError],
+  );
 
   const handleExportMatrix = useCallback(async () => {
     if (!displayData) return;
@@ -889,13 +903,13 @@ export default function AdminSchedulePage() {
               sourceMonthLabel: `${months[tableClipboard.sourceMonth] || tableClipboard.sourceMonth + 1} ${tableClipboard.sourceYear}`,
               assignmentCount: tableClipboard.assignmentCount,
             } : null}
-            storageError={storageError}
+            storageError={visibleStorageError}
             onCopy={() => copyCurrentTable(user?.name)}
             onPaste={() => pasteCopiedTable(user?.name)}
             onClear={() => {
               clearAllAssignments(user?.name || 'Administrator');
               const error = useScheduleMatrixStore.getState().storageError;
-              return { ok: !error, message: error || undefined };
+              return { ok: !error, message: error ? sanitizeSyncErrorMessage(error, 'Unable to sync schedule state.') : undefined };
             }}
             onReset={() => resetCurrentMonth(user?.name)}
           />
@@ -932,40 +946,40 @@ export default function AdminSchedulePage() {
               addVacationRange(empId, sDay, eDay, vType);
               addToast({
                 type: 'success',
-                title: t('schedule:vacationPanel.toastSuccessTitle'),
-                message: t('schedule:vacationPanel.toastRangeMessage', { start: sDay, end: eDay }),
+                title: t('schedule:vacationsPanel.toastSuccessTitle'),
+                message: t('schedule:vacationsPanel.toastRangeMessage', { start: sDay, end: eDay }),
               });
             }}
             onSaveDates={(empId, days, vType) => {
               store.addVacationDays(empId, days, vType);
               addToast({
                 type: 'success',
-                title: t('schedule:vacationPanel.toastSuccessTitle'),
-                message: t('schedule:vacationPanel.toastDatesMessage', { days: days.join(', ') }),
+                title: t('schedule:vacationsPanel.toastSuccessTitle'),
+                message: t('schedule:vacationsPanel.toastDatesMessage', { days: days.join(', ') }),
               });
             }}
             onRemoveVacationDay={(empId, day) => {
               store.removeVacationDay(empId, day);
               addToast({
                 type: 'info',
-                title: 'تم إزالة الإجازة',
-                message: `تم إزالة يوم الإجازة (${day}) بنجاح`,
+                title: t('schedule:vacationsPanel.toastRemoveTitle'),
+                message: t('schedule:vacationsPanel.toastRemoveDayMessage', { day }),
               });
             }}
             onRemoveVacationRange={(empId, rangeId) => {
               store.removeVacationRange(empId, rangeId);
               addToast({
                 type: 'info',
-                title: 'تم إزالة الإجازة',
-                message: 'تم إزالة فترة الإجازة بنجاح',
+                title: t('schedule:vacationsPanel.toastRemoveTitle'),
+                message: t('schedule:vacationsPanel.toastRemoveRangeMessage'),
               });
             }}
             onClearEmployeeVacations={(empId) => {
               store.clearEmployeeVacations(empId);
               addToast({
                 type: 'info',
-                title: 'تم مسح الإجازات',
-                message: 'تم مسح جميع إجازات الموظف بنجاح',
+                title: t('schedule:vacationsPanel.toastClearTitle'),
+                message: t('schedule:vacationsPanel.toastClearMessage'),
               });
             }}
             onUpdateEmployeeIdentity={(empId, fullName, code) => {
@@ -1003,16 +1017,53 @@ export default function AdminSchedulePage() {
           shiftTypesPanel={(
             <ScheduleSettingsPanel
               data={data}
-              onAddShift={addShiftDefinition}
+              availableTabs={['shifts']}
+              defaultTab="shifts"
+              onAddShift={handleAddShiftDefinition}
               onUpdateShift={updateShiftDefinition}
               onDeleteShift={deleteShiftDefinition}
               onArchiveShift={archiveShiftDefinition}
               onRestoreShift={restoreShiftDefinition}
-              onAddUnit={addUnit}
+              onAddUnit={handleAddUnit}
               onRenameUnit={renameUnit}
               onArchiveUnit={archiveUnit}
               onRestoreUnit={restoreUnit}
-              onAddRow={addMatrixRow}
+              onAddRow={handleAddMatrixRow}
+              onUpdateRow={(rowId, updates) => {
+                updateMatrixRow(rowId, updates);
+                addToast({
+                  type: 'success',
+                  title: t('schedule:toast.rowUpdatedTitle'),
+                  message: t('schedule:toast.rowUpdatedMsg'),
+                });
+              }}
+              onArchiveRow={(rowId) => {
+                archiveMatrixRow(rowId);
+                addToast({ type: 'info', title: 'Row archived', message: 'The row was archived successfully.' });
+              }}
+              onRestoreRow={(rowId) => {
+                restoreMatrixRow(rowId);
+                addToast({ type: 'success', title: 'Row restored', message: 'The row was restored successfully.' });
+              }}
+              onDeleteRow={handleRequestDeleteRow}
+            />
+          )}
+          unitStructurePanel={(
+            <ScheduleSettingsPanel
+              data={data}
+              availableTabs={['units']}
+              defaultTab="units"
+              onAddShift={handleAddShiftDefinition}
+              onUpdateShift={updateShiftDefinition}
+              onDeleteShift={deleteShiftDefinition}
+              onArchiveShift={archiveShiftDefinition}
+              onRestoreShift={restoreShiftDefinition}
+              onAddUnit={handleAddUnit}
+              onRenameUnit={renameUnit}
+              onArchiveUnit={archiveUnit}
+              onRestoreUnit={restoreUnit}
+              onDeleteUnit={handleRequestDeleteUnit}
+              onAddRow={handleAddMatrixRow}
               onUpdateRow={(rowId, updates) => {
                 updateMatrixRow(rowId, updates);
               }}
@@ -1099,13 +1150,13 @@ export default function AdminSchedulePage() {
               message: t('schedule:toast.rowUpdatedMsg'),
             });
           }}
-          onAddRow={addMatrixRow}
+          onAddRow={handleAddMatrixRow}
           onArchiveRow={(rowId) => {
             archiveMatrixRow(rowId);
             addToast({ type: 'info', title: 'Row archived', message: 'The row was archived successfully.' });
           }}
           onDeleteRow={handleRequestDeleteRow}
-          onAddUnit={addUnit}
+          onAddUnit={handleAddUnit}
           onRenameUnit={renameUnit}
           onArchiveUnit={archiveUnit}
           onDeleteUnit={handleRequestDeleteUnit}
@@ -1217,13 +1268,13 @@ export default function AdminSchedulePage() {
             message: t('schedule:toast.rowUpdatedMsg'),
           });
         }}
-        onAddRow={addMatrixRow}
+        onAddRow={handleAddMatrixRow}
         onArchiveRow={(rowId) => {
           archiveMatrixRow(rowId);
           addToast({ type: 'info', title: 'Row archived', message: 'The row was archived successfully.' });
         }}
         onDeleteRow={handleRequestDeleteRow}
-        onAddUnit={addUnit}
+        onAddUnit={handleAddUnit}
         onRenameUnit={renameUnit}
         onArchiveUnit={archiveUnit}
         onDeleteUnit={handleRequestDeleteUnit}

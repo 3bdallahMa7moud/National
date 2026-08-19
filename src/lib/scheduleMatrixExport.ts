@@ -379,6 +379,9 @@ export function buildScheduleMatrixExportHtml(
   const matrixTable = buildAdminMatrixTable(filtered, labels, options.year, filtered.month)
     .replace(/^<table/, '<table class="matrix-table"');
   const legendPage = buildLegendPageHtml(filtered, labels);
+  const legendSection = legendPage
+    ? `<section class="legend-page">${legendPage}</section>`
+    : '';
 
   return `<!DOCTYPE html>
 <html dir="ltr" lang="en">
@@ -394,7 +397,8 @@ export function buildScheduleMatrixExportHtml(
     max-width: none;
     font-size: 8px !important;
   }
-  .schedule-page {
+  .schedule-page,
+  .legend-page {
     padding: 5mm;
   }
   .export-header {
@@ -410,12 +414,9 @@ export function buildScheduleMatrixExportHtml(
     height: 36px;
     object-fit: contain;
   }
-  .schedule-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 220px;
-    align-items: start;
-    gap: 8px;
-    zoom: .62;
+  .matrix-shell {
+    width: 100%;
+    overflow: visible;
   }
   .export-title {
     font-size: 15px;
@@ -425,16 +426,19 @@ export function buildScheduleMatrixExportHtml(
     color: ${TEAL};
   }
   .matrix-table {
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     border-collapse: collapse;
   }
+  .legend-page {
+    break-before: page;
+    page-break-before: always;
+  }
   @media print {
-    html, body { width: 100%; height: auto; margin: 0; padding: 0; overflow: hidden; }
+    html, body { width: 100%; min-height: 100%; margin: 0; padding: 0; overflow: visible; }
     .schedule-page {
       page-break-before: avoid;
       break-before: avoid-page;
-      page-break-after: avoid;
-      break-after: avoid-page;
     }
     .export-title {
       page-break-after: avoid;
@@ -456,11 +460,9 @@ export function buildScheduleMatrixExportHtml(
       <div class="export-title">${escapeHtml(labels.title)}</div>
       <img src="/ct-logo.png" alt="CT Department" />
     </header>
-    <div class="schedule-layout">
-      <div>${matrixTable}</div>
-      <aside>${legendPage}</aside>
-    </div>
+    <div class="matrix-shell">${matrixTable}</div>
   </section>
+  ${legendSection}
 </body>
 </html>`;
 }
@@ -739,6 +741,7 @@ export function printScheduleMatrixPdf(
   options: ScheduleMatrixExportOptions,
 ): void {
   const A3_LANDSCAPE_W = 1587;
+  const A3_LANDSCAPE_H = 1123;
   const enLabels = getEnglishExportLabels(data.month, options.year);
   const englishData = prepareEnglishExportData(data);
   const filtered = filterMatrixForExport(englishData, options.facilityFilter);
@@ -750,7 +753,7 @@ export function printScheduleMatrixPdf(
   const html = buildScheduleMatrixExportHtml(filtered, enLabels, { ...options, dir: 'ltr' });
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
-  frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${A3_LANDSCAPE_W}px;height:auto;border:none;visibility:hidden;pointer-events:none;`;
+  frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${A3_LANDSCAPE_W}px;height:${A3_LANDSCAPE_H}px;border:none;visibility:hidden;pointer-events:none;`;
   document.body.appendChild(frame);
 
   const win = frame.contentWindow;
@@ -771,13 +774,24 @@ export function printScheduleMatrixPdf(
   doc.write(html);
   doc.close();
 
-  const triggerPrint = () => {
+  const triggerPrint = async () => {
     try {
-      const bodyHeight = doc.body.scrollHeight;
-      doc.documentElement.style.height = `${bodyHeight}px`;
-      doc.documentElement.style.overflow = 'hidden';
-      doc.body.style.height = `${bodyHeight}px`;
-      doc.body.style.overflow = 'hidden';
+      await doc.fonts?.ready;
+      await Promise.all(
+        Array.from(doc.images).map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            img.addEventListener('load', () => resolve(), { once: true });
+            img.addEventListener('error', () => resolve(), { once: true });
+          });
+        }),
+      );
+      const bodyHeight = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight, A3_LANDSCAPE_H);
+      frame.style.height = `${bodyHeight}px`;
+      doc.documentElement.style.minHeight = `${bodyHeight}px`;
+      doc.documentElement.style.overflow = 'visible';
+      doc.body.style.minHeight = `${bodyHeight}px`;
+      doc.body.style.overflow = 'visible';
       win.focus();
       win.print();
     } catch {

@@ -87,21 +87,32 @@ function validateScheduleMatrix(monthKey: string, value: unknown) {
             throw new Error(`Schedule row ${row.id} in ${monthKey} has an invalid day.`);
           }
           if (!Array.isArray(assignments)) {
-            throw new Error(`Schedule row ${row.id} in ${monthKey} has invalid assignments.`);
+            row.cellsByDay[dayText] = [];
+            continue;
           }
+          const cleanedAssignments: Record<string, unknown>[] = [];
           const seenEmployees = new Set<string>();
           for (const assignment of assignments) {
-            if (!isRecord(assignment)) {
-              throw new Error(`Schedule row ${row.id} in ${monthKey} contains an invalid assignment.`);
+            if (!isRecord(assignment)) continue;
+            let empId = typeof assignment.employeeId === 'string' ? assignment.employeeId.trim() : '';
+            if (!empId) {
+              if (typeof assignment.employeeCode === 'string' && assignment.employeeCode.trim()) {
+                empId = assignment.employeeCode.trim();
+              } else if (typeof assignment.code === 'string' && assignment.code.trim()) {
+                empId = assignment.code.trim();
+              } else if (typeof assignment.legacyCode === 'string' && assignment.legacyCode.trim()) {
+                empId = assignment.legacyCode.trim();
+              }
             }
-            if (typeof assignment.employeeId !== 'string' || !assignment.employeeId.trim()) {
-              throw new Error(`Schedule row ${row.id} in ${monthKey} contains an assignment without employeeId.`);
-            }
-            if (seenEmployees.has(assignment.employeeId)) {
+            if (!empId) continue;
+            if (seenEmployees.has(empId)) {
               throw new Error(`Schedule row ${row.id} in ${monthKey} has duplicate employee assignments in one cell.`);
             }
-            seenEmployees.add(assignment.employeeId);
+            seenEmployees.add(empId);
+            assignment.employeeId = empId;
+            cleanedAssignments.push(assignment);
           }
+          row.cellsByDay[dayText] = cleanedAssignments;
         }
       }
     }
@@ -328,7 +339,7 @@ export async function syncScheduleState(
         entityLabel: `Schedule ${key}`,
         before: current ? { status: current.status, deleted: current.deleted } : undefined,
         after: { status: nextStatus, deleted: nextDeleted },
-        context: { route: '/admin/schedule', year: parts.year, month: parts.monthIndex },
+        context: { route: '/admin/schedule', departmentId: nextDepartmentId, year: parts.year, month: parts.monthIndex },
       });
     }
   }
@@ -460,7 +471,7 @@ export async function syncOvertimeState(
         entityLabel: `OT ${key}`,
         before: current ? { status: current.status, deleted: current.deleted } : undefined,
         after: { status: nextStatus, deleted: nextDeleted },
-        context: { route: '/admin/late-schedule', year: parts.year, month: parts.monthIndex },
+        context: { route: '/admin/late-schedule', departmentId: nextDepartmentId, year: parts.year, month: parts.monthIndex },
       });
     }
   }

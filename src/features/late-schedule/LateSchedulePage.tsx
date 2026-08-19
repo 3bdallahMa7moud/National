@@ -74,6 +74,7 @@ export default function LateSchedulePage() {
   const storageError = useLateScheduleStore((state) => state.storageError);
   const setNotice = useLateScheduleStore((state) => state.setNotice);
   const [viewMode, setViewMode] = useState<OTViewMode>('auto');
+  const [adminTab, setAdminTab] = useState<'schedule' | 'structure'>('schedule');
   const [isEditMode, setIsEditMode] = useState(false);
   const [activeCellMarkerTool, setActiveCellMarkerTool] = useState<CellMarkerTool | null>(null);
   const [isPublishConfirmOpen, setIsPublishConfirmOpen] = useState(false);
@@ -86,6 +87,13 @@ export default function LateSchedulePage() {
   const [archiveView, setArchiveView] = useState<'active' | 'archived'>('active');
   const [searchParams] = useSearchParams();
   const deepLinkHandled = useRef<string | null>(null);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'structure') {
+      setAdminTab('structure');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!isEditMode) setActiveCellMarkerTool(null);
@@ -271,173 +279,179 @@ export default function LateSchedulePage() {
           exportLateSchedulePdf(activeRows, roster, context.title, year, context.days, isRtl, notice);
         }}
         onAddShift={() => setIsAddingRow(true)}
+        adminTab={adminTab}
+        onAdminTabChange={setAdminTab}
       />
 
-      {isAdmin && (
-        <AdminMonthControl
-          status={monthStatus}
-          monthLabel={monthLabel}
-          assignmentCount={assignmentCount}
-          tableClipboard={tableClipboard ? {
-            sourceMonthLabel: new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' })
-              .format(new Date(tableClipboard.sourceYear, tableClipboard.sourceMonth, 1)),
-            assignmentCount: tableClipboard.assignmentCount,
-          } : null}
-          storageError={storageError}
-          onCopy={() => copyCurrentTable(user?.name)}
-          onPaste={() => pasteCopiedTable(user?.name)}
-          onClear={() => clearAllAssignments(user?.name)}
-          onReset={() => resetCurrentMonth(user?.name)}
-        />
-      )}
-
-      {isAdmin && isEditMode && (
-        <OTStructureControl
-          units={units}
-          rows={rows}
-          onAddUnit={(name) => addUnit(name, user?.name)}
-          onRenameUnit={(id, name) => renameUnit(id, name, user?.name)}
-          onArchiveUnit={(id) => archiveUnit(id, user?.name)}
-          onRestoreUnit={(id) => restoreUnit(id, user?.name)}
-          onDeleteUnit={(id) => deleteUnit(id, user?.name)}
-          onReorderUnit={(sourceUnitId, targetUnitId, position) => reorderUnit(sourceUnitId, targetUnitId, position, user?.name)}
-          onReorderRow={(rowId, _sourceUnitId, targetUnitId, targetRowId, position) => reorderRow(rowId, targetUnitId, targetRowId, position, user?.name)}
-          onEditRow={setEditingRowId}
-          onDeleteRow={(id) => deleteRow(id, user?.name)}
-        />
-      )}
-
-      {isAdmin && isEditMode && (
-        <OTBulkActions
-          rows={activeRows}
-          roster={roster}
-          daysInMonth={new Date(year, month + 1, 0).getDate()}
-          onApply={(rowId, from, to, employeeIds) => {
-            const result = setRangeAssignments(rowId, from, to, employeeIds, user?.name);
-            addToast({ type: result.ok ? 'success' : 'warning', title: result.ok ? (isRtl ? 'تم التعديل الجماعي' : 'Bulk assignment applied') : (isRtl ? 'تعذر التعديل' : 'Bulk assignment failed') });
-          }}
-          onClear={(rowId, from, to) => {
-            const result = clearRangeAssignments(rowId, from, to, user?.name);
-            addToast({ type: result.ok ? 'success' : 'warning', title: result.ok ? (isRtl ? 'تم مسح النطاق' : 'Range cleared') : (isRtl ? 'تعذر المسح' : 'Range clear failed') });
-          }}
-        />
-      )}
-
-      {(notice || isAdmin || warnings.length > 0) && (
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-          <div className="flex min-w-0 items-start gap-3">
-            {warnings.length > 0 ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" /> : <BellRing className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />}
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-text-primary">{notice || (isRtl ? 'لا يوجد تنبيه حالي' : 'No active notice')}</p>
-              {warnings.map((warning, index) => (
-                <p key={`${warning.kind}-${index}`} className="mt-1 text-xs text-amber-800 dark:text-amber-200">
-                  {warning.kind === 'unresolved_employee' ? `${isRtl ? 'كود غير مرتبط' : 'Unresolved code'}: ${warning.code}` : (isRtl ? 'تم استرجاع بيانات OT الافتراضية بعد خطأ تخزين' : 'OT data recovered after a storage error')}
-                </p>
-              ))}
-            </div>
-          </div>
-          {isAdmin && <Button variant="ghost" className="min-h-11" icon={<Edit3 className="h-4 w-4" />} onClick={() => { setNoticeDraft(notice); setIsNoticeOpen(true); }}>{isRtl ? 'تعديل التنبيه' : 'Edit notice'}</Button>}
+      {isAdmin && adminTab === 'structure' ? (
+        <section className="space-y-4 animate-in fade-in duration-200">
+          <OTStructureControl
+            units={units}
+            rows={rows}
+            onAddUnit={(name) => addUnit(name, user?.name)}
+            onRenameUnit={(id, name) => renameUnit(id, name, user?.name)}
+            onArchiveUnit={(id) => archiveUnit(id, user?.name)}
+            onRestoreUnit={(id) => restoreUnit(id, user?.name)}
+            onDeleteUnit={(id) => deleteUnit(id, user?.name)}
+            onReorderUnit={(sourceUnitId, targetUnitId, position) => reorderUnit(sourceUnitId, targetUnitId, position, user?.name)}
+            onReorderRow={(rowId, _sourceUnitId, targetUnitId, targetRowId, position) => reorderRow(rowId, targetUnitId, targetRowId, position, user?.name)}
+            onEditRow={setEditingRowId}
+            onDeleteRow={(id) => deleteRow(id, user?.name)}
+          />
         </section>
-      )}
-
-      {isAdmin && (
-        <div
-          className="grid w-full grid-cols-2 items-center gap-1 rounded-xl border border-border bg-surface-muted p-1 sm:flex sm:w-fit"
-          role="tablist"
-          aria-label={isRtl ? 'حالة صفوف OT' : 'OT row status'}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={archiveView === 'active'}
-            onClick={() => setArchiveView('active')}
-            className={`min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors ${archiveView === 'active' ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
-          >
-            {isRtl ? 'النشطة' : 'Active'}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={archiveView === 'archived'}
-            onClick={() => setArchiveView('archived')}
-            className={`min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors ${archiveView === 'archived' ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
-          >
-            {isRtl ? 'المؤرشفة' : 'Archived'}
-            {archivedFilteredRows.length > 0 && <span aria-hidden="true"> ({archivedFilteredRows.length})</span>}
-          </button>
-        </div>
-      )}
-
-      {archiveView === 'active' || !isAdmin ? (
-        <ErrorBoundary level="section" invalidateQueries>
-          <Suspense
-            fallback={(
-              <div className="rounded-2xl border border-border bg-surface py-12 text-center text-sm text-text-secondary" role="status">
-                {isRtl ? 'جارٍ تحميل الجدول…' : 'Loading schedule…'}
-              </div>
-            )}
-          >
-            {showDesktopGrid ? (
-              <LateScheduleDesktopGrid
-                year={year}
-                month={month}
-                rows={activeFilteredRows}
-                units={units}
-                roster={roster}
-                notice={notice}
-                canEdit={isAdmin && isEditMode}
-                markerToolActive={activeCellMarkerTool !== null}
-                viewMode={viewMode}
-                onAssign={handleCellAction}
-                onEditRow={setEditingRowId}
-              />
-            ) : (
-              <LateScheduleMobileWeek
-                year={year}
-                month={month}
-                rows={activeFilteredRows}
-                units={units}
-                roster={roster}
-                canEdit={isAdmin && isEditMode}
-                markerToolActive={activeCellMarkerTool !== null}
-                viewMode={viewMode}
-                onAssign={handleCellAction}
-              />
-            )}
-          </Suspense>
-        </ErrorBoundary>
       ) : (
-        <section className="space-y-3 rounded-2xl border border-border bg-surface p-4" aria-label={isRtl ? 'صفوف OT المؤرشفة' : 'Archived OT rows'}>
-          {archivedFilteredRows.length === 0 ? (
-            <p className="py-8 text-center text-sm text-text-secondary">
-              {isRtl ? 'لا توجد صفوف OT مؤرشفة في هذا الشهر.' : 'No archived OT rows in this month.'}
-            </p>
-          ) : archivedFilteredRows.map((row) => (
-            <article key={row.id} className="flex flex-col gap-3 rounded-xl border border-border bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <h2 className="truncate text-sm font-bold text-text-primary">{row.title}</h2>
-                <p className="mt-1 text-xs text-text-secondary">
-                  {row.location} · <span dir="ltr">{row.timeRange}</span>
-                </p>
+        <>
+          {isAdmin && (
+            <AdminMonthControl
+              status={monthStatus}
+              monthLabel={monthLabel}
+              assignmentCount={assignmentCount}
+              tableClipboard={tableClipboard ? {
+                sourceMonthLabel: new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' })
+                  .format(new Date(tableClipboard.sourceYear, tableClipboard.sourceMonth, 1)),
+                assignmentCount: tableClipboard.assignmentCount,
+              } : null}
+              storageError={storageError}
+              onCopy={() => copyCurrentTable(user?.name)}
+              onPaste={() => pasteCopiedTable(user?.name)}
+              onClear={() => clearAllAssignments(user?.name)}
+              onReset={() => resetCurrentMonth(user?.name)}
+            />
+          )}
+
+          {isAdmin && isEditMode && (
+            <OTBulkActions
+              rows={activeRows}
+              roster={roster}
+              daysInMonth={new Date(year, month + 1, 0).getDate()}
+              onApply={(rowId, from, to, employeeIds) => {
+                const result = setRangeAssignments(rowId, from, to, employeeIds, user?.name);
+                addToast({ type: result.ok ? 'success' : 'warning', title: result.ok ? (isRtl ? 'تم التعديل الجماعي' : 'Bulk assignment applied') : (isRtl ? 'تعذر التعديل' : 'Bulk assignment failed') });
+              }}
+              onClear={(rowId, from, to) => {
+                const result = clearRangeAssignments(rowId, from, to, user?.name);
+                addToast({ type: result.ok ? 'success' : 'warning', title: result.ok ? (isRtl ? 'تم مسح النطاق' : 'Range cleared') : (isRtl ? 'تعذر المسح' : 'Range clear failed') });
+              }}
+            />
+          )}
+
+          {(notice || isAdmin || warnings.length > 0) && (
+            <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+              <div className="flex min-w-0 items-start gap-3">
+                {warnings.length > 0 ? <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" /> : <BellRing className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-text-primary">{notice || (isRtl ? 'لا يوجد تنبيه حالي' : 'No active notice')}</p>
+                  {warnings.map((warning, index) => (
+                    <p key={`${warning.kind}-${index}`} className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+                      {warning.kind === 'unresolved_employee' ? `${isRtl ? 'كود غير مرتبط' : 'Unresolved code'}: ${warning.code}` : (isRtl ? 'تم استرجاع بيانات OT الافتراضية بعد خطأ تخزين' : 'OT data recovered after a storage error')}
+                    </p>
+                  ))}
+                </div>
               </div>
-              <Button
-                variant="secondary"
-                className="min-h-11 shrink-0"
-                icon={<ArchiveRestore className="h-4 w-4" />}
-                aria-label={`${isRtl ? 'استعادة' : 'Restore'} ${row.title}`}
-                onClick={() => {
-                  const result = restoreLateShiftRow(row.id, user?.name);
-                  if (result.ok) {
-                    setArchiveView('active');
-                    addToast({ type: 'success', title: isRtl ? 'تمت استعادة صف OT' : 'OT row restored' });
-                  }
-                }}
+              {isAdmin && <Button variant="ghost" className="min-h-11" icon={<Edit3 className="h-4 w-4" />} onClick={() => { setNoticeDraft(notice); setIsNoticeOpen(true); }}>{isRtl ? 'تعديل التنبيه' : 'Edit notice'}</Button>}
+            </section>
+          )}
+
+          {isAdmin && (
+            <div
+              className="grid w-full grid-cols-2 items-center gap-1 rounded-xl border border-border bg-surface-muted p-1 sm:flex sm:w-fit"
+              role="tablist"
+              aria-label={isRtl ? 'حالة صفوف OT' : 'OT row status'}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={archiveView === 'active'}
+                onClick={() => setArchiveView('active')}
+                className={`min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors ${archiveView === 'active' ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
               >
-                {isRtl ? 'استعادة' : 'Restore'}
-              </Button>
-            </article>
-          ))}
-        </section>
+                {isRtl ? 'النشطة' : 'Active'}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={archiveView === 'archived'}
+                onClick={() => setArchiveView('archived')}
+                className={`min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors ${archiveView === 'archived' ? 'bg-surface text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+              >
+                {isRtl ? 'المؤرشفة' : 'Archived'}
+                {archivedFilteredRows.length > 0 && <span aria-hidden="true"> ({archivedFilteredRows.length})</span>}
+              </button>
+            </div>
+          )}
+
+          {archiveView === 'active' || !isAdmin ? (
+            <ErrorBoundary level="section" invalidateQueries>
+              <Suspense
+                fallback={(
+                  <div className="rounded-2xl border border-border bg-surface py-12 text-center text-sm text-text-secondary" role="status">
+                    {isRtl ? 'جارٍ تحميل الجدول…' : 'Loading schedule…'}
+                  </div>
+                )}
+              >
+                {showDesktopGrid ? (
+                  <LateScheduleDesktopGrid
+                    year={year}
+                    month={month}
+                    rows={activeFilteredRows}
+                    units={units}
+                    roster={roster}
+                    notice={notice}
+                    canEdit={isAdmin && isEditMode}
+                    markerToolActive={activeCellMarkerTool !== null}
+                    viewMode={viewMode}
+                    onAssign={handleCellAction}
+                    onEditRow={setEditingRowId}
+                  />
+                ) : (
+                  <LateScheduleMobileWeek
+                    year={year}
+                    month={month}
+                    rows={activeFilteredRows}
+                    units={units}
+                    roster={roster}
+                    canEdit={isAdmin && isEditMode}
+                    markerToolActive={activeCellMarkerTool !== null}
+                    viewMode={viewMode}
+                    onAssign={handleCellAction}
+                  />
+                )}
+              </Suspense>
+            </ErrorBoundary>
+          ) : (
+            <section className="space-y-3 rounded-2xl border border-border bg-surface p-4" aria-label={isRtl ? 'صفوف OT المؤرشفة' : 'Archived OT rows'}>
+              {archivedFilteredRows.length === 0 ? (
+                <p className="py-8 text-center text-sm text-text-secondary">
+                  {isRtl ? 'لا توجد صفوف OT مؤرشفة في هذا الشهر.' : 'No archived OT rows in this month.'}
+                </p>
+              ) : archivedFilteredRows.map((row) => (
+                <article key={row.id} className="flex flex-col gap-3 rounded-xl border border-border bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-sm font-bold text-text-primary">{row.title}</h2>
+                    <p className="mt-1 text-xs text-text-secondary">
+                      {row.location} · <span dir="ltr">{row.timeRange}</span>
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    className="min-h-11 shrink-0"
+                    icon={<ArchiveRestore className="h-4 w-4" />}
+                    aria-label={`${isRtl ? 'استعادة' : 'Restore'} ${row.title}`}
+                    onClick={() => {
+                      const result = restoreLateShiftRow(row.id, user?.name);
+                      if (result.ok) {
+                        setArchiveView('active');
+                        addToast({ type: 'success', title: isRtl ? 'تمت استعادة صف OT' : 'OT row restored' });
+                      }
+                    }}
+                  >
+                    {isRtl ? 'استعادة' : 'Restore'}
+                  </Button>
+                </article>
+              ))}
+            </section>
+          )}
+        </>
       )}
 
       <Modal isOpen={!!activeCell} onClose={() => setActiveCell(null)} title={activeCell ? `${isRtl ? 'تعيين OT — اليوم' : 'OT assignment — Day'} ${activeCell.day}` : ''} size="md">

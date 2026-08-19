@@ -9,6 +9,7 @@ import LoginPage from './LoginPage';
 const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   post: vi.fn(),
+  get: vi.fn().mockResolvedValue({ data: { ok: true } }),
   fetchAndHydrateBootstrap: vi.fn(),
   syncAuthUserLocale: vi.fn(),
 }));
@@ -23,6 +24,7 @@ vi.mock('@/stores/authStore', () => ({
 vi.mock('@/lib/axios', () => ({
   default: {
     post: mocks.post,
+    get: mocks.get,
   },
 }));
 

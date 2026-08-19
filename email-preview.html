@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>معاينة قالب البريد الإلكتروني - Email Template Preview</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      background-color: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #f8fafc;
+    }
+    .preview-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .preview-header h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+      color: #38bdf8;
+    }
+    .preview-header p {
+      color: #94a3b8;
+      font-size: 16px;
+    }
+    .cards-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 40px;
+      justify-content: center;
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    .preview-column {
+      flex: 1;
+      min-width: 340px;
+      max-width: 580px;
+    }
+    .column-badge {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 16px;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="preview-header">
+    <h1>📧 معاينة قوالب البريد الإلكتروني (Gmail / Outlook)</h1>
+    <p>هذا هو الشكل الدقيق الذي سيظهر لموظفي المستشفى عند استلام رسائل الـ OTP</p>
+  </div>
+
+  <div class="cards-container">
+
+    <!-- Case 1: Password Reset / Setup -->
+    <div class="preview-column">
+      <div class="column-badge">1️⃣ رسالة استعادة / إعداد كلمة المرور (مع زر تفاعلي)</div>
+      
+      <!-- Email Card 1 -->
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); border: 1px solid #e2e8f0; margin: 0 auto;">
+        <!-- Header Banner -->
+        <tr>
+          <td style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 32px 24px; text-align: center;">
+            <div style="display: inline-block; background: rgba(2, 132, 199, 0.2); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 20px; padding: 6px 14px; margin-bottom: 12px;">
+              <span style="color: #38bdf8; font-size: 13px; font-weight: 600; letter-spacing: 0.05em;">🏥 نظام جدولة الأشعة | CT Scan System</span>
+            </div>
+            <h1 style="color: #ffffff; font-size: 22px; font-weight: 700; margin: 0; line-height: 1.4;">إعادة تعيين كلمة المرور</h1>
+            <p style="color: #94a3b8; font-size: 14px; margin: 6px 0 0 0;">Reset Your Password</p>
+          </td>
+        </tr>
+
+        <!-- Main Content -->
+        <tr>
+          <td style="padding: 32px 28px;">
+            <!-- Arabic Section -->
+            <div style="direction: rtl; text-align: right; margin-bottom: 16px;">
+              <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0;">
+                تم استلام طلب لإعادة تعيين كلمة المرور الخاصة بحسابك. استخدم الرمز التالي للمتابعة:
+              </p>
+            </div>
+
+            <!-- English Section -->
+            <div style="direction: ltr; text-align: left; margin-bottom: 24px;">
+              <p style="color: #64748b; font-size: 14px; line-height: 1.5; margin: 0;">
+                A password reset was requested for your account. Use this verification code to continue:
+              </p>
+            </div>
+
+            <!-- OTP Code Display Box -->
+            <div style="background: #f0f9ff; border: 2px dashed #0284c7; border-radius: 12px; padding: 24px 16px; text-align: center; margin: 20px 0;">
+              <div style="font-size: 13px; font-weight: 600; color: #0369a1; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">
+                رمز التحقق • Verification Code
+              </div>
+              <div style="font-family: 'Courier New', Courier, monospace, sans-serif; font-size: 36px; font-weight: 800; letter-spacing: 0.25em; color: #0c4a6e; padding: 4px 0;">
+                849201
+              </div>
+            </div>
+
+            <!-- Action Button -->
+            <div style="margin: 28px 0; text-align: center;">
+              <a href="#" style="background: #0284c7; color: #ffffff; text-decoration: none; padding: 13px 28px; border-radius: 8px; font-weight: 600; font-size: 15px; display: inline-block; box-shadow: 0 2px 4px rgba(2,132,199,0.25);">
+                إعادة تعيين كلمة المرور &bull; Reset Password
+              </a>
+            </div>
+
+            <!-- Expiry & Security Warning Box -->
+            <div style="background: #f8fafc; border-radius: 8px; border-left: 4px solid #0284c7; border-right: 4px solid #0284c7; padding: 14px 16px; margin-top: 24px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="direction: rtl; text-align: right; color: #475569; font-size: 13px; line-height: 1.6; padding-bottom: 8px;">
+                    ⏱️ <strong>صلاحية الرمز:</strong> صالح لمدة <strong>دقيقة واحدة</strong> فقط.<br>
+                    🔒 <strong>تنبيه أمني:</strong> لا تشارك هذا الرمز مطلقاً مع أي شخص.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="direction: ltr; text-align: left; color: #64748b; font-size: 12px; line-height: 1.5; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+                    ⏱️ This code expires in <strong>1 minute</strong>.<br>
+                    🔒 Security note: Never share this verification code with anyone.
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center;">
+            <p style="color: #64748b; font-size: 12px; margin: 0; line-height: 1.5;">
+              نظام جدولة الأشعة المقطعية &bull; CT Scan Scheduling System<br>
+              هذه رسالة تلقائية، يرجى عدم الرد على هذا البريد الإلكتروني.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Case 2: Signup / Account Verification -->
+    <div class="preview-column">
+      <div class="column-badge">2️⃣ رسالة تأكيد الحساب الجديد (OTP)</div>
+      
+      <!-- Email Card 2 -->
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); border: 1px solid #e2e8f0; margin: 0 auto;">
+        <!-- Header Banner -->
+        <tr>
+          <td style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 32px 24px; text-align: center;">
+            <div style="display: inline-block; background: rgba(2, 132, 199, 0.2); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 20px; padding: 6px 14px; margin-bottom: 12px;">
+              <span style="color: #38bdf8; font-size: 13px; font-weight: 600; letter-spacing: 0.05em;">🏥 نظام جدولة الأشعة | CT Scan System</span>
+            </div>
+            <h1 style="color: #ffffff; font-size: 22px; font-weight: 700; margin: 0; line-height: 1.4;">تأكيد الحساب ورمز التحقق</h1>
+            <p style="color: #94a3b8; font-size: 14px; margin: 6px 0 0 0;">Account Verification Code</p>
+          </td>
+        </tr>
+
+        <!-- Main Content -->
+        <tr>
+          <td style="padding: 32px 28px;">
+            <!-- Arabic Section -->
+            <div style="direction: rtl; text-align: right; margin-bottom: 16px;">
+              <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0;">
+                مرحباً بك، استخدم رمز التحقق التالي لإتمام تسجيل وتفعيل حسابك في نظام جدولة الأشعة المقطعية:
+              </p>
+            </div>
+
+            <!-- English Section -->
+            <div style="direction: ltr; text-align: left; margin-bottom: 24px;">
+              <p style="color: #64748b; font-size: 14px; line-height: 1.5; margin: 0;">
+                Welcome! Please use the following verification code to complete your account registration:
+              </p>
+            </div>
+
+            <!-- OTP Code Display Box -->
+            <div style="background: #f0f9ff; border: 2px dashed #0284c7; border-radius: 12px; padding: 24px 16px; text-align: center; margin: 20px 0;">
+              <div style="font-size: 13px; font-weight: 600; color: #0369a1; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;">
+                رمز التحقق • Verification Code
+              </div>
+              <div style="font-family: 'Courier New', Courier, monospace, sans-serif; font-size: 36px; font-weight: 800; letter-spacing: 0.25em; color: #0c4a6e; padding: 4px 0;">
+                513790
+              </div>
+            </div>
+
+            <!-- Expiry & Security Warning Box -->
+            <div style="background: #f8fafc; border-radius: 8px; border-left: 4px solid #0284c7; border-right: 4px solid #0284c7; padding: 14px 16px; margin-top: 24px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="direction: rtl; text-align: right; color: #475569; font-size: 13px; line-height: 1.6; padding-bottom: 8px;">
+                    ⏱️ <strong>صلاحية الرمز:</strong> صالح لمدة <strong>دقيقة واحدة</strong> فقط.<br>
+                    🔒 <strong>تنبيه أمني:</strong> لا تشارك هذا الرمز مطلقاً مع أي شخص.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="direction: ltr; text-align: left; color: #64748b; font-size: 12px; line-height: 1.5; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+                    ⏱️ This code expires in <strong>1 minute</strong>.<br>
+                    🔒 Security note: Never share this verification code with anyone.
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center;">
+            <p style="color: #64748b; font-size: 12px; margin: 0; line-height: 1.5;">
+              نظام جدولة الأشعة المقطعية &bull; CT Scan Scheduling System<br>
+              هذه رسالة تلقائية، يرجى عدم الرد على هذا البريد الإلكتروني.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+  </div>
+
+</body>
+</html>

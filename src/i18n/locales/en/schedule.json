@@ -269,13 +269,19 @@
     },
     "toastSuccessTitle": "Vacation Registered",
     "toastRangeMessage": "Registered vacation for employee from day {{start}} to {{end}}",
-    "toastDatesMessage": "Registered vacation for employee on days: [{{days}}]"
+    "toastDatesMessage": "Registered vacation for employee on days: [{{days}}]",
+    "toastRemoveTitle": "Vacation Removed",
+    "toastRemoveDayMessage": "Vacation day ({{day}}) removed successfully",
+    "toastRemoveRangeMessage": "Vacation range removed successfully",
+    "toastClearTitle": "Vacations Cleared",
+    "toastClearMessage": "All employee vacations cleared successfully"
   },
   "settingsPanel": {
     "title": "Schedule Settings",
     "workspace": {
       "ariaLabel": "Schedule settings sections",
       "shiftTypes": "Shift Types & Schedule Codes",
+      "unitStructure": "Unit / Shift Structure",
       "tableOrder": "Table Order"
     },
     "colorBlindMode": "Color Blind Mode",
@@ -283,9 +289,13 @@
     "shiftsSubtitle": "Edits apply forward only",
     "shiftNamePlaceholder": "Shift name",
     "addShift": "Add Shift",
+    "shiftVisibleCountBadge": "{{count}} shown",
+    "shiftScrollHintActive": "Showing {{count}} active shift definitions. Scroll down to view every card.",
+    "shiftScrollHintArchived": "Showing {{count}} archived shift definitions. Scroll down to view every card.",
     "unitsSection": "Units / Rooms",
     "unitNamePlaceholder": "Example: CT Room 4",
     "addUnit": "Add Unit",
+    "unitVisibleCountBadge": "{{count}} shown",
     "archive": "Archive"
   },
   "employeeChip": {
@@ -452,6 +462,12 @@
     "conflictWarningTitle": "Schedule Conflict Warning",
     "shiftSavedTitle": "Shift Saved",
     "shiftSavedMsg": "Edit saved to draft successfully",
+    "shiftAddedTitle": "Shift added",
+    "shiftAddedMsg": "Added {{name}} to this facility.",
+    "unitAddedTitle": "Unit added",
+    "unitAddedMsg": "Added {{name}} and placed it at the top of the list.",
+    "rowAddedTitle": "Row added",
+    "rowAddedMsg": "Added {{name}} to the selected unit.",
     "rowUpdatedTitle": "Row updated",
     "rowUpdatedMsg": "Row labels and shift type saved as draft.",
     "exportPdfTitle": "PDF export",

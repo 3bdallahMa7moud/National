@@ -61,10 +61,14 @@ function displayAssignment(ref: ShiftAssignmentRef): string {
 }
 
 function accountName(accountId: string, language: string = getStoredLanguage()): string {
-  const record = getEmployeeDirectoryRecord(accountId);
-  if (!record) return accountId;
-  const locale = language.startsWith('ar') ? 'ar' : 'en';
-  return record.name[locale];
+  if (!accountId) return '';
+  const normalizedId = accountId.replace(/^directory-account:/, '');
+  const record = getEmployeeDirectoryRecord(accountId) || getEmployeeDirectoryRecord(normalizedId);
+  if (record) {
+    const locale = language.startsWith('ar') ? 'ar' : 'en';
+    return record.name[locale] || record.name.en || record.name.ar;
+  }
+  return '';
 }
 
 function requestPartyName(

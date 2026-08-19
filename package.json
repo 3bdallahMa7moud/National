@@ -12,7 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx --tsconfig tsconfig.server.json prisma/seed.ts",
     "build:e2e": "VITE_API_URL=http://127.0.0.1:3100/api VITE_SOCKET_URL=http://127.0.0.1:3100 npm run build",
-    "e2e:db:reset": "rm -f prisma/prisma-e2e.db && cp prisma/app.db prisma/prisma-e2e.db && DATABASE_URL=file:./prisma-e2e.db npx prisma db push --skip-generate && DATABASE_URL=file:./prisma-e2e.db node server/dist/prisma/seed.js",
+    "e2e:db:reset": "node scripts/e2e-reset.mjs",
     "preview:e2e": "vite preview --host 127.0.0.1 --port 4174",
     "build": "npm run prisma:generate && tsc -b && vite build",
     "typecheck": "npm run prisma:generate && tsc -b",
@@ -22,7 +22,7 @@
     "test:coverage": "vitest run --coverage --maxWorkers=4",
     "test:e2e": "npm run build:e2e && npm run e2e:db:reset && playwright test",
     "test:e2e:headed": "npm run build:e2e && npm run e2e:db:reset && playwright test --headed",
-    "test:server": "rm -f prisma/prisma-test.db && cp prisma/app.db prisma/prisma-test.db && DATABASE_URL=file:./prisma-test.db NODE_ENV=test APP_ORIGIN=http://127.0.0.1:5173 SESSION_SECRET=test-session-secret-1234567890 ENABLE_DEV_PASSWORD_RESET_CODES=true ENABLE_DEV_SIGNUP_OTP_CODES=true npx prisma db push --skip-generate && DATABASE_URL=file:./prisma-test.db NODE_ENV=test APP_ORIGIN=http://127.0.0.1:5173 SESSION_SECRET=test-session-secret-1234567890 ENABLE_DEV_PASSWORD_RESET_CODES=true ENABLE_DEV_SIGNUP_OTP_CODES=true vitest run --config vitest.server.config.ts --maxWorkers=1",
+    "test:server": "node scripts/test-server.mjs",
     "test:watch": "vitest",
     "preview": "vite preview"
   },

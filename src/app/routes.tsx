@@ -191,11 +191,11 @@ export const router = createBrowserRouter([
                   element: featureElement('shiftRequests', <EmployeeShiftRequestsPage />),
                 }],
               },
-              {
-                path: 'notifications',
-                element: featureElement(['notifications', 'shiftRequests'], <NotificationsPage />),
-              },
             ],
+          },
+          {
+            path: 'notifications',
+            element: featureElement(['notifications', 'shiftRequests'], <NotificationsPage />),
           },
           {
             path: 'profile',

@@ -59,6 +59,9 @@ export interface AuthUser {
   departmentId: string;
   departmentName: string;
   code?: string;
+  employeeNumber?: string;
+  phone?: string;
+  position?: string;
   avatar?: string;
   /** Explicit link to the official operational roster; never infer this from account text. */
   scheduleEmployeeId?: string;

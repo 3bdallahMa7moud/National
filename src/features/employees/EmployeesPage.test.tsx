@@ -164,7 +164,7 @@ describe('EmployeesPage', () => {
             code: String(body.code),
           }),
         ];
-        return { data: { employee: serverEmployees[serverEmployees.length - 1], setupEmailSent: true } };
+        return { data: { employee: serverEmployees[serverEmployees.length - 1], defaultPassword: '123456' } };
       }
       if (url.endsWith('/reset-password')) {
         return { data: { ok: true } };
@@ -263,7 +263,6 @@ describe('EmployeesPage', () => {
     fireEvent.change(within(dialog).getByLabelText('Employee Name'), { target: { value: 'Jad CT' } });
     fireEvent.change(within(dialog).getByLabelText('Badge Number (BN)'), { target: { value: 'EMP-010' } });
     fireEvent.change(within(dialog).getByLabelText('Abbreviation (Code)'), { target: { value: 'JAD' } });
-    fireEvent.change(within(dialog).getByLabelText('Email'), { target: { value: 'jad.ct@hospital.sa' } });
 
     fireEvent.click(within(dialog).getAllByRole('button', { name: 'Add Employee' })[0]);
 

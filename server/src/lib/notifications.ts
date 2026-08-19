@@ -124,13 +124,18 @@ export async function markNotificationRead(db: NotificationDb, notification: Not
 }
 
 export async function markAllNotificationsRead(db: NotificationDb, notifications: Notification[], viewer: NotificationViewer) {
-  await Promise.all(notifications.map((notification) => {
+  const unreadNotifications = notifications.filter((notification) => {
+    const readBy = parseJson<string[]>(notification.readByJson, []);
+    return !readBy.includes(viewer.id);
+  });
+
+  for (const notification of unreadNotifications) {
     const readBy = [...new Set([...parseJson<string[]>(notification.readByJson, []), viewer.id])];
-    return db.notification.update({
+    await db.notification.update({
       where: { id: notification.id },
       data: { readByJson: JSON.stringify(readBy) },
     });
-  }));
+  }
 }
 
 export async function hideNotificationForViewer(db: NotificationDb, notification: Notification, viewer: NotificationViewer) {

@@ -103,7 +103,7 @@ departmentsRouter.post('/', requireRoles('admin', 'super_admin'), async (req, re
     after: {
       managerId: department.managerId,
     },
-    context: { route: '/admin/departments' },
+    context: { route: '/admin/departments', departmentId: department.id },
   });
 
   res.status(201).json({
@@ -180,7 +180,7 @@ departmentsRouter.patch('/:departmentId', requireRoles('admin', 'super_admin'), 
       description: department.descriptionEn,
       managerId: department.managerId,
     },
-    context: { route: '/admin/departments' },
+    context: { route: '/admin/departments', departmentId: department.id },
   });
 
   res.json({
@@ -208,7 +208,11 @@ departmentsRouter.delete('/:departmentId', requireRoles('admin', 'super_admin'),
     return;
   }
 
-  if (existing._count.users > 0) {
+  const activeUsersCount = await prisma.user.count({
+    where: { departmentId, isActive: true },
+  });
+
+  if (activeUsersCount > 0) {
     res.status(409).json({
       error: {
         code: 'DEPARTMENT_HAS_EMPLOYEES',
@@ -218,7 +222,21 @@ departmentsRouter.delete('/:departmentId', requireRoles('admin', 'super_admin'),
     return;
   }
 
-  await prisma.department.delete({ where: { id: departmentId } });
+  const fallbackDepartment = await prisma.department.findFirst({
+    where: { id: { not: departmentId } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    if (fallbackDepartment) {
+      await tx.user.updateMany({
+        where: { departmentId, isActive: false },
+        data: { departmentId: fallbackDepartment.id },
+      });
+    }
+    await tx.department.delete({ where: { id: departmentId } });
+  });
 
   await createAuditEntry(prisma, {
     actorUserId: req.viewer!.id,
@@ -232,7 +250,7 @@ departmentsRouter.delete('/:departmentId', requireRoles('admin', 'super_admin'),
       description: existing.descriptionEn,
       managerId: existing.managerId,
     },
-    context: { route: '/admin/departments' },
+    context: { route: '/admin/departments', departmentId: existing.id },
   });
 
   res.status(204).end();

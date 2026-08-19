@@ -92,9 +92,10 @@ export function hydrateBackendState(payload: ApiBootstrapPayload) {
 
     useScheduleMatrixStore.setState((state) => {
       const monthKey = `${state.year}-${String(state.month + 1).padStart(2, '0')}`;
-      const currentData = scheduleDraftsByMonth[monthKey]
-        ?? scheduleMatricesByMonth[monthKey]
-        ?? state.data;
+      const draft = scheduleDraftsByMonth[monthKey];
+      const stored = scheduleMatricesByMonth[monthKey];
+      const isDeleted = payload.schedule.deletedMonths.includes(monthKey);
+      const currentData = (!isDeleted && draft) ? draft : (stored ?? state.data);
 
       return {
         ...state,
@@ -104,8 +105,8 @@ export function hydrateBackendState(payload: ApiBootstrapPayload) {
         versionsByMonth: scheduleVersionsByMonth as typeof state.versionsByMonth,
         monthStatuses: payload.schedule.monthStatuses as typeof state.monthStatuses,
         deletedMonths: payload.schedule.deletedMonths,
-        snapshot: JSON.stringify(currentData ?? null),
-        draftCellKeys: [],
+        snapshot: JSON.stringify(stored ?? currentData ?? null),
+        draftCellKeys: draft && !isDeleted ? [`restored-draft|${monthKey}`] : [],
         storageError: null,
       };
     });

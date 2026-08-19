@@ -308,13 +308,19 @@
     },
     "toastSuccessTitle": "تم تسجيل الإجازة",
     "toastRangeMessage": "تم تسجيل إجازة للموظف من يوم {{start}} إلى {{end}}",
-    "toastDatesMessage": "تم تسجيل إجازة للموظف لأيام: [{{days}}]"
+    "toastDatesMessage": "تم تسجيل إجازة للموظف لأيام: [{{days}}]",
+    "toastRemoveTitle": "تم إزالة الإجازة",
+    "toastRemoveDayMessage": "تم إزالة يوم الإجازة ({{day}}) بنجاح",
+    "toastRemoveRangeMessage": "تم إزالة فترة الإجازة بنجاح",
+    "toastClearTitle": "تم مسح الإجازات",
+    "toastClearMessage": "تم مسح جميع إجازات الموظف بنجاح"
   },
   "settingsPanel": {
     "title": "إعدادات الجدول",
     "workspace": {
       "ariaLabel": "أقسام إعدادات الجدول",
       "shiftTypes": "أنواع الشفتات وأكواد الجدول",
+      "unitStructure": "هيكل الوحدات والشفتات",
       "tableOrder": "ترتيب الجدول"
     },
     "colorBlindMode": "وضع عمى الألوان",
@@ -322,9 +328,13 @@
     "shiftsSubtitle": "التعديل يطبق للأمام فقط",
     "shiftNamePlaceholder": "اسم الشيفت",
     "addShift": "إضافة شيفت",
+    "shiftVisibleCountBadge": "المعروض {{count}}",
+    "shiftScrollHintActive": "يتم عرض {{count}} شيفتات نشطة. انزل لأسفل لرؤية كل الكروت.",
+    "shiftScrollHintArchived": "يتم عرض {{count}} شيفتات مؤرشفة. انزل لأسفل لرؤية كل الكروت.",
     "unitsSection": "الوحدات / الغرف",
     "unitNamePlaceholder": "مثال: CT Room 4",
     "addUnit": "إضافة وحدة",
+    "unitVisibleCountBadge": "المعروض {{count}}",
     "archive": "أرشفة"
   },
   "employeeChip": {
@@ -480,6 +490,12 @@
     "conflictWarningTitle": "تحذير تعارض في الجدول",
     "shiftSavedTitle": "تم حفظ الوردية",
     "shiftSavedMsg": "تم حفظ التعديل في المسودة بنجاح",
+    "shiftAddedTitle": "تمت إضافة الشيفت",
+    "shiftAddedMsg": "تمت إضافة {{name}} إلى هذا الفرع.",
+    "unitAddedTitle": "تمت إضافة الوحدة",
+    "unitAddedMsg": "تمت إضافة {{name}} ووضعها في أعلى القائمة.",
+    "rowAddedTitle": "تمت إضافة الصف",
+    "rowAddedMsg": "تمت إضافة {{name}} إلى الوحدة المحددة.",
     "rowUpdatedTitle": "تم تحديث الصف",
     "rowUpdatedMsg": "تم حفظ تسميات الصف ونوع الشيفت كمسودة.",
     "exportPdfTitle": "تصدير PDF",

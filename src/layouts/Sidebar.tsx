@@ -33,8 +33,9 @@ const adminLinks: SidebarLink[] = [
   { to: '/admin/audit-log', icon: FileText, labelKey: 'common:nav.auditLog' },
   { to: '/admin/shift-requests', icon: ArrowLeftRight, labelKey: 'common:nav.shiftRequests' },
   { to: '/admin/employee-justification', icon: FileBarChart2, labelKey: 'common:nav.employeeJustification' },
-  { to: '/admin/calendar-sync', icon: RefreshCw, labelKey: 'common:nav.calendarSync', superAdminOnly: true },
+  { to: '/admin/calendar-sync', icon: RefreshCw, labelKey: 'common:nav.calendarSync' },
   { href: 'https://www.ctgate.cc', external: true, icon: Palmtree, labelKey: 'common:nav.ctGate' },
+  { to: '/notifications', icon: Bell, labelKey: 'common:nav.notifications' },
   { to: '/profile', icon: User, labelKey: 'common:nav.profile' },
 ];
 

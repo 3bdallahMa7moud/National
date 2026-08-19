@@ -62,6 +62,12 @@
   "adminReason": "سبب رفض الأدمن",
   "adminNote": "سبب الرفض",
   "rejectAdmin": "رفض الطلب",
+  "delete": "حذف الطلب",
+  "clearClosed": "مسح الطلبات المغلقة",
+  "confirmDeleteTitle": "تأكيد حذف الطلب",
+  "confirmDeleteMessage": "هل أنت متأكد من رغبتك في حذف هذا الطلب نهائياً؟ لا يمكن التراجع عن هذا الإجراء.",
+  "confirmClearClosedTitle": "تأكيد مسح الطلبات المغلقة",
+  "confirmClearClosedMessage": "سيتم حذف جميع الطلبات المغلقة والمنتهية والمرفوضة نهائياً من قاعدة البيانات لتخفيف العبء. هل تريد المتابعة؟",
   "reasons": {
     "staff_shortage": "عجز في التغطية",
     "skill_mismatch": "عدم توافق المهارة",

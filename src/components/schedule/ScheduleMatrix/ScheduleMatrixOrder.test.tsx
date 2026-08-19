@@ -6,6 +6,26 @@ import ScheduleMatrix from './ScheduleMatrix';
 afterEach(cleanup);
 
 describe('ScheduleMatrix arrange mode', () => {
+  it('keeps the row matrix available for admin usage instead of falling back to the mobile assignment summary', () => {
+    const data = createScheduleMatrixFixture(2026, 6);
+
+    render(
+      <ScheduleMatrix
+        data={data}
+        adminMode="edit"
+        editable
+        onCellClick={vi.fn()}
+        onUpdateRow={vi.fn()}
+        onAddRow={vi.fn()}
+        onAddUnit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('desktop-schedule-matrix')).toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-weekly-schedule')).not.toBeInTheDocument();
+    expect(screen.getAllByText('GE VCT').length).toBeGreaterThan(0);
+  });
+
   it('renders direct unit and row handles on desktop plus a touch ordering surface on mobile', async () => {
     // Pre-transform the production-lazy DnD module so parallel Vitest workers do not
     // turn chunk compilation time into a flaky Suspense timeout.

@@ -47,13 +47,13 @@ describe('ForgotPasswordPage recovery flow', () => {
     });
     renderRecovery();
 
-    fireEvent.change(screen.getByLabelText('Email / Employee Number'), {
+    fireEvent.change(screen.getByLabelText('Email or Username'), {
       target: { value: 'missing@example.com' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send Verification Code' }));
 
     expect(await screen.findByRole('alert', {}, { timeout: 2000 })).toHaveTextContent(
-      'No account found with this employee number or email.',
+      'No account found with this username or email.',
     );
     expect(screen.queryByText('Enter Verification Code')).not.toBeInTheDocument();
   });
@@ -77,7 +77,7 @@ describe('ForgotPasswordPage recovery flow', () => {
       });
     renderRecovery();
 
-    fireEvent.change(screen.getByLabelText('Email / Employee Number'), {
+    fireEvent.change(screen.getByLabelText('Email or Username'), {
       target: { value: 'admin@hospital.sa' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send Verification Code' }));
@@ -114,7 +114,7 @@ describe('ForgotPasswordPage recovery flow', () => {
     });
     renderRecovery();
 
-    fireEvent.change(screen.getByLabelText('Email / Employee Number'), {
+    fireEvent.change(screen.getByLabelText('Email or Username'), {
       target: { value: 'admin@hospital.sa' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send Verification Code' }));
@@ -122,7 +122,7 @@ describe('ForgotPasswordPage recovery flow', () => {
     expect(
       await screen.findByRole('alert', {}, { timeout: 2000 }),
     ).toHaveTextContent('Real email delivery is not configured.');
-    expect(screen.queryByText('No account found with this employee number or email.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No account found with this username or email.')).not.toBeInTheDocument();
   });
 
   it('shows safe guidance when the account has no email address on file', async () => {
@@ -136,7 +136,7 @@ describe('ForgotPasswordPage recovery flow', () => {
     });
     renderRecovery();
 
-    fireEvent.change(screen.getByLabelText('Email / Employee Number'), {
+    fireEvent.change(screen.getByLabelText('Email or Username'), {
       target: { value: 'EMP-903' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send Verification Code' }));

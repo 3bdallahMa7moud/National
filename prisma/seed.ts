@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { PrismaClient, type Prisma } from '@prisma/client';
+import { createScheduleSeedTemplate } from './scheduleSeedTemplate.js';
 
 const prisma = new PrismaClient();
 const DEFAULT_PASSWORD = '123456';
@@ -156,11 +157,12 @@ async function upsertAccessProfiles() {
 
 async function upsertScheduleMonth() {
   const monthKey = `${SEEDED_MONTH.year}-${String(SEEDED_MONTH.month + 1).padStart(2, '0')}`;
+  const templateMonth = createScheduleSeedTemplate(SEEDED_MONTH.year, SEEDED_MONTH.month);
   await prisma.scheduleMonth.upsert({
     where: { monthKey },
     update: {
       departmentId: DEFAULT_DEPARTMENT_ID,
-      draftJson: null,
+      draftJson: JSON.stringify(templateMonth),
       publishedJson: null,
       versionsJson: '[]',
       status: 'draft',
@@ -174,7 +176,7 @@ async function upsertScheduleMonth() {
       year: SEEDED_MONTH.year,
       month: SEEDED_MONTH.month,
       departmentId: DEFAULT_DEPARTMENT_ID,
-      draftJson: null,
+      draftJson: JSON.stringify(templateMonth),
       publishedJson: null,
       versionsJson: '[]',
       status: 'draft',

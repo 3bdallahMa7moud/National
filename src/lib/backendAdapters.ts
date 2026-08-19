@@ -107,6 +107,9 @@ export function mapViewerToAuthUser(viewer: ApiViewer, language: Language): Auth
     departmentId: viewer.department.id,
     departmentName: localize(viewer.department.name, language),
     code: viewer.code,
+    employeeNumber: viewer.employeeNumber,
+    phone: viewer.phone,
+    position: viewer.position ? localize(viewer.position, language) : undefined,
     scheduleEmployeeId: viewer.scheduleEmployeeId,
   };
 }

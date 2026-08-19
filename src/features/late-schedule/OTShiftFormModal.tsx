@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
@@ -22,13 +22,13 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
   const [form, setForm] = useState<OTShiftInput>({ title: '', location: '', timeRange: '17:00-21:00', hours: 4, backgroundColor: '#E0F2FE', textColor: '#075985' });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [confirmArchive, setConfirmArchive] = useState(false);
-  const activeUnits = units.filter((unit) => !unit.archived);
+  const activeUnits = useMemo(() => units.filter((unit) => !unit.archived), [units]);
 
   const TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
 
   useEffect(() => {
     if (!isOpen) return;
-    const firstUnit = activeUnits[0];
+    const firstUnit = units.filter((unit) => !unit.archived)[0];
     setForm(row
       ? {
         unitId: row.unitId,
@@ -54,7 +54,7 @@ export default function OTShiftFormModal({ isOpen, row, units = [], onClose, onS
       });
     setErrors({});
     setConfirmArchive(false);
-  }, [activeUnits, isOpen, row, units]);
+  }, [isOpen, row, units]);
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};

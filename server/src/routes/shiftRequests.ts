@@ -41,6 +41,7 @@ const assignmentSchema = z.object({
 
 const createRequestSchema = z.object({
   type: z.enum(['exchange', 'replace']),
+  requesterAccountId: z.string().trim().min(1).optional(),
   recipientAccountId: z.string().trim().min(1),
   requesterAssignment: assignmentSchema,
   offeredAssignment: assignmentSchema.optional(),
@@ -183,6 +184,29 @@ async function staleRequestDueToValidation(tx: Prisma.TransactionClient, request
   return serialized;
 }
 
+function fallbackUser(id: string): User {
+  return {
+    id,
+    employeeNumber: 'N/A',
+    code: 'N/A',
+    nameEn: 'Unknown User',
+    nameAr: 'مستخدم غير معروف',
+    email: null,
+    emailVerifiedAt: null,
+    phone: '',
+    role: 'employee',
+    departmentId: 'dept-1',
+    positionEn: 'Employee',
+    positionAr: 'موظف',
+    avatar: null,
+    isActive: false,
+    passwordHash: '',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    scheduleEmployeeId: null,
+  };
+}
+
 export const shiftRequestsRouter = Router();
 
 shiftRequestsRouter.get('/', requireAuth, async (req, res) => {
@@ -200,8 +224,8 @@ shiftRequestsRouter.get('/', requireAuth, async (req, res) => {
   res.json({
     shiftRequests: visible.map((request) => serializeShiftRequest(
       request,
-      parties.get(request.requesterUserId)!,
-      parties.get(request.recipientUserId)!,
+      parties.get(request.requesterUserId) ?? fallbackUser(request.requesterUserId),
+      parties.get(request.recipientUserId) ?? fallbackUser(request.recipientUserId),
     )),
   });
 });
@@ -246,7 +270,31 @@ shiftRequestsRouter.post('/', requireAuth, async (req, res) => {
 
   try {
     const created = await prisma.$transaction(async (tx) => {
-      const { requester, recipient } = await loadUsers(tx, req.viewer!.id, parsed.data.recipientAccountId);
+      let effectiveRequesterUserId = req.viewer!.id;
+      if (req.viewer!.role === 'admin' || req.viewer!.role === 'super_admin') {
+        if (parsed.data.requesterAccountId) {
+          effectiveRequesterUserId = parsed.data.requesterAccountId;
+        } else {
+          const cleanEmployeeId = parsed.data.requesterAssignment.employeeId.replace(/^directory-account:/, '');
+          const linkedUser = await tx.user.findFirst({
+            where: {
+              OR: [
+                { scheduleEmployeeId: cleanEmployeeId },
+                { scheduleEmployeeId: parsed.data.requesterAssignment.employeeId },
+                { id: cleanEmployeeId },
+                { id: parsed.data.requesterAssignment.employeeId },
+                { code: parsed.data.requesterAssignment.employeeCode },
+              ],
+              ...(req.viewer!.role === 'admin' ? { departmentId: req.viewer!.department.id } : {}),
+            },
+          });
+          if (linkedUser) {
+            effectiveRequesterUserId = linkedUser.id;
+          }
+        }
+      }
+
+      const { requester, recipient } = await loadUsers(tx, effectiveRequesterUserId, parsed.data.recipientAccountId);
       if (!requester || !recipient || !ensureRecipientVisible(req.viewer!, recipient)) {
         throw new Error('RECIPIENT_NOT_FOUND');
       }
@@ -341,7 +389,13 @@ shiftRequestsRouter.post('/', requireAuth, async (req, res) => {
           offeredAssignmentJson: offeredAssignment ? JSON.stringify(offeredAssignment) : null,
           warningsJson: JSON.stringify(warnings),
           timelineJson: JSON.stringify([
-            timelineEvent('created', 'requester', requesterParty.name, requester.id),
+            timelineEvent(
+              'created',
+              req.viewer!.id !== requester.id ? 'admin' : 'requester',
+              req.viewer!.name.en || requesterParty.name,
+              req.viewer!.id,
+              req.viewer!.id !== requester.id ? 'Created by administrator on behalf of employee' : undefined,
+            ),
           ]),
           expiresAt: new Date(expiresAt),
         },
@@ -349,7 +403,7 @@ shiftRequestsRouter.post('/', requireAuth, async (req, res) => {
 
       const serialized = serializeShiftRequest(createdRequest, requester, recipient);
       await createShiftRequestNotifications(tx, 'created', serialized);
-      await createShiftRequestAudit(tx, 'request', requester.id, requesterParty.name, serialized);
+      await createShiftRequestAudit(tx, 'request', req.viewer!.id, req.viewer!.name.en, serialized);
       return serialized;
     });
 
@@ -555,18 +609,20 @@ shiftRequestsRouter.post('/:requestId/approve', requireRoles('admin', 'super_adm
           status: { in: ['pending_recipient', 'pending_admin'] },
         },
       });
+      const cleanId = (id: string | undefined) => (id ? id.replace(/^directory-account:/, '') : '');
+      const matchKey = (ref: ShiftAssignmentRef) => `${ref.source}|${ref.monthKey}|${ref.rowId}|${ref.day}|${cleanId(ref.employeeId)}`;
+      const approvedKeys = [
+        matchKey(serialized.requesterAssignment),
+        ...(serialized.offeredAssignment ? [matchKey(serialized.offeredAssignment)] : []),
+      ];
       for (const candidate of overlapping) {
         const candidateRequester = parseJson<ShiftAssignmentRef>(candidate.requesterAssignmentJson, {} as ShiftAssignmentRef);
         const candidateOffered = parseJson<ShiftAssignmentRef | undefined>(candidate.offeredAssignmentJson, undefined);
-        const keys = [
-          `${candidateRequester.source}|${candidateRequester.monthKey}|${candidateRequester.rowId}|${candidateRequester.day}|${candidateRequester.employeeId}`,
-          ...(candidateOffered ? [`${candidateOffered.source}|${candidateOffered.monthKey}|${candidateOffered.rowId}|${candidateOffered.day}|${candidateOffered.employeeId}`] : []),
+        const candidateKeys = [
+          matchKey(candidateRequester),
+          ...(candidateOffered ? [matchKey(candidateOffered)] : []),
         ];
-        const approvedKeys = [
-          `${serialized.requesterAssignment.source}|${serialized.requesterAssignment.monthKey}|${serialized.requesterAssignment.rowId}|${serialized.requesterAssignment.day}|${serialized.requesterAssignment.employeeId}`,
-          ...(serialized.offeredAssignment ? [`${serialized.offeredAssignment.source}|${serialized.offeredAssignment.monthKey}|${serialized.offeredAssignment.rowId}|${serialized.offeredAssignment.day}|${serialized.offeredAssignment.employeeId}`] : []),
-        ];
-        if (!keys.some((key) => approvedKeys.includes(key))) continue;
+        if (!candidateKeys.some((key) => approvedKeys.includes(key))) continue;
         const stale = await tx.shiftRequest.update({
           where: { id: candidate.id },
           data: {
@@ -646,5 +702,43 @@ shiftRequestsRouter.post('/:requestId/reject-admin', requireRoles('admin', 'supe
     };
     const [status, code, message] = map[reason] ?? [400, 'REJECT_FAILED', 'Unable to reject the request.'];
     res.status(status).json({ error: { code, message } });
+  }
+});
+
+shiftRequestsRouter.delete('/clear-closed', requireRoles('admin', 'super_admin'), async (req, res) => {
+  try {
+    const whereClause: Prisma.ShiftRequestWhereInput = {
+      status: { in: ['recipient_rejected', 'admin_rejected', 'cancelled', 'expired', 'stale'] },
+      ...(req.viewer!.role === 'admin' ? { departmentId: req.viewer!.department.id } : {}),
+    };
+    const result = await prisma.shiftRequest.deleteMany({
+      where: whereClause,
+    });
+    res.json({ ok: true, count: result.count });
+  } catch {
+    res.status(500).json({ error: { code: 'DELETE_FAILED', message: 'Unable to clear closed requests.' } });
+  }
+});
+
+shiftRequestsRouter.delete('/:requestId', requireRoles('admin', 'super_admin'), async (req, res) => {
+  const requestId = Array.isArray(req.params.requestId) ? req.params.requestId[0] : req.params.requestId;
+  try {
+    const request = await prisma.shiftRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request || !shiftRequestVisibleToViewer(request, req.viewer!)) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Shift request not found.' } });
+      return;
+    }
+    if (req.viewer!.role === 'admin' && request.departmentId !== req.viewer!.department.id) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'You are not allowed to delete this request.' } });
+      return;
+    }
+    await prisma.shiftRequest.delete({
+      where: { id: requestId },
+    });
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: { code: 'DELETE_FAILED', message: 'Unable to delete shift request.' } });
   }
 });

@@ -320,7 +320,7 @@ authRouter.post('/forgot-password/verify', async (req, res) => {
     return;
   }
 
-  const verifyKey = rateLimitKey(req, 'forgot-password-verify', `${parsed.data.identifier}:${parsed.data.code}`);
+  const verifyKey = rateLimitKey(req, 'forgot-password-verify', parsed.data.identifier);
   const verifyLimit = checkRateLimit(verifyKey, 10, 10 * 60 * 1000);
   if (!verifyLimit.allowed) {
     sendRateLimit(res, verifyLimit.retryAfterMs);
@@ -375,7 +375,7 @@ authRouter.post('/forgot-password/reset', async (req, res) => {
     return;
   }
 
-  const resetKey = rateLimitKey(req, 'forgot-password-reset', `${parsed.data.identifier}:${parsed.data.code}`);
+  const resetKey = rateLimitKey(req, 'forgot-password-reset', parsed.data.identifier);
   const resetLimit = checkRateLimit(resetKey, 6, 10 * 60 * 1000);
   if (!resetLimit.allowed) {
     sendRateLimit(res, resetLimit.retryAfterMs);

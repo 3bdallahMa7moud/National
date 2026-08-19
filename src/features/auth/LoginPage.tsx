@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { startTransition, useState, useMemo } from 'react';
+import { startTransition, useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -31,6 +31,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (typeof api.get === 'function') {
+      void api.get('/health').catch(() => undefined);
+    }
+  }, []);
+
   const loginSchema = useMemo(() => z.object({
     identifier: z.string().min(1, t('auth:login.identifierRequired')),
     password: z.string().min(1, t('forms:validation.passwordRequired')),
@@ -42,39 +48,48 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginForm) => {
     setError('');
-    try {
-      const response = await api.post<{ user: ApiViewer }>('/auth/login', data);
-      const authUser = mapViewerToAuthUser(response.data.user, i18n.language === 'ar' ? 'ar' : 'en');
-      login(authUser);
-      startTransition(() => {
-        navigate(isAdminOrSuperAdmin(authUser) ? '/admin/dashboard' : '/employee/dashboard');
-      });
-      void fetchAndHydrateBootstrap().catch(() => undefined);
-    } catch (error) {
-      const code = axios.isAxiosError(error)
-        ? (error.response?.data as { error?: { code?: string } } | undefined)?.error?.code
-        : undefined;
+    const executeLogin = async (attempt = 0): Promise<void> => {
+      try {
+        const response = await api.post<{ user: ApiViewer }>('/auth/login', data);
+        const authUser = mapViewerToAuthUser(response.data.user, i18n.language === 'ar' ? 'ar' : 'en');
+        login(authUser);
+        startTransition(() => {
+          navigate(isAdminOrSuperAdmin(authUser) ? '/admin/dashboard' : '/employee/dashboard');
+        });
+        void fetchAndHydrateBootstrap().catch(() => undefined);
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          const status = error.response?.status;
+          const isTransient = !error.response || status === 502 || status === 503 || status === 504;
 
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
+          if (isTransient && attempt < 1) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            return executeLogin(attempt + 1);
+          }
 
-        if (status === 401 || code === 'INVALID_CREDENTIALS') {
-          setError(t('auth:login.invalidCredentials'));
-          return;
+          const code = (error.response?.data as { error?: { code?: string } } | undefined)?.error?.code;
+
+          if (status === 401 || code === 'INVALID_CREDENTIALS') {
+            setError(t('auth:login.invalidCredentials'));
+            return;
+          }
+
+          if (isTransient || status === 500) {
+            setError(t('auth:login.connectionError'));
+            return;
+          }
+
+          if (code === 'EMAIL_VERIFICATION_REQUIRED') {
+            setError(t('auth:login.emailVerificationRequired'));
+            return;
+          }
         }
 
-        if (!error.response || status === 500 || status === 502 || status === 503 || status === 504) {
-          setError(t('auth:login.connectionError'));
-          return;
-        }
+        setError(t('auth:login.unexpectedError'));
       }
+    };
 
-      setError(
-        code === 'EMAIL_VERIFICATION_REQUIRED'
-          ? t('auth:login.emailVerificationRequired')
-          : t('auth:login.unexpectedError'),
-      );
-    }
+    await executeLogin();
   };
 
   return (
@@ -158,7 +173,6 @@ export default function LoginPage() {
                 label={t('auth:login.identifierLabel')}
                 type="text"
                 placeholder={t('auth:login.identifierPlaceholder')}
-                dir="ltr"
                 error={errors.identifier?.message}
                 {...register('identifier')}
               />
@@ -169,14 +183,14 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••"
                   dir="ltr"
-                  className="!pe-12"
+                  className="!pr-12"
                   error={errors.password?.message}
                   {...register('password')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute end-1.5 top-7 inline-flex h-10 w-10 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="absolute right-1.5 top-7 inline-flex h-10 w-10 items-center justify-center rounded-btn text-text-secondary transition-colors hover:bg-hover hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
                   aria-label={showPassword ? t('auth:login.hidePassword') : t('auth:login.showPassword')}
                   aria-pressed={showPassword}
                 >

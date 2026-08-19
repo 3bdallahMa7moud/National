@@ -372,6 +372,8 @@ function ScheduleMatrix({
   const canManageUnits = (isEditable || isOrderMode) && !!onAddUnit;
   const isBrushMode = !readOnly && adminMode === 'brush';
   const isVacationMode = !readOnly && adminMode === 'vacations';
+  const showMobileOrderSurface = isOrderMode && !!onReorder;
+  const showMobileWeeklySummary = readOnly && !isOrderMode;
 
   // Flatten facilities/units/rows into a 1D item array for virtualizer
   const flatRows = useMemo(() => {
@@ -511,8 +513,8 @@ function ScheduleMatrix({
 
   return (
     <>
-      <div className="md:hidden">
-        {isOrderMode && onReorder ? (
+      <div className={cn(showMobileOrderSurface || showMobileWeeklySummary ? 'md:hidden' : 'hidden')}>
+        {showMobileOrderSurface ? (
           <MobileMatrixOrder
             data={data}
             onReorder={onReorder}
@@ -524,7 +526,7 @@ function ScheduleMatrix({
             } : undefined}
             onManageUnit={canManageUnits ? (facilityId, unitId, anchorRect) => openManageUnit(facilityId, unitId, anchorRect) : undefined}
           />
-        ) : (
+        ) : showMobileWeeklySummary ? (
           <MobileWeeklySchedule
             data={data}
             onCellClick={readOnly ? undefined : handleCellClick}
@@ -532,10 +534,14 @@ function ScheduleMatrix({
               ? (ref, assignment) => handleChipClick(ref, assignment, { hasAssignments: true })
               : undefined}
           />
-        )}
+        ) : null
+        }
       </div>
       <div
-        className="hidden gap-3 items-start md:flex"
+        className={cn(
+          'gap-3',
+          readOnly ? 'hidden items-start md:flex' : 'flex flex-col md:flex-row md:items-start',
+        )}
         data-testid="desktop-schedule-matrix"
       >
       {/* ── Main Grid ── */}

@@ -11,6 +11,11 @@ test.beforeEach(async ({ page }) => {
         clear(): void;
       };
     };
+    const initMarker = '__pw_storage_initialized__';
+    if (globalThis.window.name.includes(initMarker)) {
+      return;
+    }
+    globalThis.window.name = `${globalThis.window.name} ${initMarker}`.trim();
     browserStorage.localStorage.clear();
     browserStorage.sessionStorage.clear();
     browserStorage.localStorage.setItem('app-language', 'en');
@@ -21,6 +26,26 @@ async function openMobileNavigation(page: Page, accessibleName: string) {
   if ((page.viewportSize()?.width ?? 1280) < 1024) {
     await page.getByRole('button', { name: accessibleName }).click();
   }
+}
+
+async function expectGenerateScheduleAvailability(page: Page) {
+  if ((page.viewportSize()?.width ?? 1280) < 768) {
+    await page.getByText('More Actions').click();
+    await expect(page.getByRole('button', { name: 'Generate Schedule' })).toBeVisible();
+    return;
+  }
+
+  await expect(page.locator('button[aria-label="Generate Schedule"]:visible')).toBeVisible();
+}
+
+async function expectScheduleRowsVisible(page: Page) {
+  if ((page.viewportSize()?.width ?? 1280) < 768) {
+    await expect(page.getByText('GE VCT').first()).toBeVisible();
+    return;
+  }
+
+  await expect(page.getByTestId('facility-label-kamc').first()).toBeVisible();
+  await expect(page.getByText('GE VCT').first()).toBeVisible();
 }
 
 test('administrator signs in, restores the session after reload, and opens employee management', async ({ page }) => {
@@ -87,4 +112,26 @@ test('protected routes redirect to login and authenticated users can log out', a
 test('login page does not expose public registration', async ({ page }) => {
   await page.goto('/login');
   await expect(page.getByRole('link', { name: 'Create account' })).toHaveCount(0);
+});
+
+test('administrator can open Schedule Management for August 2026 and rows survive a reload', async ({ page }) => {
+  await page.goto('/login');
+
+  await page.getByLabel('Email or Username').fill('EMP-001');
+  await page.getByLabel('Password', { exact: true }).fill('123456');
+  await page.getByRole('button', { name: 'Sign In' }).click();
+  await expect(page).toHaveURL(/\/admin\/dashboard$/);
+
+  await page.getByLabel('Operational date').fill('2026-08-17');
+  await page.getByRole('link', { name: 'Open Schedule' }).first().click();
+  await expect(page).toHaveURL(/\/admin\/schedule\?date=2026-08-17$/);
+  await expect(page.getByRole('heading', { name: 'Monthly Schedule Management' }).first()).toBeVisible();
+  await expectGenerateScheduleAvailability(page);
+  await expectScheduleRowsVisible(page);
+
+  await page.reload();
+
+  await expect(page).toHaveURL(/\/admin\/schedule\?date=2026-08-17$/);
+  await expectGenerateScheduleAvailability(page);
+  await expectScheduleRowsVisible(page);
 });

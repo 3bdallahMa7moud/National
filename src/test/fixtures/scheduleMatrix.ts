@@ -20,7 +20,7 @@ import type {
   VacationRow,
   VacationType,
 } from '@/types/scheduleMatrix';
-import { OFFICIAL_EMPLOYEE_ROSTER } from './officialEmployeeRoster';
+import { OFFICIAL_EMPLOYEE_ROSTER } from './officialEmployeeRoster.js';
 
 const LEGEND = OFFICIAL_EMPLOYEE_ROSTER.map((employee) => ({
   employeeId: employee.employeeId,
@@ -408,10 +408,39 @@ function buildFixtureData(year: number, month: number): ScheduleMatrixData {
   };
 }
 
+function clearFixtureAssignments(data: ScheduleMatrixData): ScheduleMatrixData {
+  const structured = JSON.parse(JSON.stringify(data)) as ScheduleMatrixData;
+  const daysInMonth = new Date(structured.year, structured.month + 1, 0).getDate();
+
+  structured.vacations = [];
+  structured.holidays = [];
+  structured.auditLog = [];
+  structured.cellMarkers = {};
+
+  for (const facility of structured.facilities) {
+    for (const unit of facility.units) {
+      for (const row of unit.rows) {
+        const cellsByDay: Record<number, Assignment[]> = {};
+        for (let day = 1; day <= daysInMonth; day += 1) {
+          cellsByDay[day] = [];
+        }
+        row.cellsByDay = cellsByDay;
+      }
+    }
+  }
+
+  return structured;
+}
+
 /** Pre-built fixture for July 2026 */
 export const scheduleMatrixFixtureJuly2026 = buildFixtureData(2026, 6);
 
 /** Generate fixture data for any month */
 export function createScheduleMatrixFixture(year: number, month: number): ScheduleMatrixData {
   return buildFixtureData(year, month);
+}
+
+/** Generate the configured structure for any month without assignments or vacations. */
+export function createStructuredScheduleMatrixFixture(year: number, month: number): ScheduleMatrixData {
+  return clearFixtureAssignments(buildFixtureData(year, month));
 }

@@ -62,7 +62,7 @@ describe('ForgotPasswordPage accessibility', () => {
       </ThemeProvider>,
     );
 
-    fireEvent.change(screen.getByLabelText('Email / Employee Number'), {
+    fireEvent.change(screen.getByLabelText('Email or Username'), {
       target: { value: 'admin@hospital.sa' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send Verification Code' }));

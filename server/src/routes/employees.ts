@@ -17,7 +17,7 @@ const createEmployeeSchema = z.object({
   employeeNumber: z.string().trim().min(1),
   code: z.string().trim().min(1).max(5),
   position: z.string().trim().min(1),
-  email: z.string().trim().email(),
+  email: z.string().trim().email().nullable().optional().or(z.literal('')),
   phone: z.string().trim().default(''),
   role: z.enum(['admin', 'employee']).default('employee'),
   departmentId: z.string().trim().min(1).optional(),
@@ -97,6 +97,7 @@ async function recordAudit(args: {
   action: 'create' | 'update' | 'delete';
   entityId: string;
   entityLabel: string;
+  departmentId?: string;
   before?: unknown;
   after?: unknown;
 }) {
@@ -110,7 +111,7 @@ async function recordAudit(args: {
       entityLabel: args.entityLabel,
       before: args.before === undefined ? null : JSON.stringify(args.before),
       after: args.after === undefined ? null : JSON.stringify(args.after),
-      contextJson: JSON.stringify({ route: '/admin/employees' }),
+      contextJson: JSON.stringify({ route: '/admin/employees', departmentId: args.departmentId }),
     },
   });
 }
@@ -200,7 +201,9 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
   }
 
   const departmentId = parsed.data.departmentId ?? req.viewer!.department.id;
-  const normalizedEmail = normalizeEmail(parsed.data.email);
+  const normalizedEmail = parsed.data.email?.trim() ? normalizeEmail(parsed.data.email) : null;
+  const DEFAULT_PASSWORD = '123456';
+  const passwordHash = await hashPassword(DEFAULT_PASSWORD);
 
   if (parsed.data.role === 'admin' && req.viewer!.role !== 'super_admin') {
     res.status(403).json({
@@ -229,7 +232,7 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
   const [employeeNumberConflict, codeConflict, emailConflict] = await Promise.all([
     prisma.user.findUnique({ where: { employeeNumber: parsed.data.employeeNumber } }),
     prisma.user.findUnique({ where: { code: parsed.data.code.toUpperCase() } }),
-    prisma.user.findUnique({ where: { email: normalizedEmail } }),
+    normalizedEmail ? prisma.user.findUnique({ where: { email: normalizedEmail } }) : Promise.resolve(null),
   ]);
 
   const conflicts = [employeeNumberConflict, codeConflict, emailConflict].filter(
@@ -262,14 +265,6 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
     let restored: UserWithRelations | null = null;
 
     try {
-      const passwordHash = await hashPassword(crypto.randomUUID());
-
-      await createAndSendPasswordSetup({
-        userId: restoreCandidate.id,
-        email: normalizedEmail,
-        identifier: normalizedEmail,
-      });
-
       restored = await prisma.$transaction(async (tx) => {
         await tx.user.update({
           where: { id: restoreCandidate.id },
@@ -279,7 +274,7 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
             nameEn: parsed.data.name,
             nameAr: parsed.data.name,
             email: normalizedEmail,
-            emailVerifiedAt: null,
+            emailVerifiedAt: new Date(),
             phone: parsed.data.phone,
             role: parsed.data.role,
             departmentId,
@@ -315,12 +310,11 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
           },
         });
       });
-    } catch (error) {
-      const isEmailError = error instanceof EmailDeliveryError;
-      res.status(isEmailError ? 502 : 409).json({
+    } catch {
+      res.status(409).json({
         error: {
-          code: isEmailError ? 'EMAIL_DELIVERY_FAILED' : 'EMPLOYEE_RESTORE_FAILED',
-          message: isEmailError ? error.message : 'Unable to restore the employee account.',
+          code: 'EMPLOYEE_RESTORE_FAILED',
+          message: 'Unable to restore the employee account.',
         },
       });
       return;
@@ -333,6 +327,7 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
       action: 'update',
       entityId: restored.id,
       entityLabel: restored.nameEn,
+      departmentId: restored.departmentId,
       before: {
         employeeNumber: restoreCandidate.employeeNumber,
         code: restoreCandidate.code,
@@ -352,7 +347,7 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
     res.status(200).json({
       employee: serializeEmployee(restored),
       accessProfile: serializeAccessProfile(restored),
-      setupEmailSent: true,
+      defaultPassword: DEFAULT_PASSWORD,
       restored: true,
     });
     return;
@@ -399,14 +394,14 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
         nameEn: parsed.data.name,
         nameAr: parsed.data.name,
         email: normalizedEmail,
-        emailVerifiedAt: null,
+        emailVerifiedAt: new Date(),
         phone: parsed.data.phone,
         role: parsed.data.role,
         departmentId,
         positionEn: parsed.data.position,
         positionAr: parsed.data.position,
         isActive: true,
-        passwordHash: await hashPassword(crypto.randomUUID()),
+        passwordHash,
         accessProfile: {
           create: {
             templateId: AccessTemplateId.standard,
@@ -421,24 +416,11 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
         accessProfile: true,
       },
     });
-
-    await createAndSendPasswordSetup({
-      userId: created.id,
-      email: normalizedEmail,
-      identifier: normalizedEmail,
-    });
-  } catch (error) {
-    if (created) {
-      await prisma.user.delete({
-        where: { id: created.id },
-      }).catch(() => undefined);
-    }
-
-    const message = error instanceof EmailDeliveryError ? error.message : 'Unable to send the employee setup email.';
-    res.status(502).json({
+  } catch {
+    res.status(500).json({
       error: {
-        code: 'EMAIL_DELIVERY_FAILED',
-        message,
+        code: 'EMPLOYEE_CREATE_FAILED',
+        message: 'Unable to create the employee account.',
       },
     });
     return;
@@ -449,6 +431,7 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
     action: 'create',
     entityId: created.id,
     entityLabel: created.nameEn,
+    departmentId: created.departmentId,
     after: {
       employeeNumber: created.employeeNumber,
       role: created.role,
@@ -459,7 +442,7 @@ employeesRouter.post('/', requireRoles('admin', 'super_admin'), async (req, res)
   res.status(201).json({
     employee: serializeEmployee(created),
     accessProfile: serializeAccessProfile(created),
-    setupEmailSent: true,
+    defaultPassword: DEFAULT_PASSWORD,
   });
 });
 
@@ -591,9 +574,7 @@ employeesRouter.patch('/:employeeId', requireRoles('admin', 'super_admin'), asyn
       emailVerifiedAt: parsed.data.email === undefined
         ? existing.emailVerifiedAt
         : parsed.data.email
-          ? normalizeEmail(parsed.data.email) === existing.email
-            ? existing.emailVerifiedAt
-            : null
+          ? new Date()
           : null,
       role: nextRole,
       isActive: nextActive,
@@ -612,6 +593,7 @@ employeesRouter.patch('/:employeeId', requireRoles('admin', 'super_admin'), asyn
     action: nextActive ? 'update' : 'delete',
     entityId: updated.id,
     entityLabel: updated.nameEn,
+    departmentId: updated.departmentId,
     before: {
       employeeNumber: existing.employeeNumber,
       code: existing.code,
@@ -668,6 +650,7 @@ employeesRouter.post('/:employeeId/reset-password', requireRoles('admin', 'super
     action: 'update',
     entityId: existing.id,
     entityLabel: existing.nameEn,
+    departmentId: existing.departmentId,
     after: {
       passwordResetEmailSent: true,
     },
@@ -776,6 +759,7 @@ employeesRouter.patch('/:employeeId/access', requireRoles('admin', 'super_admin'
     action: 'update',
     entityId: updated.id,
     entityLabel: updated.nameEn,
+    departmentId: updated.departmentId,
     before: existing.accessProfile ? {
       templateId: existing.accessProfile.templateId,
       overrides: parseJson<Record<string, boolean>>(existing.accessProfile.overridesJson, {}),

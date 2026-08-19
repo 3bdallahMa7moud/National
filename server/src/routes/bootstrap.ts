@@ -36,12 +36,43 @@ bootstrapRouter.get('/', requireAuth, async (req, res) => {
   const visibleAuditEntries = req.viewer!.role === 'employee'
     ? []
     : auditEntries;
+  const fallbackUser = (id: string) => ({
+    id,
+    employeeNumber: 'N/A',
+    code: 'N/A',
+    nameEn: 'Unknown User',
+    nameAr: 'مستخدم غير معروف',
+    email: null,
+    emailVerifiedAt: null,
+    phone: '',
+    role: 'employee' as const,
+    departmentId: 'dept-1',
+    positionEn: 'Employee',
+    positionAr: 'موظف',
+    avatar: null,
+    isActive: false,
+    passwordHash: '',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    scheduleEmployeeId: null,
+    department: {
+      id: 'dept-1',
+      nameEn: 'CT Scan Department',
+      nameAr: 'قسم الأشعة المقطعية',
+      descriptionEn: '',
+      descriptionAr: '',
+      managerId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+
   const visibleShiftRequests = shiftRequests
     .filter((request) => shiftRequestVisibleToViewer(request, req.viewer!))
     .map((request) => serializeShiftRequest(
       request,
-      userById.get(request.requesterUserId)!,
-      userById.get(request.recipientUserId)!,
+      userById.get(request.requesterUserId) ?? fallbackUser(request.requesterUserId),
+      userById.get(request.recipientUserId) ?? fallbackUser(request.recipientUserId),
     ));
   const fullSchedule = serializeScheduleState(scheduleMonths);
   const fullOvertime = serializeOvertimeState(overtimeMonths);

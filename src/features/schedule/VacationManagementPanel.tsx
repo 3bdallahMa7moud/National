@@ -203,7 +203,7 @@ function VacationManagementPanel({
             <label className="space-y-1.5">
               <span className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-text-secondary">
                 <span>{t('schedule:vacationsPanel.fromDay')}</span>
-                <span className="font-mono text-primary-teal">(يوم {orderedStartDay})</span>
+                <span className="font-mono text-primary-teal">({t('schedule:vacationsPanel.dayLabel', { day: orderedStartDay })})</span>
               </span>
               <input
                 type="date"
@@ -215,7 +215,7 @@ function VacationManagementPanel({
             <label className="space-y-1.5">
               <span className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-text-secondary">
                 <span>{t('schedule:vacationsPanel.toDay')}</span>
-                <span className="font-mono text-primary-teal">(يوم {orderedEndDay})</span>
+                <span className="font-mono text-primary-teal">({t('schedule:vacationsPanel.dayLabel', { day: orderedEndDay })})</span>
               </span>
               <input
                 type="date"

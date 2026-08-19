@@ -323,7 +323,6 @@ describe('server integration', () => {
       name: 'Noura',
       employeeNumber: 'EMP-999',
       code: 'NOU',
-      email: 'noura.employee@hospital.sa',
       position: 'Technologist',
       phone: '0501888999',
       role: 'employee',
@@ -331,14 +330,12 @@ describe('server integration', () => {
     });
     expect(created.status).toBe(201);
     expect(created.body.employee.employeeNumber).toBe('EMP-999');
-    expect(created.body.setupEmailSent).toBe(true);
-    expect(created.body.defaultPassword).toBeUndefined();
+    expect(created.body.defaultPassword).toBe('123456');
 
     const duplicate = await adminAgent.post('/api/employees').send({
       name: 'Duplicate Noura',
       employeeNumber: 'EMP-999',
       code: 'NOR',
-      email: 'duplicate.noura@hospital.sa',
       position: 'Technologist',
       phone: '0501888998',
       role: 'employee',
@@ -357,7 +354,7 @@ describe('server integration', () => {
     const stored = await prisma.user.findUniqueOrThrow({ where: { id: created.body.employee.id } });
     expect(stored.isActive).toBe(false);
     expect(stored.phone).toBe('0501777777');
-    expect(stored.emailVerifiedAt).toBeNull();
+    expect(stored.emailVerifiedAt).not.toBeNull();
 
     const bootstrap = await adminAgent.get('/api/bootstrap');
     expect(bootstrap.status).toBe(200);
@@ -370,17 +367,10 @@ describe('server integration', () => {
       active: false,
     });
 
-    const setupCode = await prisma.passwordResetCode.findFirst({
-      where: { userId: created.body.employee.id },
-      orderBy: { requestedAt: 'desc' },
-    });
-    expect(setupCode).toBeTruthy();
-
     const restored = await adminAgent.post('/api/employees').send({
       name: 'Noura Restored',
-      employeeNumber: 'EMP-1000',
+      employeeNumber: 'EMP-999',
       code: 'NUR',
-      email: 'noura.employee@hospital.sa',
       position: 'Senior Technologist',
       phone: '0501999000',
       role: 'employee',
@@ -388,9 +378,10 @@ describe('server integration', () => {
     });
     expect(restored.status).toBe(200);
     expect(restored.body.restored).toBe(true);
+    expect(restored.body.defaultPassword).toBe('123456');
     expect(restored.body.employee).toMatchObject({
       id: created.body.employee.id,
-      employeeNumber: 'EMP-1000',
+      employeeNumber: 'EMP-999',
       code: 'NUR',
       isActive: true,
     });
@@ -402,9 +393,15 @@ describe('server integration', () => {
 
     const restoredStored = await prisma.user.findUniqueOrThrow({ where: { id: created.body.employee.id } });
     expect(restoredStored.isActive).toBe(true);
-    expect(restoredStored.employeeNumber).toBe('EMP-1000');
-    expect(restoredStored.email).toBe('noura.employee@hospital.sa');
-    expect(restoredStored.passwordHash).not.toBe(stored.passwordHash);
+    expect(restoredStored.employeeNumber).toBe('EMP-999');
+    expect(restoredStored.passwordHash).toBeTruthy();
+
+    const restoredLogin = await makeAgent(app).post('/api/auth/login').send({
+      identifier: 'EMP-999',
+      password: '123456',
+    });
+    expect(restoredLogin.status).toBe(200);
+    expect(restoredLogin.body.user.employeeNumber).toBe('EMP-999');
   });
 
   it('auth: forgot-password delivers OTPs by email, handles no-email accounts safely, and the reset flow updates credentials', async () => {
@@ -1007,5 +1004,51 @@ describe('server integration', () => {
     expect(feedResponse.status).toBe(200);
     expect(feedResponse.text).toContain('BEGIN:VCALENDAR');
     expect(feedResponse.text).not.toContain('BEGIN:VEVENT');
+  });
+
+  it('auth: forgot-password rate-limits brute-force OTP guessing per identifier', async () => {
+    const agent = makeAgent(app);
+
+    await agent.post('/api/auth/forgot-password/request').send({
+      identifier: 'ali@hospital.sa',
+    });
+
+    // Make 10 attempts with different wrong codes
+    for (let i = 0; i < 10; i++) {
+      const code = String(100000 + i);
+      const res = await agent.post('/api/auth/forgot-password/verify').send({
+        identifier: 'ali@hospital.sa',
+        code,
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('INVALID_RESET_CODE');
+    }
+
+    // 11th attempt must be rate-limited (429)
+    const rateLimitedRes = await agent.post('/api/auth/forgot-password/verify').send({
+      identifier: 'ali@hospital.sa',
+      code: '999999',
+    });
+    expect(rateLimitedRes.status).toBe(429);
+    expect(rateLimitedRes.body.error.code).toBe('RATE_LIMITED');
+  }, 15000);
+
+  it('calendar feed: events have deterministic UIDs across requests and roll over overnight shifts', async () => {
+    const aliAgent = makeAgent(app);
+    await login(aliAgent, 'ali@hospital.sa');
+
+    const tokenResponse = await aliAgent.get('/api/calendar-sync');
+    expect(tokenResponse.status).toBe(200);
+    const token = tokenResponse.body.token as string;
+
+    const firstFeed = await makeAgent(app).get(`/api/calendar-sync/feed/${token}.ics`);
+    expect(firstFeed.status).toBe(200);
+    const secondFeed = await makeAgent(app).get(`/api/calendar-sync/feed/${token}.ics`);
+    expect(secondFeed.status).toBe(200);
+
+    const firstUids = firstFeed.text.match(/UID:[^\r\n]+/g);
+    const secondUids = secondFeed.text.match(/UID:[^\r\n]+/g);
+
+    expect(firstUids).toEqual(secondUids);
   });
 });

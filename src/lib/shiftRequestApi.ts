@@ -104,3 +104,23 @@ export async function rejectShiftRequestByAdmin(
 ): Promise<ShiftRequestMutationResult> {
   return refreshAfterMutation(api.post(`/shift-requests/${requestId}/reject-admin`, { reason, note }));
 }
+
+export async function deleteShiftRequest(requestId: string): Promise<{ ok: boolean; message?: string }> {
+  try {
+    await api.delete(`/shift-requests/${requestId}`);
+    await fetchAndHydrateBootstrap();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: axios.isAxiosError(error) ? error.response?.data?.error?.message : 'Delete failed' };
+  }
+}
+
+export async function clearClosedShiftRequests(): Promise<{ ok: boolean; count: number; message?: string }> {
+  try {
+    const response = await api.delete<{ ok: boolean; count: number }>('/shift-requests/clear-closed');
+    await fetchAndHydrateBootstrap();
+    return { ok: true, count: response.data.count };
+  } catch (error) {
+    return { ok: false, count: 0, message: axios.isAxiosError(error) ? error.response?.data?.error?.message : 'Clear failed' };
+  }
+}

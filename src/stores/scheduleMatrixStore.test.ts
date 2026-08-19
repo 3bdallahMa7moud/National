@@ -8,8 +8,22 @@ import {
 } from './scheduleMatrixStore';
 import { mergeBrushAssignments } from '@/lib/scheduleAssignments';
 import { createOfficialEmployeeDirectoryRecordsFixture, writeEmployeeDirectoryFixtureToStorage } from '@/test/fixtures/employeeDirectory';
-import { createScheduleMatrixFixture } from '@/test/fixtures/scheduleMatrix';
+import { createScheduleMatrixFixture, createStructuredScheduleMatrixFixture } from '@/test/fixtures/scheduleMatrix';
 import { useEmployeeDirectoryStore } from './employeeDirectoryStore';
+
+async function reloadPersistedMonth(month = 6, year = 2026) {
+  vi.resetModules();
+  const [{ useScheduleMatrixStore: reloadedScheduleStore }, { useEmployeeDirectoryStore: reloadedDirectoryStore }] = await Promise.all([
+    import('./scheduleMatrixStore'),
+    import('./employeeDirectoryStore'),
+  ]);
+  reloadedDirectoryStore.getState().replaceRecords(
+    createOfficialEmployeeDirectoryRecordsFixture(),
+    ['test-fixture-reload'],
+  );
+  reloadedScheduleStore.getState().loadMonth(month, year);
+  return reloadedScheduleStore.getState().data!;
+}
 
 describe('scheduleMatrixStore administration', () => {
   beforeEach(() => {
@@ -168,6 +182,206 @@ describe('scheduleMatrixStore administration', () => {
     const updated = useScheduleMatrixStore.getState().data!.facilities[0];
     expect(updated.units.some((candidate) => candidate.id === unit.id)).toBe(false);
     expect(useScheduleMatrixStore.getState().data!.settings[0].units.some((candidate) => candidate.id === unit.id)).toBe(false);
+  });
+
+  it('adds a unit and a shift row under it, persists the structure, and exposes it through the matrix data', async () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const definition = state.data!.settings.find((entry) => entry.facilityId === facility.id)!.shiftDefinitions
+      .find((candidate) => !candidate.archived)!;
+
+    state.addUnit(facility.id, 'Advanced CT Unit');
+    const addedUnit = useScheduleMatrixStore.getState().data!.facilities[0].units
+      .find((candidate) => candidate.name === 'Advanced CT Unit')!;
+    expect(useScheduleMatrixStore.getState().data!.settings[0].units.some((candidate) => candidate.id === addedUnit.id)).toBe(true);
+
+    useScheduleMatrixStore.getState().addMatrixRow(
+      facility.id,
+      addedUnit.id,
+      definition.id,
+      'Advanced CT Morning',
+    );
+
+    const createdRow = useScheduleMatrixStore.getState().data!.facilities[0].units
+      .find((candidate) => candidate.id === addedUnit.id)!.rows[0];
+    expect(createdRow).toMatchObject({
+      rowLabel: 'Advanced CT Morning',
+      shiftDefinitionId: definition.id,
+      shiftLabel: definition.englishName || definition.label,
+      timeRange: definition.timeRange,
+    });
+
+    const reloaded = await reloadPersistedMonth();
+    const reloadedUnit = reloaded.facilities[0].units.find((candidate) => candidate.id === addedUnit.id)!;
+    expect(reloadedUnit.name).toBe('Advanced CT Unit');
+    expect(reloaded.settings[0].units.some((candidate) => candidate.id === addedUnit.id)).toBe(true);
+    expect(reloadedUnit.rows[0]).toMatchObject({
+      rowLabel: 'Advanced CT Morning',
+      shiftDefinitionId: definition.id,
+      shiftLabel: definition.englishName || definition.label,
+      timeRange: definition.timeRange,
+    });
+  });
+
+  it('creates distinct ids for rapid shift and unit additions in the same millisecond', () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1786924800000);
+
+    try {
+      const state = useScheduleMatrixStore.getState();
+      const facility = state.data!.facilities[0];
+
+      state.addShiftDefinition(facility.id, {
+        label: 'Rapid Shift A',
+        englishName: 'Rapid Shift A',
+        startTime: '08:00',
+        endTime: '17:00',
+        timeRange: '08:00 - 17:00',
+        colorKey: 'morning',
+        icon: '',
+        effectiveFromDay: 1,
+      });
+      state.addShiftDefinition(facility.id, {
+        label: 'Rapid Shift B',
+        englishName: 'Rapid Shift B',
+        startTime: '09:00',
+        endTime: '18:00',
+        timeRange: '09:00 - 18:00',
+        colorKey: 'evening',
+        icon: '',
+        effectiveFromDay: 1,
+      });
+      state.addUnit(facility.id, 'Rapid Unit A');
+      state.addUnit(facility.id, 'Rapid Unit B');
+
+      const settings = useScheduleMatrixStore.getState().data!.settings.find((entry) => entry.facilityId === facility.id)!;
+      const rapidShiftIds = settings.shiftDefinitions
+        .filter((candidate) => candidate.englishName?.startsWith('Rapid Shift '))
+        .map((candidate) => candidate.id);
+      const rapidUnitIds = useScheduleMatrixStore.getState().data!.facilities[0].units
+        .filter((candidate) => candidate.name.startsWith('Rapid Unit '))
+        .map((candidate) => candidate.id);
+
+      expect(new Set(rapidShiftIds).size).toBe(rapidShiftIds.length);
+      expect(new Set(rapidUnitIds).size).toBe(rapidUnitIds.length);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('edits unit and shift structure details, persists them, and updates the matrix rows', async () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const settings = state.data!.settings.find((entry) => entry.facilityId === facility.id)!;
+    const unit = facility.units.find((candidate) => candidate.rows.length > 0)!;
+    const row = unit.rows[0];
+    const definition = settings.shiftDefinitions.find((candidate) => candidate.id === row.shiftDefinitionId)!;
+
+    state.renameUnit(facility.id, unit.id, 'Renamed CT Unit');
+    state.updateShiftDefinition(facility.id, definition.id, {
+      englishName: 'Renamed Day Shift',
+      label: 'Renamed Day Shift',
+      startTime: '07:30',
+      endTime: '15:30',
+    });
+    state.updateMatrixRow(row.id, {
+      rowLabel: 'Renamed Day Coverage',
+      shiftDefinitionId: definition.id,
+    });
+
+    const updatedUnit = useScheduleMatrixStore.getState().data!.facilities[0].units.find((candidate) => candidate.id === unit.id)!;
+    const updatedRow = updatedUnit.rows.find((candidate) => candidate.id === row.id)!;
+    expect(updatedUnit.name).toBe('Renamed CT Unit');
+    expect(updatedRow).toMatchObject({
+      unitLabel: 'Renamed CT Unit',
+      rowLabel: 'Renamed Day Coverage',
+      shiftLabel: 'Renamed Day Shift',
+      timeRange: '07:30 - 15:30',
+    });
+
+    const reloaded = await reloadPersistedMonth();
+    const reloadedUnit = reloaded.facilities[0].units.find((candidate) => candidate.id === unit.id)!;
+    const reloadedRow = reloadedUnit.rows.find((candidate) => candidate.id === row.id)!;
+    expect(reloadedUnit.name).toBe('Renamed CT Unit');
+    expect(reloadedRow).toMatchObject({
+      unitLabel: 'Renamed CT Unit',
+      rowLabel: 'Renamed Day Coverage',
+      shiftLabel: 'Renamed Day Shift',
+      timeRange: '07:30 - 15:30',
+    });
+  });
+
+  it('deletes a shift row and its unit, then keeps both removed after a refresh', async () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const definition = state.data!.settings.find((entry) => entry.facilityId === facility.id)!.shiftDefinitions
+      .find((candidate) => !candidate.archived)!;
+
+    state.addUnit(facility.id, 'Disposable Unit');
+    const createdUnit = useScheduleMatrixStore.getState().data!.facilities[0].units
+      .find((candidate) => candidate.name === 'Disposable Unit')!;
+    state.addMatrixRow(facility.id, createdUnit.id, definition.id, 'Disposable Shift');
+    const createdRowId = useScheduleMatrixStore.getState().data!.facilities[0].units
+      .find((candidate) => candidate.id === createdUnit.id)!.rows[0].id;
+
+    state.deleteMatrixRow(createdRowId, true);
+    expect(useScheduleMatrixStore.getState().data!.facilities[0].units.find((candidate) => candidate.id === createdUnit.id)!.rows)
+      .toHaveLength(0);
+
+    expect(useScheduleMatrixStore.getState().deleteUnit(facility.id, createdUnit.id, true, 'Admin')).toMatchObject({ ok: true });
+    expect(useScheduleMatrixStore.getState().data!.facilities[0].units.some((candidate) => candidate.id === createdUnit.id)).toBe(false);
+
+    const reloaded = await reloadPersistedMonth();
+    expect(reloaded.facilities[0].units.some((candidate) => candidate.id === createdUnit.id)).toBe(false);
+    expect(reloaded.settings[0].units.some((candidate) => candidate.id === createdUnit.id)).toBe(false);
+  });
+
+  it('reorders units and shift rows, persists the new structure order, and keeps the matrix aligned', async () => {
+    const state = useScheduleMatrixStore.getState();
+    const facility = state.data!.facilities[0];
+    const definition = state.data!.settings.find((entry) => entry.facilityId === facility.id)!.shiftDefinitions
+      .find((candidate) => !candidate.archived)!;
+
+    state.addUnit(facility.id, 'Reorder Unit A');
+    state.addUnit(facility.id, 'Reorder Unit B');
+
+    const currentUnits = useScheduleMatrixStore.getState().data!.facilities[0].units;
+    const unitA = currentUnits.find((candidate) => candidate.name === 'Reorder Unit A')!;
+    const unitB = currentUnits.find((candidate) => candidate.name === 'Reorder Unit B')!;
+
+    state.addMatrixRow(facility.id, unitA.id, definition.id, 'Row A1');
+    state.addMatrixRow(facility.id, unitA.id, definition.id, 'Row A2');
+
+    expect(useScheduleMatrixStore.getState().reorderMatrixItem({
+      kind: 'unit',
+      facilityId: facility.id,
+      sourceUnitId: unitA.id,
+      targetUnitId: unitB.id,
+      position: 'before',
+    }, 'Admin')).toMatchObject({ ok: true, kind: 'unit' });
+
+    const unitARows = useScheduleMatrixStore.getState().data!.facilities[0].units.find((candidate) => candidate.id === unitA.id)!.rows;
+    expect(useScheduleMatrixStore.getState().reorderMatrixItem({
+      kind: 'row',
+      facilityId: facility.id,
+      sourceUnitId: unitA.id,
+      sourceRowId: unitARows[1].id,
+      targetUnitId: unitA.id,
+      targetRowId: unitARows[0].id,
+      position: 'before',
+    }, 'Admin')).toMatchObject({ ok: true, kind: 'row' });
+
+    const reorderedFacility = useScheduleMatrixStore.getState().data!.facilities[0];
+    expect(reorderedFacility.units.findIndex((candidate) => candidate.id === unitA.id))
+      .toBeLessThan(reorderedFacility.units.findIndex((candidate) => candidate.id === unitB.id));
+    expect(reorderedFacility.units.find((candidate) => candidate.id === unitA.id)!.rows.map((candidate) => candidate.rowLabel).slice(0, 2))
+      .toEqual(['Row A2', 'Row A1']);
+
+    const reloaded = await reloadPersistedMonth();
+    const reloadedFacility = reloaded.facilities[0];
+    expect(reloadedFacility.units.findIndex((candidate) => candidate.id === unitA.id))
+      .toBeLessThan(reloadedFacility.units.findIndex((candidate) => candidate.id === unitB.id));
+    expect(reloadedFacility.units.find((candidate) => candidate.id === unitA.id)!.rows.map((candidate) => candidate.rowLabel).slice(0, 2))
+      .toEqual(['Row A2', 'Row A1']);
   });
 
   it('rolls back a unit deletion and reports storage_error when persistence fails', () => {
@@ -1219,5 +1433,140 @@ describe('scheduleMatrixStore administration', () => {
     expect(reloaded.legend.length).toBeGreaterThan(0);
     expect(reloaded.cellMarkers).toEqual({});
     expect(reloaded.facilities[0].units[0].rows[0].cellsByDay[1]).toBeDefined();
+  });
+
+  it('loads existing persisted rows for a populated month without altering assignments', () => {
+    const populated = createScheduleMatrixFixture(2026, 7);
+    const monthKey = '2026-08';
+    const populatedRow = populated.facilities[0].units[0].rows[0];
+    const expectedAssignments = JSON.parse(JSON.stringify(populatedRow.cellsByDay[1]));
+
+    useScheduleMatrixStore.setState({
+      data: null,
+      month: 7,
+      year: 2026,
+      draftsByMonth: {},
+      matricesByMonth: { [monthKey]: populated },
+      deletedMonths: [],
+      draftCellKeys: [],
+    });
+
+    useScheduleMatrixStore.getState().loadMonth(7, 2026);
+
+    const loadedRow = useScheduleMatrixStore.getState().data!.facilities[0].units[0].rows[0];
+    expect(loadedRow.cellsByDay[1]).toEqual(expectedAssignments);
+    expect(useScheduleMatrixStore.getState().data!.facilities[0].units[0].rows.length).toBeGreaterThan(0);
+  });
+
+  it('reconstructs an empty month from the nearest configured month and keeps rows visible after refresh and navigation', async () => {
+    const template = createStructuredScheduleMatrixFixture(2026, 6);
+    const templateKey = '2026-07';
+    const targetKey = '2026-08';
+
+    useScheduleMatrixStore.setState({
+      data: template,
+      month: 6,
+      year: 2026,
+      draftsByMonth: { [templateKey]: template },
+      matricesByMonth: {},
+      deletedMonths: [],
+      draftCellKeys: [],
+    });
+
+    useScheduleMatrixStore.getState().loadMonth(7, 2026);
+    const august = useScheduleMatrixStore.getState().data!;
+    expect(august.year).toBe(2026);
+    expect(august.month).toBe(7);
+    expect(august.facilities.some((facility) => facility.units.some((unit) => unit.rows.length > 0))).toBe(true);
+    expect(august.facilities[0].units[0].rows[0].cellsByDay[1]).toEqual([]);
+
+    useScheduleMatrixStore.getState().reloadFromStorage();
+    expect(useScheduleMatrixStore.getState().data!.facilities[0].units[0].rows.length)
+      .toBe(august.facilities[0].units[0].rows.length);
+
+    useScheduleMatrixStore.getState().loadMonth(8, 2026);
+    useScheduleMatrixStore.getState().loadMonth(7, 2026);
+    expect(useScheduleMatrixStore.getState().data!.facilities[0].units[0].rows.length)
+      .toBe(august.facilities[0].units[0].rows.length);
+
+    vi.resetModules();
+    const reloadedModule = await import('./scheduleMatrixStore');
+    reloadedModule.useScheduleMatrixStore.getState().loadMonth(7, 2026);
+    const reloaded = reloadedModule.useScheduleMatrixStore.getState().data!;
+    expect(reloaded.facilities.some((facility) => facility.units.some((unit) => unit.rows.length > 0))).toBe(true);
+    expect(reloadedModule.useScheduleMatrixStore.getState().monthStatuses[targetKey]).toBe('draft');
+  });
+
+  it('persists settings changes into the reconstructed next month and allows assigning employees there', () => {
+    const template = createStructuredScheduleMatrixFixture(2026, 6);
+    const templateKey = '2026-07';
+    useScheduleMatrixStore.setState({
+      data: template,
+      month: 6,
+      year: 2026,
+      draftsByMonth: { [templateKey]: template },
+      matricesByMonth: {},
+      deletedMonths: [],
+      draftCellKeys: [],
+    });
+
+    const sourceFacility = template.facilities[0];
+    const sourceUnit = sourceFacility.units[0];
+    const sourceRow = sourceUnit.rows[0];
+    useScheduleMatrixStore.getState().updateMatrixRow(sourceRow.id, { rowLabel: 'CT Coverage Alpha' });
+    useScheduleMatrixStore.getState().loadMonth(7, 2026);
+
+    const august = useScheduleMatrixStore.getState().data!;
+    const updatedRow = august.facilities
+      .find((facility) => facility.id === sourceFacility.id)!.units
+      .find((unit) => unit.id === sourceUnit.id)!.rows
+      .find((row) => row.id === sourceRow.id)!;
+
+    expect(updatedRow.rowLabel).toBe('CT Coverage Alpha');
+    expect(useScheduleMatrixStore.getState().assignCell(updatedRow.id, 2, [{
+      employeeId: august.legend[0].employeeId,
+      employeeCode: august.legend[0].code,
+    }])).toEqual({ ok: true });
+    expect(useScheduleMatrixStore.getState().data!.facilities
+      .find((facility) => facility.id === sourceFacility.id)!.units
+      .find((unit) => unit.id === sourceUnit.id)!.rows
+      .find((row) => row.id === sourceRow.id)!.cellsByDay[2]).toEqual([
+        expect.objectContaining({
+          employeeId: august.legend[0].employeeId,
+          employeeCode: august.legend[0].code,
+          status: 'draft',
+        }),
+      ]);
+
+    const persisted = JSON.parse(localStorage.getItem(SCHEDULE_MONTHLY_STORAGE_KEY) || '{}');
+    expect(persisted.draftsByMonth['2026-08'].facilities
+      .find((facility: { id: string }) => facility.id === sourceFacility.id).units
+      .find((unit: { id: string }) => unit.id === sourceUnit.id).rows
+      .find((row: { id: string }) => row.id === sourceRow.id).rowLabel).toBe('CT Coverage Alpha');
+  });
+
+  it('can generate a schedule from a reconstructed empty month', () => {
+    const template = createStructuredScheduleMatrixFixture(2026, 6);
+    useScheduleMatrixStore.setState({
+      data: template,
+      month: 6,
+      year: 2026,
+      draftsByMonth: { '2026-07': template },
+      matricesByMonth: {},
+      deletedMonths: [],
+      draftCellKeys: [],
+    });
+
+    useScheduleMatrixStore.getState().loadMonth(7, 2026);
+    const generated = useScheduleMatrixStore.getState().generateConflictFreeMonth('Admin');
+
+    expect(generated).toMatchObject({ ok: true });
+    expect(useScheduleMatrixStore.getState().data!.facilities.some((facility) =>
+      facility.units.some((unit) =>
+        unit.rows.some((row) =>
+          Object.values(row.cellsByDay).some((assignments) => assignments.length > 0),
+        ),
+      ),
+    )).toBe(true);
   });
 });

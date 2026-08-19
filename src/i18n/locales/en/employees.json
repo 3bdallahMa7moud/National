@@ -26,6 +26,7 @@
   "profileView": {
     "title": "Profile", "subtitle": "Account identity, security, and role-specific operational shortcuts.",
     "active": "Active", "superAdmin": "Super Admin", "admin": "Admin", "employee": "Employee", "notSet": "Not set",
+    "bn": "Employee ID (BN)", "position": "Job Title", "code": "Schedule Code", "phone": "Phone Number", "department": "Department", "personalInfo": "Job & Personal Details",
     "email": "Email", "editEmail": "Edit email", "saveEmail": "Save email", "cancel": "Cancel",
     "security": "Account security", "password": "Password", "passwordProtected": "Protected with your account password", "changePassword": "Change password",
     "currentPassword": "Current password", "newPassword": "New password", "confirmPassword": "Confirm new password", "savePassword": "Save password",
@@ -56,8 +57,9 @@
     "positionEn": "Position (English)",
     "codeHint": "Short abbreviation shown on schedule",
     "addedSuccess": "Employee Added Successfully",
-    "addedSubtitle": "A password setup email has been sent",
-    "addedHint": "The employee must finish password setup from the email before signing in.",
+    "addedSubtitle": "Account created with default password",
+    "addedHint": "The employee can sign in immediately with their username/ID and password 123456, and update their password and email from their profile.",
+    "defaultPassword": "Default Password",
     "setupEmail": "Setup Email",
     "columns": {
       "number": "Badge Number (BN)",

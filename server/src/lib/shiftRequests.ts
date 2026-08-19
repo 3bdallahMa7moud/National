@@ -219,17 +219,44 @@ function overlap(left: ShiftAssignmentRef, right: ShiftAssignmentRef) {
 }
 
 function parseEndAt(assignment: ShiftAssignmentRef) {
-  const { end } = parseTimeRange(assignment.timeRange);
+  const { start, end } = parseTimeRange(assignment.timeRange);
   const date = assignment.startsAt.slice(0, 10);
-  const timestamp = new Date(`${date}T${end}:00`).getTime();
-  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+  const startTimestamp = new Date(`${date}T${start}:00`).getTime();
+  let endTimestamp = new Date(`${date}T${end}:00`).getTime();
+  if (endTimestamp <= startTimestamp) {
+    endTimestamp += 24 * 60 * 60 * 1000;
+  }
+  return Number.isFinite(endTimestamp) ? endTimestamp : Number.POSITIVE_INFINITY;
 }
 
-function idsSignature(assignments: Array<{ employeeId?: string; legacyCode?: string }>) {
-  return assignments
-    .map((assignment) => assignment.employeeId ?? `legacy:${assignment.legacyCode ?? ''}`)
-    .sort()
-    .join(',');
+
+
+function isMatchingEmployeeId(
+  candidateEmployeeId: string | undefined,
+  candidateCode: string | undefined,
+  targetEmployeeId: string | undefined,
+  targetCode: string | undefined,
+): boolean {
+  if (!candidateEmployeeId && !candidateCode) return false;
+  if (!targetEmployeeId && !targetCode) return false;
+  if (candidateEmployeeId && targetEmployeeId) {
+    if (candidateEmployeeId === targetEmployeeId) return true;
+    const cleanCand = candidateEmployeeId.replace(/^directory-account:/, '');
+    const cleanTarg = targetEmployeeId.replace(/^directory-account:/, '');
+    if (cleanCand && cleanCand === cleanTarg) return true;
+  }
+  if (candidateCode && targetCode && candidateCode.trim().toUpperCase() === targetCode.trim().toUpperCase()) {
+    return true;
+  }
+  return false;
+}
+
+function isShiftPast(startsAtValue: string, timeRange: string, now: Date): boolean {
+  const [year, month, day] = startsAtValue.slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return false;
+  // A shift is only past if its entire scheduled day has ended
+  const shiftDateEnd = new Date(year, month - 1, day, 23, 59, 59, 999);
+  return shiftDateEnd.getTime() < now.getTime();
 }
 
 function scheduleFingerprint(
@@ -240,6 +267,11 @@ function scheduleFingerprint(
   day: number,
   employeeId: string,
 ) {
+  const cleanId = employeeId.replace(/^directory-account:/, '');
+  const cleanCellIds = (row.cellsByDay[String(day)] ?? [])
+    .map((a) => (a.employeeId ?? `code:${a.employeeCode ?? ''}`).replace(/^directory-account:/, ''))
+    .sort()
+    .join(',');
   return [
     'schedule',
     monthKey,
@@ -247,28 +279,33 @@ function scheduleFingerprint(
     unitId,
     row.id,
     day,
-    employeeId,
+    cleanId,
     row.shiftDefinitionId ?? '',
     row.unitLabel ?? '',
     row.rowLabel ?? '',
     row.shiftLabel,
     row.timeRange,
-    idsSignature(row.cellsByDay[String(day)] ?? []),
+    cleanCellIds,
   ].join('|');
 }
 
 function otFingerprint(monthKey: string, row: OTRow, day: number, employeeId: string) {
+  const cleanId = employeeId.replace(/^directory-account:/, '');
+  const cleanCellIds = (row.assignments[String(day)] ?? [])
+    .map((a) => (a.kind === 'employee' ? (a.employeeId ?? '').replace(/^directory-account:/, '') : `unresolved:${a.legacyCode ?? ''}`))
+    .sort()
+    .join(',');
   return [
     'ot',
     monthKey,
     row.id,
     day,
-    employeeId,
+    cleanId,
     row.unitId ?? '',
     row.location,
     row.title,
     row.timeRange,
-    idsSignature(row.assignments[String(day)] ?? []),
+    cleanCellIds,
   ].join('|');
 }
 
@@ -356,18 +393,6 @@ function requestAssignmentKeys(request: ShiftRequest) {
   ];
 }
 
-function equivalentScheduleCell(left: ScheduleMatrixData, right: ScheduleMatrixData, ref: ShiftAssignmentRef) {
-  const leftRow = findScheduleRow(left, ref.rowId)?.row;
-  const rightRow = findScheduleRow(right, ref.rowId)?.row;
-  return Boolean(leftRow && rightRow && idsSignature(leftRow.cellsByDay[String(ref.day)] ?? []) === idsSignature(rightRow.cellsByDay[String(ref.day)] ?? []));
-}
-
-function equivalentOTCell(left: OTRow[], right: OTRow[], ref: ShiftAssignmentRef) {
-  const leftRow = left.find((row) => row.id === ref.rowId);
-  const rightRow = right.find((row) => row.id === ref.rowId);
-  return Boolean(leftRow && rightRow && idsSignature(leftRow.assignments[String(ref.day)] ?? []) === idsSignature(rightRow.assignments[String(ref.day)] ?? []));
-}
-
 function addScheduleVersion(existingJson: string, monthKey: string, matrix: ScheduleMatrixData, actorName: string) {
   const versions = parseJson<Array<Record<string, unknown>>>(existingJson, []);
   return JSON.stringify([
@@ -421,7 +446,9 @@ export async function validateAssignmentRef(
     const found = findScheduleRow(matrix, assignment.rowId);
     if (!found) return { ok: false, reason: 'not_found', message: 'Schedule row not found.' };
     const cell = found.row.cellsByDay[String(assignment.day)] ?? [];
-    const active = cell.find((candidate) => candidate.employeeId === assignment.employeeId && candidate.status !== 'draft');
+    const active = cell.find((candidate) =>
+      isMatchingEmployeeId(candidate.employeeId, candidate.employeeCode, assignment.employeeId, assignment.employeeCode) && candidate.status !== 'draft'
+    );
     if (!active) return { ok: false, reason: 'not_found', message: 'Employee is no longer assigned to that shift.' };
 
     const canonical: ShiftAssignmentRef = {
@@ -444,7 +471,7 @@ export async function validateAssignmentRef(
       startsAt: startsAt(matrix.year, matrix.month, assignment.day, found.row.timeRange),
     };
 
-    if (parseStartsAt(canonical.startsAt) <= now.getTime()) {
+    if (isShiftPast(canonical.startsAt, canonical.timeRange, now)) {
       return { ok: false, reason: 'past_shift', message: 'Past shifts cannot be requested.' };
     }
     if (assignment.fingerprint !== canonical.fingerprint) {
@@ -468,7 +495,7 @@ export async function validateAssignmentRef(
     return { ok: false, reason: 'not_found', message: 'Overtime unit is archived.' };
   }
   const active = (row.assignments[String(assignment.day)] ?? []).find((candidate) =>
-    candidate.kind === 'employee' && candidate.employeeId === assignment.employeeId,
+    candidate.kind === 'employee' && isMatchingEmployeeId(candidate.employeeId, assignment.employeeCode, assignment.employeeId, assignment.employeeCode),
   );
   if (!active?.employeeId) {
     return { ok: false, reason: 'not_found', message: 'Employee is no longer assigned to that OT shift.' };
@@ -493,7 +520,7 @@ export async function validateAssignmentRef(
     ...(row.unitId ? { unitId: row.unitId } : {}),
   };
 
-  if (parseStartsAt(canonical.startsAt) <= now.getTime()) {
+  if (isShiftPast(canonical.startsAt, canonical.timeRange, now)) {
     return { ok: false, reason: 'past_shift', message: 'Past shifts cannot be requested.' };
   }
   if (assignment.fingerprint !== canonical.fingerprint) {
@@ -522,7 +549,9 @@ async function assignmentsForDate(
         for (const unit of facility.units ?? []) {
           for (const row of unit.rows ?? []) {
             const assignments = row.cellsByDay[String(target.day)] ?? [];
-            const match = assignments.find((candidate) => candidate.employeeId === employeeId && candidate.status !== 'draft');
+            const match = assignments.find((candidate) =>
+              isMatchingEmployeeId(candidate.employeeId, candidate.employeeCode, employeeId, undefined) && candidate.status !== 'draft'
+            );
             if (!match) continue;
             items.push({
               source: 'schedule',
@@ -532,7 +561,7 @@ async function assignmentsForDate(
               month: matrix.month,
               day: target.day,
               rowId: row.id,
-              employeeId,
+              employeeId: match.employeeId,
               employeeCode: match.employeeCode,
               facilityId: facility.id,
               unitId: unit.id,
@@ -540,7 +569,7 @@ async function assignmentsForDate(
               unitLabel: unit.name || row.unitLabel || '',
               shiftLabel: row.shiftLabel,
               timeRange: row.timeRange,
-              fingerprint: scheduleFingerprint(target.monthKey, facility.id, unit.id, row, target.day, employeeId),
+              fingerprint: scheduleFingerprint(target.monthKey, facility.id, unit.id, row, target.day, match.employeeId),
               startsAt: startsAt(matrix.year, matrix.month, target.day, row.timeRange),
             });
           }
@@ -553,7 +582,7 @@ async function assignmentsForDate(
     const rows = parseJson<OTRow[]>(overtimeMonth?.publishedRowsJson ?? '[]', []);
     for (const row of rows) {
       const match = (row.assignments[String(target.day)] ?? []).find((candidate) =>
-        candidate.kind === 'employee' && candidate.employeeId === employeeId,
+        candidate.kind === 'employee' && isMatchingEmployeeId(candidate.employeeId, undefined, employeeId, undefined),
       );
       if (!match?.employeeId) continue;
       items.push({
@@ -564,13 +593,13 @@ async function assignmentsForDate(
         month: overtimeMonth!.month,
         day: target.day,
         rowId: row.id,
-        employeeId,
+        employeeId: match.employeeId,
         employeeCode: employeeId,
         facilityLabel: row.location,
         unitLabel: row.title,
         shiftLabel: row.title,
         timeRange: row.timeRange,
-        fingerprint: otFingerprint(target.monthKey, row, target.day, employeeId),
+        fingerprint: otFingerprint(target.monthKey, row, target.day, match.employeeId),
         startsAt: startsAt(overtimeMonth!.year, overtimeMonth!.month, target.day, row.timeRange),
         ...(row.unitId ? { unitId: row.unitId } : {}),
       });
@@ -585,7 +614,7 @@ function employeeVacationOnDay(month: ScheduleMonthLike | null, employeeId: stri
   const matrix = parseJson<ScheduleMatrixData | null>(month.publishedJson, null);
   if (!matrix) return false;
   return (matrix.vacations ?? []).some((vacation) => {
-    if (vacation.employeeId !== employeeId) return false;
+    if (!isMatchingEmployeeId(vacation.employeeId, undefined, employeeId, undefined)) return false;
     if (vacation.daysOff?.includes(day)) return true;
     return (vacation.ranges ?? []).some((range) =>
       (range.status ?? 'published') !== 'draft' && day >= range.startDay && day <= range.endDay,
@@ -602,11 +631,25 @@ async function warningsForMove(
   excludedAssignment?: ShiftAssignmentRef,
 ) {
   const warnings: ShiftRequestWarning[] = [];
-  const conflicts = (await assignmentsForDate(db, employeeId, target)).filter((existing) =>
-    (!excludedAssignment || assignmentRequestKey(existing) !== assignmentRequestKey(excludedAssignment))
-    && `${existing.source}|${existing.monthKey}|${existing.rowId}|${existing.day}` !== `${target.source}|${target.monthKey}|${target.rowId}|${target.day}`
-    && overlap(existing, target),
-  );
+  const conflicts = (await assignmentsForDate(db, employeeId, target)).filter((existing) => {
+    if (excludedAssignment) {
+      if (
+        existing.source === excludedAssignment.source &&
+        existing.monthKey === excludedAssignment.monthKey &&
+        existing.rowId === excludedAssignment.rowId &&
+        existing.day === excludedAssignment.day
+      ) {
+        return false;
+      }
+    }
+    const isSameCell =
+      existing.source === target.source &&
+      existing.monthKey === target.monthKey &&
+      existing.rowId === target.rowId &&
+      existing.day === target.day;
+    if (isSameCell) return false;
+    return overlap(existing, target);
+  });
   if (conflicts.length > 0) {
     warnings.push({
       code: 'schedule_conflict',
@@ -762,9 +805,14 @@ function transferScheduleAssignment(
   const row = findScheduleRow(matrix, ref.rowId)?.row;
   if (!row) return false;
   const current = row.cellsByDay[String(ref.day)] ?? [];
-  const sourceIndex = current.findIndex((assignment) => assignment.employeeId === fromEmployeeId);
+  const sourceIndex = current.findIndex((assignment) =>
+    isMatchingEmployeeId(assignment.employeeId, assignment.employeeCode, ref.employeeId, ref.employeeCode) ||
+    isMatchingEmployeeId(assignment.employeeId, assignment.employeeCode, fromEmployeeId, undefined)
+  );
   if (sourceIndex < 0) return false;
-  if (current.some((assignment) => assignment.employeeId === to.employeeId)) return false;
+  if (current.some((assignment, index) =>
+    index !== sourceIndex && isMatchingEmployeeId(assignment.employeeId, assignment.employeeCode, to.employeeId, to.employeeCode)
+  )) return false;
   current[sourceIndex] = {
     ...current[sourceIndex],
     employeeId: to.employeeId,
@@ -787,9 +835,16 @@ function transferOTAssignment(
   const row = rows.find((candidate) => candidate.id === ref.rowId);
   if (!row) return false;
   const current = row.assignments[String(ref.day)] ?? [];
-  const sourceIndex = current.findIndex((assignment) => assignment.kind === 'employee' && assignment.employeeId === fromEmployeeId);
+  const sourceIndex = current.findIndex((assignment) =>
+    assignment.kind === 'employee' && (
+      isMatchingEmployeeId(assignment.employeeId, undefined, ref.employeeId, ref.employeeCode) ||
+      isMatchingEmployeeId(assignment.employeeId, undefined, fromEmployeeId, undefined)
+    )
+  );
   if (sourceIndex < 0) return false;
-  if (current.some((assignment) => assignment.kind === 'employee' && assignment.employeeId === to.employeeId)) return false;
+  if (current.some((assignment, index) =>
+    index !== sourceIndex && assignment.kind === 'employee' && isMatchingEmployeeId(assignment.employeeId, undefined, to.employeeId, to.employeeCode)
+  )) return false;
   row.assignments[String(ref.day)] = current.map((assignment, index) =>
     index === sourceIndex ? { kind: 'employee', employeeId: to.employeeId } : assignment,
   );
@@ -815,9 +870,6 @@ export async function applyApprovedShiftRequest(
       const published = parseJson<ScheduleMatrixData | null>(month.publishedJson, null);
       if (!published) return { ok: false as const, reason: 'not_found' as const, message: 'Published schedule data is missing.' };
       const draft = month.draftJson ? parseJson<ScheduleMatrixData | null>(month.draftJson, null) : null;
-      if (draft && !equivalentScheduleCell(published, draft, ref)) {
-        return { ok: false as const, reason: 'draft_conflict' as const, message: 'A schedule draft changed after the request was created.' };
-      }
       if (!nextByKey.has(ref.monthKey)) {
         nextByKey.set(ref.monthKey, {
           published: clone(published),
@@ -900,9 +952,6 @@ export async function applyApprovedShiftRequest(
     if (!month) return { ok: false as const, reason: 'not_found' as const, message: 'Overtime month not found.' };
     const publishedRows = parseJson<OTRow[]>(month.publishedRowsJson, []);
     const draftRows = parseJson<OTRow[]>(month.rowsJson, []);
-    if (month.rowsJson && !equivalentOTCell(publishedRows, draftRows, ref)) {
-      return { ok: false as const, reason: 'draft_conflict' as const, message: 'An overtime draft changed after the request was created.' };
-    }
     if (!nextByKey.has(ref.monthKey)) {
       nextByKey.set(ref.monthKey, {
         publishedRows: clone(publishedRows),
@@ -1086,6 +1135,7 @@ export async function createShiftRequestAudit(
     before: request.timeline[1]?.action,
     after: request.status,
     context: {
+      departmentId: request.departmentId,
       year: request.requesterAssignment.year,
       month: request.requesterAssignment.month,
       rowId: request.requesterAssignment.rowId,

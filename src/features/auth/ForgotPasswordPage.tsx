@@ -29,7 +29,7 @@ import AuthSplitLayout, {
 
 /* ─── Types ─── */
 type Step = 1 | 2 | 3 | 'success' | 'no-email';
-const PASSWORD_RESET_OTP_TTL_SECONDS = 10 * 60;
+const RESEND_COOLDOWN_SECONDS = 60; // 1 minute cooldown to resend
 
 /* ─── Password strength helper ─── */
 function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
   const [foundEmail, setFoundEmail] = useState(prefilledIdentifier.includes('@') ? prefilledIdentifier : '');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [otpError, setOtpError] = useState('');
-  const [countdown, setCountdown] = useState(startsReady ? 0 : PASSWORD_RESET_OTP_TTL_SECONDS);
+  const [resendCooldown, setResendCooldown] = useState(startsReady ? 0 : RESEND_COOLDOWN_SECONDS);
   const [isResending, setIsResending] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -91,13 +91,13 @@ export default function ForgotPasswordPage() {
     return isRtl ? fallbackAr : fallbackEn;
   }, [isRtl]);
 
-  /* ─── Countdown timer ─── */
+  /* ─── Resend Countdown timer ─── */
   useEffect(() => {
     if (step !== 2) return;
-    if (countdown <= 0) return;
-    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
     return () => clearTimeout(timer);
-  }, [step, countdown]);
+  }, [step, resendCooldown]);
 
   /* ─── Step 1: Verify email / employee number ─── */
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -123,8 +123,8 @@ export default function ForgotPasswordPage() {
       if (!response.data.accountFound) {
         setIdentifierError(
           isRtl
-            ? 'لم يتم العثور على حساب بهذا الرقم الوظيفي أو البريد الإلكتروني.'
-            : 'No account found with this employee number or email.'
+            ? 'لم يتم العثور على حساب باسم المستخدم هذا أو البريد الإلكتروني.'
+            : 'No account found with this username or email.'
         );
         return;
       }
@@ -139,7 +139,7 @@ export default function ForgotPasswordPage() {
       setFoundEmail(response.data.maskedEmail || '');
       setOtpDigits(['', '', '', '', '', '']);
       setOtpError('');
-      setCountdown(PASSWORD_RESET_OTP_TTL_SECONDS);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
       setStep(2);
     } catch (error) {
       setIdentifierError(readApiErrorMessage(
@@ -215,7 +215,7 @@ export default function ForgotPasswordPage() {
       await api.post('/auth/forgot-password/request', { identifier });
       setOtpDigits(['', '', '', '', '', '']);
       setOtpError('');
-      setCountdown(PASSWORD_RESET_OTP_TTL_SECONDS);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
       otpRefs.current[0]?.focus();
     } catch (error) {
       setOtpError(readApiErrorMessage(
@@ -408,7 +408,7 @@ export default function ForgotPasswordPage() {
                 </div>
                 <div>
                   <p className="font-semibold text-sm text-text-primary">
-                    {isRtl ? 'البريد الإلكتروني أو الرقم الوظيفي' : 'Email or Employee Number'}
+                    {isRtl ? 'البريد الإلكتروني أو اسم المستخدم' : 'Email or Username'}
                   </p>
                   <p className="text-xs text-text-secondary">
                     {isRtl ? 'سنرسل لك كود التحقق' : "We'll send you a verification code"}
@@ -419,11 +419,10 @@ export default function ForgotPasswordPage() {
               <form onSubmit={handleEmailSubmit} className="space-y-4">
                 <div>
                   <Input
-                    label={isRtl ? 'البريد الإلكتروني / الرقم الوظيفي' : 'Email / Employee Number'}
-                    placeholder={isRtl ? 'name@hospital.sa أو الرقم الوظيفي' : 'name@hospital.sa or employee number'}
+                    label={isRtl ? 'البريد الإلكتروني أو اسم المستخدم' : 'Email or Username'}
+                    placeholder={isRtl ? 'البريد الإلكتروني أو اسم المستخدم' : 'Enter email or username'}
                     value={identifier}
                     onChange={(e) => { setIdentifier(e.target.value); setIdentifierError(''); }}
-                    dir="ltr"
                     error={identifierError}
                     autoFocus
                   />
@@ -511,15 +510,15 @@ export default function ForgotPasswordPage() {
 
                 {/* Resend row */}
                 <div className="flex items-center justify-between border-t border-border pt-3">
-                  <span className={cn('text-xs', countdown > 0 ? 'text-text-secondary' : 'text-danger')}>
-                    {countdown > 0
-                      ? (isRtl ? `ينتهي خلال ${formatTime(countdown)}` : `Expires in ${formatTime(countdown)}`)
-                      : (isRtl ? 'انتهت صلاحية الكود' : 'Code expired')}
+                  <span className="text-xs text-text-secondary">
+                    {resendCooldown > 0
+                      ? (isRtl ? `يمكنك إعادة الإرسال خلال ${formatTime(resendCooldown)}` : `Resend in ${formatTime(resendCooldown)}`)
+                      : (isRtl ? 'لم يصلك الرمز؟' : "Didn't receive code?")}
                   </span>
                   <button
                     type="button"
                     onClick={handleResendOtp}
-                    disabled={countdown > 90 || isResending}
+                    disabled={resendCooldown > 0 || isResending}
                     className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
                   >
                     {isResending
@@ -557,7 +556,7 @@ export default function ForgotPasswordPage() {
                     type={showPw ? 'text' : 'password'}
                     placeholder="••••••••"
                     dir="ltr"
-                    className="!pe-11"
+                    className="!pr-11"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     autoFocus
@@ -565,7 +564,7 @@ export default function ForgotPasswordPage() {
                   <button
                     type="button"
                     onClick={() => setShowPw(!showPw)}
-                    className="absolute end-0 top-[1.75rem] inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary hover:bg-hover hover:text-text-primary"
+                    className="absolute right-0 top-[1.75rem] inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary hover:bg-hover hover:text-text-primary"
                     aria-label={showPw ? t('auth:login.hidePassword') : t('auth:login.showPassword')}
                   >
                     {showPw
@@ -606,14 +605,14 @@ export default function ForgotPasswordPage() {
                     type={showConfirm ? 'text' : 'password'}
                     placeholder="••••••••"
                     dir="ltr"
-                    className="!pe-11"
+                    className="!pr-11"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirm(!showConfirm)}
-                    className="absolute end-0 top-[1.75rem] inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary hover:bg-hover hover:text-text-primary"
+                    className="absolute right-0 top-[1.75rem] inline-flex h-11 w-11 items-center justify-center rounded-btn text-text-secondary hover:bg-hover hover:text-text-primary"
                     aria-label={showConfirm ? t('auth:login.hidePassword') : t('auth:login.showPassword')}
                   >
                     {showConfirm

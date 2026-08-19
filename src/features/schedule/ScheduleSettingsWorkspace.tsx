@@ -1,25 +1,28 @@
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { Clock3, ListOrdered } from 'lucide-react';
+import { Clock3, LayoutGrid, ListOrdered } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
-type SettingsView = 'shiftTypes' | 'tableOrder';
+type SettingsView = 'shiftTypes' | 'unitStructure' | 'tableOrder';
 
 interface ScheduleSettingsWorkspaceProps {
   shiftTypesPanel: ReactNode;
+  unitStructurePanel: ReactNode;
   tableOrderPanel: ReactNode;
 }
 
-const VIEW_ORDER: SettingsView[] = ['shiftTypes', 'tableOrder'];
+const VIEW_ORDER: SettingsView[] = ['shiftTypes', 'unitStructure', 'tableOrder'];
 
 export default function ScheduleSettingsWorkspace({
   shiftTypesPanel,
+  unitStructurePanel,
   tableOrderPanel,
 }: ScheduleSettingsWorkspaceProps) {
   const { t, i18n } = useTranslation('schedule');
   const [activeView, setActiveView] = useState<SettingsView>('shiftTypes');
   const tabRefs = useRef<Record<SettingsView, HTMLButtonElement | null>>({
     shiftTypes: null,
+    unitStructure: null,
     tableOrder: null,
   });
   const instanceId = useId().replace(/:/g, '');
@@ -52,6 +55,11 @@ export default function ScheduleSettingsWorkspace({
       icon: <Clock3 className="h-4 w-4" aria-hidden="true" />,
     },
     {
+      view: 'unitStructure',
+      label: t('settingsPanel.workspace.unitStructure'),
+      icon: <LayoutGrid className="h-4 w-4" aria-hidden="true" />,
+    },
+    {
       view: 'tableOrder',
       label: t('settingsPanel.workspace.tableOrder'),
       icon: <ListOrdered className="h-4 w-4" aria-hidden="true" />,
@@ -66,7 +74,7 @@ export default function ScheduleSettingsWorkspace({
       <div
         role="tablist"
         aria-label={t('settingsPanel.workspace.ariaLabel')}
-        className="grid grid-cols-1 gap-2 rounded-2xl border border-border bg-surface p-2 shadow-soft sm:grid-cols-2"
+        className="grid grid-cols-1 gap-2 rounded-2xl border border-border bg-surface p-2 shadow-soft sm:grid-cols-2 lg:grid-cols-3"
       >
         {tabs.map(({ view, label, icon }) => {
           const selected = activeView === view;
@@ -105,7 +113,11 @@ export default function ScheduleSettingsWorkspace({
         tabIndex={0}
         className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-teal/50"
       >
-        {activeView === 'shiftTypes' ? shiftTypesPanel : tableOrderPanel}
+        {activeView === 'shiftTypes'
+          ? shiftTypesPanel
+          : activeView === 'unitStructure'
+            ? unitStructurePanel
+            : tableOrderPanel}
       </div>
     </section>
   );

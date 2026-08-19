@@ -9,6 +9,23 @@ import {
 } from '../lib/notifications.js';
 import { requireAuth } from '../middleware/auth.js';
 
+function viewerNotificationWhere(viewer: NonNullable<Express.Request['viewer']>) {
+  if (viewer.role === 'super_admin') {
+    return undefined;
+  }
+
+  return {
+    OR: [
+      { audienceKind: 'broadcast' as const },
+      { audienceKind: 'account' as const, audienceAccountId: viewer.id },
+      {
+        audienceKind: 'department_role' as const,
+        departmentId: viewer.department.id,
+      },
+    ],
+  };
+}
+
 function toVisibleNotifications(notifications: Awaited<ReturnType<typeof prisma.notification.findMany>>, viewer: NonNullable<Express.Request['viewer']>) {
   return notifications
     .filter((notification) => notificationVisibleToViewer(notification, viewer))
@@ -20,6 +37,7 @@ export const notificationsRouter = Router();
 notificationsRouter.get('/', requireAuth, async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 250);
   const notifications = await prisma.notification.findMany({
+    where: viewerNotificationWhere(req.viewer!),
     orderBy: { createdAt: 'desc' },
     take: 500,
   });
@@ -32,12 +50,14 @@ notificationsRouter.get('/', requireAuth, async (req, res) => {
 
 notificationsRouter.post('/read-all', requireAuth, async (req, res) => {
   const notifications = await prisma.notification.findMany({
+    where: viewerNotificationWhere(req.viewer!),
     orderBy: { createdAt: 'desc' },
     take: 500,
   });
   const visible = notifications.filter((notification) => notificationVisibleToViewer(notification, req.viewer!));
   await markAllNotificationsRead(prisma, visible, req.viewer!);
   const refreshed = await prisma.notification.findMany({
+    where: viewerNotificationWhere(req.viewer!),
     orderBy: { createdAt: 'desc' },
     take: 500,
   });
