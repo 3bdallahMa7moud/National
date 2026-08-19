@@ -30,6 +30,7 @@ export interface TargetedNotificationState {
   markRead(id: string, user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>): boolean;
   markAllRead(user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>): boolean;
   remove(id: string, user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>): boolean;
+  replaceNotifications(notifications: AppNotification[]): boolean;
   forUser(user: Pick<AuthUser, 'id' | 'role' | 'departmentId'>): AppNotification[];
   reloadFromStorage(): void;
   clearForTests(): void;
@@ -189,6 +190,7 @@ function makeState(
       if (item.id !== id || !isNotificationForUser(item, user)) return item;
       return { ...item, deletedForAccountIds: [...new Set([...(item.deletedForAccountIds || []), user.id])] };
     })),
+    replaceNotifications: (notifications) => commit(notifications),
     forUser: (user) => get().notifications
       .map((item) => notificationForUser(item, user))
       .filter((item): item is AppNotification => Boolean(item)),
@@ -224,9 +226,6 @@ if (typeof window !== 'undefined') {
     }
     window.addEventListener('storage', (event) => {
       if (event.key === TARGETED_NOTIFICATION_STORAGE_KEY) useTargetedNotificationStore.getState().reloadFromStorage();
-    });
-    window.addEventListener('focus', () => {
-      useTargetedNotificationStore.getState().reloadFromStorage();
     });
   } catch {
     // The current tab continues to work without a cross-tab channel.

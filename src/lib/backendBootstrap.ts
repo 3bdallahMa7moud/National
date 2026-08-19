@@ -68,11 +68,9 @@ export function hydrateBackendState(payload: ApiBootstrapPayload) {
       ['backend-bootstrap'],
     );
 
-    useTargetedNotificationStore.setState((state) => ({
-      ...state,
-      notifications: payload.notifications as AppNotification[],
-      storageError: null,
-    }));
+    useTargetedNotificationStore.getState().replaceNotifications(
+      payload.notifications as AppNotification[],
+    );
 
     useOperationalAuditStore.setState((state) => ({
       ...state,

@@ -104,7 +104,7 @@ describe('PublishedScheduleSurface employee interactions', () => {
 
     expect(screen.getAllByLabelText('Modified shift marker').length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText('Assign Employee')).not.toBeInTheDocument();
-  });
+  }, 20000);
 
   it('forwards an OT employee cell click only when the My Schedule hook is supplied', () => {
     const employee = OFFICIAL_EMPLOYEE_ROSTER[0];

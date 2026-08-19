@@ -59,4 +59,33 @@ describe('targetedNotificationStore', () => {
     expect(store.getState().forUser(adminA)).toHaveLength(0);
     expect(store.getState().forUser(adminB)).toHaveLength(1);
   });
+
+  it('replaces notifications and synchronizes storage with backend payload', () => {
+    const memory = storage();
+    const store = createTargetedNotificationStore({ storage: memory });
+    const user = { id: 'user-1', role: 'employee' as const, departmentId: 'dept-1' };
+
+    store.getState().replaceNotifications([
+      {
+        id: 'n-1',
+        type: 'general',
+        title: 'Backend notification',
+        message: 'Hello',
+        isRead: false,
+        isUrgent: false,
+        createdAt: '2026-08-19T10:00:00.000Z',
+        audience: { kind: 'account', accountId: 'user-1' },
+      },
+    ]);
+
+    expect(store.getState().forUser(user)).toHaveLength(1);
+    expect(store.getState().forUser(user)[0]?.isRead).toBe(false);
+
+    store.getState().markAllRead(user);
+    expect(store.getState().forUser(user)[0]?.isRead).toBe(true);
+
+    // Reload from storage to verify it was committed to persistent storage
+    store.getState().reloadFromStorage();
+    expect(store.getState().forUser(user)[0]?.isRead).toBe(true);
+  });
 });

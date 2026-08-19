@@ -42,16 +42,19 @@ export function useNotifications() {
 
   const markRead = (id: string) => {
     if (!user) return;
+    useTargetedNotificationStore.getState().markRead(id, user);
     void api.post(`/notifications/${id}/read`).then(() => fetchAndHydrateBootstrap()).catch(() => undefined);
   };
 
   const markAllRead = () => {
     if (!user) return;
+    useTargetedNotificationStore.getState().markAllRead(user);
     void api.post('/notifications/read-all').then(() => fetchAndHydrateBootstrap()).catch(() => undefined);
   };
 
   const deleteNotification = (id: string) => {
     if (!user) return;
+    useTargetedNotificationStore.getState().remove(id, user);
     void api.delete(`/notifications/${id}`).then(() => fetchAndHydrateBootstrap()).catch(() => undefined);
   };
 

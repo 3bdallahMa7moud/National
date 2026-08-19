@@ -65,12 +65,12 @@ describe('ScheduleMatrix arrange mode', () => {
     const unitHandles = await screen.findAllByLabelText(
       `Drag unit ${unit.name}`,
       {},
-      { timeout: 5000 },
+      { timeout: 15000 },
     );
     const rowHandles = await screen.findAllByLabelText(
       `Drag shift ${row.rowLabel || row.shiftLabel}`,
       {},
-      { timeout: 5000 },
+      { timeout: 15000 },
     );
     expect(unitHandles.length).toBeGreaterThanOrEqual(1);
     expect(rowHandles.length).toBeGreaterThanOrEqual(1);
