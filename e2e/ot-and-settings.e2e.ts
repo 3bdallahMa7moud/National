@@ -28,7 +28,16 @@ async function openScheduleSettings(page: Page) {
   await page.getByRole('button', { name: 'Settings' }).click();
 }
 
-test('OT schedule supports August 2026 direct links and Excel export', async ({ page }) => {
+test('OT schedule supports August 2026 direct links and Excel/PDF export', async ({ page }) => {
+  await page.addInitScript(() => {
+    const browserGlobals = globalThis as unknown as {
+      document: { documentElement: { setAttribute(name: string, value: string): void } };
+    };
+    Object.defineProperty(browserGlobals, 'print', {
+      configurable: true,
+      value: () => browserGlobals.document.documentElement.setAttribute('data-print-invoked', 'true'),
+    });
+  });
   await login(page, 'EMP-001');
   await expect(page).toHaveURL(/\/admin\/dashboard$/);
 
@@ -41,6 +50,12 @@ test('OT schedule supports August 2026 direct links and Excel export', async ({ 
   const excelDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Excel' }).click();
   expect((await excelDownload).suggestedFilename()).toBe('OT_Schedule_2026-08.xlsx');
+
+  await page.getByRole('button', { name: 'PDF' }).click();
+  const printDocument = page.frameLocator('iframe[aria-hidden="true"]');
+  await expect.poll(() => printDocument.locator('title').textContent()).toBe('OT_Schedule_2026-08');
+  await expect(printDocument.locator('body')).toContainText('OT Schedule');
+  await expect.poll(() => printDocument.locator('html').getAttribute('data-print-invoked')).toBe('true');
 });
 
 test('Schedule Management settings workspace remains reachable and operable', async ({ page }) => {

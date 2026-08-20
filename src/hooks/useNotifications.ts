@@ -1,7 +1,10 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '@/lib/axios';
-import { fetchAndHydrateBootstrap } from '@/lib/backendBootstrap';
+import {
+  fetchAndHydrateBootstrap,
+  fetchAndHydrateOperationalInbox,
+} from '@/lib/backendBootstrap';
 import { useAuthStore } from '@/stores/authStore';
 import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import { notificationForUser, useTargetedNotificationStore } from '@/stores/targetedNotificationStore';
@@ -40,23 +43,50 @@ export function useNotifications() {
 
   const unreadCount = notifications.filter((notification) => !notification.isRead).length;
 
-  const markRead = (id: string) => {
+  const markRead = async (id: string) => {
     if (!user) return;
     useTargetedNotificationStore.getState().markRead(id, user);
-    void api.post(`/notifications/${id}/read`).then(() => fetchAndHydrateBootstrap()).catch(() => undefined);
+    try {
+      await api.post(`/notifications/${id}/read`);
+    } catch {
+      await fetchAndHydrateOperationalInbox().catch(() => undefined);
+    }
   };
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
     if (!user) return;
     useTargetedNotificationStore.getState().markAllRead(user);
-    void api.post('/notifications/read-all').then(() => fetchAndHydrateBootstrap()).catch(() => undefined);
+    await api.post('/notifications/read-all')
+      .then(() => fetchAndHydrateOperationalInbox())
+      .catch(() => fetchAndHydrateOperationalInbox().catch(() => undefined));
   };
 
-  const deleteNotification = (id: string) => {
+  const deleteNotification = async (id: string) => {
     if (!user) return;
     useTargetedNotificationStore.getState().remove(id, user);
-    void api.delete(`/notifications/${id}`).then(() => fetchAndHydrateBootstrap()).catch(() => undefined);
+    await api.delete(`/notifications/${id}`)
+      .then(() => fetchAndHydrateOperationalInbox())
+      .catch(() => fetchAndHydrateOperationalInbox().catch(() => undefined));
   };
 
-  return { notifications, unreadCount, markRead, markAllRead, deleteNotification };
+  const refreshNotifications = async () => {
+    if (!user) return;
+    await fetchAndHydrateOperationalInbox().catch(() => undefined);
+  };
+
+  const prepareNotificationOpen = async (notification: (typeof notifications)[number]) => {
+    if (!user) return;
+    if (!notification.isRead) await markRead(notification.id);
+    await fetchAndHydrateBootstrap().catch(() => undefined);
+  };
+
+  return {
+    notifications,
+    unreadCount,
+    markRead,
+    markAllRead,
+    deleteNotification,
+    refreshNotifications,
+    prepareNotificationOpen,
+  };
 }

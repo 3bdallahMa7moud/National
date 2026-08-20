@@ -34,9 +34,9 @@ describe('late schedule export colors', () => {
     expect(sheet.getCell('A4').font.color).toEqual({ argb: 'FFFEDCBA' });
     expect(sheet.getCell('E4').fill).toMatchObject({ fgColor: { argb: 'FF123456' } });
     expect(sheet.getCell('E4').font.color).toEqual({ argb: 'FFFEDCBA' });
-    expect(sheet.getCell('E4').value).toBe(employee.fullNameEn || employee.fullName);
+    expect(sheet.getCell('E4').value).toBe(`${employee.code} · ${employee.fullNameEn || employee.fullName}`);
 
-    const html = buildLateSchedulePrintHtml(rows, OFFICIAL_EMPLOYEE_ROSTER, 'JULY LATE SHIFT', 2026, days, false);
+    const html = buildLateSchedulePrintHtml(rows, OFFICIAL_EMPLOYEE_ROSTER, 'JULY LATE SHIFT', 2026, 6, days, false);
     expect(html).toContain('style="background:#123456;color:#FEDCBA"');
     expect(html).toContain(employee.code);
     expect(html).toContain(employee.fullNameEn || employee.fullName);
@@ -58,6 +58,52 @@ describe('late schedule export colors', () => {
       nameEn: 'Unknown employee',
       unresolved: true,
     });
+  });
+
+  it('preserves OT cell markers and unresolved legacy codes in Excel and PDF output', () => {
+    const employee = OFFICIAL_EMPLOYEE_ROSTER[0];
+    const rows: OTShiftRow[] = [{
+      id: 'marked-ot-row',
+      title: 'Marked OT',
+      location: 'KAMC',
+      timeRange: '17:00 - 21:00',
+      hours: 4,
+      cellMarkers: { 1: 'purple' },
+      assignments: {
+        1: [
+          { kind: 'employee', employeeId: employee.employeeId },
+          { kind: 'unresolved', legacyCode: 'LEG-9' },
+        ],
+      },
+    }];
+    const days = [{ dayNum: 1, weekdayName: 'Sat', isWeekend: true }];
+
+    const model = buildLateScheduleExportModel(rows, [employee]);
+    expect(model.roster).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: employee.code }),
+      expect.objectContaining({ code: 'LEG-9', unresolved: true }),
+    ]));
+
+    const workbook = buildLateScheduleWorkbook(rows, [employee], 'AUGUST LATE SHIFT', 2026, 7, days);
+    const schedule = workbook.getWorksheet('Late Roster')!;
+    expect(schedule.pageSetup.paperSize).toBe(9);
+    expect(schedule.getCell('E4').value).toContain('LEG-9? · Unresolved');
+    expect(schedule.getCell('E4').fill).toMatchObject({ fgColor: { argb: 'FFE7D2FA' } });
+    expect(schedule.getCell('E4').border.left).toMatchObject({
+      style: 'medium',
+      color: { argb: 'FF9333EA' },
+    });
+
+    const directory = workbook.getWorksheet('Employee Directory')!;
+    const legacyRow = directory.getColumn(2).values.findIndex((value) => value === 'LEG-9?');
+    expect(legacyRow).toBeGreaterThan(1);
+    expect(directory.getCell(legacyRow, 4).value).toBe('Needs review');
+
+    const html = buildLateSchedulePrintHtml(rows, [employee], 'AUGUST LATE SHIFT', 2026, 7, days, false);
+    expect(html).toContain('<title>OT_Schedule_2026-08</title>');
+    expect(html).toContain('background:#E7D2FA;box-shadow:inset 0 0 0 .7mm #9333EA');
+    expect(html).toContain('LEG-9?');
+    expect(html).toContain('Needs review');
   });
 
   it('creates multiple readable worksheets for long months and includes every assigned employee in the legend', () => {
@@ -88,10 +134,11 @@ describe('late schedule export colors', () => {
 
     const workbook = buildLateScheduleWorkbook(rows, roster, 'AUGUST LATE SHIFT', 2026, 7, days);
     const scheduleSheets = workbook.worksheets.filter((sheet) => sheet.name.startsWith('Late Roster'));
-    expect(scheduleSheets).toHaveLength(3);
-    expect(scheduleSheets[0].getCell('E4').value).toBe('Employee 1');
-    expect(scheduleSheets[1].getCell('E4').value).toBe('Employee 15');
-    expect(scheduleSheets[2].getCell('E4').value).toBe('Employee 29');
+    expect(scheduleSheets).toHaveLength(4);
+    expect(scheduleSheets[0].getCell('E4').value).toBe('E01 · Employee 1');
+    expect(scheduleSheets[1].getCell('E4').value).toBe('E11 · Employee 11');
+    expect(scheduleSheets[2].getCell('E4').value).toBe('E21 · Employee 21');
+    expect(scheduleSheets[3].getCell('E4').value).toBe('E31 · Employee 31');
 
     const legendSheet = workbook.getWorksheet('Employee Directory')!;
     const legendNames = Array.from({ length: 31 }, (_, index) => legendSheet.getCell(`A${index + 2}`).value);
@@ -99,7 +146,7 @@ describe('late schedule export colors', () => {
     expect(legendNames).toContain('Employee 31');
     expect(legendCodes).toContain('E31');
 
-    const html = buildLateSchedulePrintHtml(rows, roster, 'AUGUST LATE SHIFT', 2026, days, false);
+    const html = buildLateSchedulePrintHtml(rows, roster, 'AUGUST LATE SHIFT', 2026, 7, days, false);
     expect(html).toContain('Days: 1-10');
     expect(html).toContain('Employee 1');
     expect(html).not.toContain('employee-1');

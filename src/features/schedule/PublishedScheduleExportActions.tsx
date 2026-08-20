@@ -64,7 +64,7 @@ export default function PublishedScheduleExportActions({
     const title = t('schedule:publishedTables.otExportTitle', { month: monthLabel });
     const days = exportDays(year, month, locale);
     if (format === 'excel') await exportModule.exportLateScheduleExcel(orderedRows, roster, title, year, month, days);
-    else exportModule.exportLateSchedulePdf(orderedRows, roster, title, year, days, i18n.dir() === 'rtl');
+    else await exportModule.exportLateSchedulePdf(orderedRows, roster, title, year, month, days, i18n.dir() === 'rtl');
   };
 
   const run = async (format: 'excel' | 'pdf') => {

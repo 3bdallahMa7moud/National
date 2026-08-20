@@ -85,6 +85,7 @@ export default function LateSchedulePage() {
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
   const [noticeDraft, setNoticeDraft] = useState(notice);
   const [archiveView, setArchiveView] = useState<'active' | 'archived'>('active');
+  const [exporting, setExporting] = useState<'excel' | 'pdf' | null>(null);
   const [searchParams] = useSearchParams();
   const deepLinkHandled = useRef<string | null>(null);
 
@@ -269,15 +270,40 @@ export default function LateSchedulePage() {
         onPreviousMonth={goToPreviousMonth}
         onNextMonth={goToNextMonth}
         onExportExcel={async () => {
+          if (exporting) return;
+          setExporting('excel');
           const context = exportContext();
-          const { exportLateScheduleExcel } = await import('@/lib/lateScheduleExport');
-          await exportLateScheduleExcel(activeRows, roster, context.title, year, month, context.days, notice);
+          try {
+            const { exportLateScheduleExcel } = await import('@/lib/lateScheduleExport');
+            await exportLateScheduleExcel(activeRows, roster, context.title, year, month, context.days, notice);
+          } catch {
+            addToast({
+              type: 'error',
+              title: isRtl ? 'تعذر إنشاء ملف Excel' : 'Excel export failed',
+              message: isRtl ? 'حاول مرة أخرى بعد تحديث الصفحة.' : 'Refresh the page and try again.',
+            });
+          } finally {
+            setExporting(null);
+          }
         }}
         onExportPdf={async () => {
+          if (exporting) return;
+          setExporting('pdf');
           const context = exportContext();
-          const { exportLateSchedulePdf } = await import('@/lib/lateScheduleExport');
-          exportLateSchedulePdf(activeRows, roster, context.title, year, context.days, isRtl, notice);
+          try {
+            const { exportLateSchedulePdf } = await import('@/lib/lateScheduleExport');
+            await exportLateSchedulePdf(activeRows, roster, context.title, year, month, context.days, isRtl, notice);
+          } catch {
+            addToast({
+              type: 'error',
+              title: isRtl ? 'تعذر إنشاء ملف PDF' : 'PDF export failed',
+              message: isRtl ? 'حاول مرة أخرى بعد تحديث الصفحة.' : 'Refresh the page and try again.',
+            });
+          } finally {
+            setExporting(null);
+          }
         }}
+        exporting={exporting}
         onAddShift={() => setIsAddingRow(true)}
         adminTab={adminTab}
         onAdminTabChange={setAdminTab}

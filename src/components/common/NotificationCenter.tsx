@@ -11,13 +11,15 @@ import { getNotificationTargetUrl } from '@/lib/notificationNavigation';
 
 interface NotificationCenterProps {
   notifications: AppNotification[];
-  onMarkRead: (id: string) => void;
-  onMarkAllRead: () => void;
+  onOpenNotification: (notification: AppNotification) => void | Promise<void>;
+  onRefresh: () => void | Promise<void>;
+  onMarkAllRead: () => void | Promise<void>;
 }
 
 export default function NotificationCenter({
   notifications,
-  onMarkRead,
+  onOpenNotification,
+  onRefresh,
   onMarkAllRead,
 }: NotificationCenterProps) {
   const { t } = useTranslation(['notifications']);
@@ -36,12 +38,17 @@ export default function NotificationCenter({
     popoverRef,
   });
 
-  const openNotification = (notification: AppNotification) => {
-    onMarkRead(notification.id);
+  const openNotification = async (notification: AppNotification) => {
     setIsOpen(false);
     const user = useAuthStore.getState().user;
     const targetUrl = getNotificationTargetUrl(notification, user);
+    await onOpenNotification(notification);
     navigate(targetUrl);
+  };
+
+  const toggleNotifications = () => {
+    if (!isOpen) void onRefresh();
+    setIsOpen((current) => !current);
   };
 
   return (
@@ -49,7 +56,7 @@ export default function NotificationCenter({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={toggleNotifications}
         className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-hover"
         aria-label={t('notifications:center.title')}
         aria-expanded={isOpen}
@@ -118,7 +125,7 @@ export default function NotificationCenter({
                         type="button"
                         data-popover-autofocus={unreadCount === 0 && index === 0 ? true : undefined}
                         className="w-full p-3 text-start transition-colors hover:bg-hover"
-                        onClick={() => openNotification(notification)}
+                        onClick={() => { void openNotification(notification); }}
                       >
                         <span className="flex items-start justify-between gap-2">
                           <span className="min-w-0 flex-1">

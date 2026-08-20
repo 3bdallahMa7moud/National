@@ -1,5 +1,7 @@
 import ExcelJS from 'exceljs';
 import type { OTShiftRow } from '@/types/lateSchedule';
+import type { MarkerColor } from '@/types/scheduleMatrix';
+import { scheduleCellMarkerHex } from './scheduleCellMarkers';
 import type { UnifiedEmployee } from './unifiedEmployeeRoster';
 
 export interface LateScheduleCalendarDay {
@@ -24,12 +26,13 @@ export interface LateScheduleExportRow {
   backgroundColor?: string;
   textColor?: string;
   highlightedDays?: number[];
+  cellMarkers?: Record<number, MarkerColor>;
   assignments: Record<number, LateScheduleExportEmployee[]>;
 }
 
 export interface LateScheduleExportModel {
   rows: LateScheduleExportRow[];
-  roster: UnifiedEmployee[];
+  roster: LateScheduleExportEmployee[];
 }
 
 const EXPORT_COLORS = {
@@ -52,7 +55,7 @@ const EXPORT_COLORS = {
   legendHeader: 'FF0D9488',
 } as const;
 
-const MAX_EXCEL_DAYS_PER_SHEET = 14;
+const MAX_EXCEL_DAYS_PER_SHEET = 10;
 const MAX_PDF_DAYS_PER_PAGE = 10;
 const MAX_PDF_ROWS_PER_PAGE = 10;
 const UNKNOWN_EMPLOYEE_CODE = 'N/A';
@@ -90,7 +93,9 @@ function exportEmployeeName(employee: LateScheduleExportEmployee, isRtl: boolean
 }
 
 function exportEmployeeNameForExcel(employee: LateScheduleExportEmployee): string {
-  return exportEmployeeName(employee, false);
+  const code = printableEmployeeCode(employee);
+  const name = exportEmployeeName(employee, false);
+  return employee.unresolved ? `${code} · Unresolved` : `${code} · ${name}`;
 }
 
 export function buildLateScheduleExportModel(
@@ -98,7 +103,7 @@ export function buildLateScheduleExportModel(
   roster: UnifiedEmployee[],
 ): LateScheduleExportModel {
   const employeeById = new Map(roster.map((employee) => [employee.employeeId, employee]));
-  const legendEntries = new Map<string, UnifiedEmployee>();
+  const legendEntries = new Map<string, LateScheduleExportEmployee>();
 
   const exportRows = rows.filter((row) => !row.archived).map((row) => ({
     id: row.id,
@@ -109,35 +114,41 @@ export function buildLateScheduleExportModel(
     backgroundColor: row.backgroundColor,
     textColor: row.textColor,
     highlightedDays: row.highlightedDays,
+    cellMarkers: row.cellMarkers,
     assignments: Object.fromEntries(
       Object.entries(row.assignments).map(([day, assignments]) => [
         Number(day),
         assignments.map((assignment): LateScheduleExportEmployee => {
           if (assignment.kind === 'unresolved') {
-            return {
+            const unresolved = {
               code: assignment.legacyCode,
               nameEn: 'Unresolved',
               nameAr: 'غير مرتبط',
               unresolved: true,
             };
+            legendEntries.set(`unresolved:${assignment.legacyCode}`, unresolved);
+            return unresolved;
           }
           const employee = employeeById.get(assignment.employeeId);
-          if (!employee) return resolveUnknownEmployee();
-          legendEntries.set(employee.employeeId, employee);
-          return {
+          if (!employee) {
+            const unknown = resolveUnknownEmployee();
+            legendEntries.set('unresolved:unknown', unknown);
+            return unknown;
+          }
+          const resolved = {
             code: employee.code,
             nameEn: employee.fullNameEn || employee.fullName,
             nameAr: employee.fullName || employee.fullNameEn || UNKNOWN_EMPLOYEE_AR,
           };
+          legendEntries.set(employee.employeeId, resolved);
+          return resolved;
         }),
       ]),
     ),
   }));
 
   const exportRoster = Array.from(legendEntries.values()).sort((left, right) => {
-    const leftName = left.fullNameEn || left.fullName;
-    const rightName = right.fullNameEn || right.fullName;
-    return leftName.localeCompare(rightName) || left.code.localeCompare(right.code);
+    return left.nameEn.localeCompare(right.nameEn) || left.code.localeCompare(right.code);
   });
 
   return {
@@ -159,6 +170,25 @@ function colorArgb(value: string | undefined, fallback: string): string {
 
 function safeCssColor(value: string | undefined): string | undefined {
   return /^#[0-9a-f]{6}$/i.test(value?.trim() || '') ? value!.trim() : undefined;
+}
+
+function lightenHexColor(value: string, whiteRatio = 0.78): string {
+  const hex = value.replace(/^#/, '');
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return '#FEF3C7';
+  const channels = [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+  const lightened = channels.map((channel) => Math.round(channel + (255 - channel) * whiteRatio));
+  return `#${lightened.map((channel) => channel.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
+function markerColors(marker: MarkerColor | undefined) {
+  if (!marker) return null;
+  const accent = scheduleCellMarkerHex(marker);
+  return {
+    accent,
+    accentArgb: colorArgb(accent, EXPORT_COLORS.accent),
+    fill: lightenHexColor(accent),
+    fillArgb: colorArgb(lightenHexColor(accent), EXPORT_COLORS.notice),
+  };
 }
 
 function dataBorder(): Partial<ExcelJS.Borders> {
@@ -220,12 +250,12 @@ function monthLabel(year: number, monthIndex: number): string {
     .format(new Date(year, monthIndex, 1));
 }
 
-function buildLegendEmployees(roster: UnifiedEmployee[]): LateScheduleExportEmployee[] {
-  return roster.map((employee) => ({
-    code: employee.code,
-    nameEn: employee.fullNameEn || employee.fullName,
-    nameAr: employee.fullName || employee.fullNameEn || UNKNOWN_EMPLOYEE_AR,
-  }));
+function exportHeading(currentTitle: string, year: number, monthIndex: number): string {
+  const monthName = new Intl.DateTimeFormat('en-US', { month: 'long' })
+    .format(new Date(year, monthIndex, 1));
+  return currentTitle.toLocaleLowerCase('en-US').includes(monthName.toLocaleLowerCase('en-US'))
+    ? `${currentTitle} — ${year}`
+    : `${currentTitle} — ${monthLabel(year, monthIndex)}`;
 }
 
 function createScheduleWorksheet(
@@ -246,21 +276,26 @@ function createScheduleWorksheet(
   const schedule = workbook.addWorksheet(sheetName, {
     views: [{ state: 'frozen', xSplit: 4, ySplit: 3, topLeftCell: 'E4' }],
     pageSetup: {
+      paperSize: 9,
       orientation: 'landscape',
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
+      horizontalCentered: true,
+      verticalCentered: false,
       printTitlesRow: '1:3',
       margins: { left: 0.2, right: 0.2, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 },
     },
   });
+  schedule.views = [{ state: 'frozen', xSplit: 4, ySplit: 3, topLeftCell: 'E4', showGridLines: false }];
+  schedule.headerFooter.oddFooter = '&LCT Scan Department&CPage &P of &N&ROT Schedule';
   schedule.properties.defaultRowHeight = 28;
   schedule.mergeCells(`A1:${lastColumnLetter}1`);
   schedule.mergeCells(`A2:${lastColumnLetter}2`);
 
   const rangeLabel = chunkCount === 1 ? '' : ` · Days ${daysChunk[0]?.dayNum ?? 1}-${daysChunk[daysChunk.length - 1]?.dayNum ?? 1}`;
   const title = schedule.getCell('A1');
-  title.value = `${currentTitle} — ${monthLabel(year, monthIndex)}${rangeLabel}`;
+  title.value = `${exportHeading(currentTitle, year, monthIndex)}${rangeLabel}`;
   styleCell(title, { fill: EXPORT_COLORS.brand, color: EXPORT_COLORS.surface, bold: true, size: 14, borderVariant: 'none' });
   schedule.getRow(1).height = 36;
 
@@ -318,32 +353,43 @@ function createScheduleWorksheet(
     daysChunk.forEach((day, dayIndex) => {
       const cell = schedule.getCell(excelRow, dayIndex + 5);
       const assignments = row.assignments[day.dayNum] ?? [];
+      const marker = markerColors(row.cellMarkers?.[day.dayNum]);
       cell.value = assignments.length > 0
         ? assignments.map(exportEmployeeNameForExcel).join('\n')
         : null;
       const hasUnresolved = assignments.some((assignment) => assignment.unresolved);
       const hasAssignment = assignments.length > 0;
-      const fill = hasUnresolved
-        ? EXPORT_COLORS.unresolved
-        : hasAssignment && row.backgroundColor
-          ? colorArgb(row.backgroundColor, EXPORT_COLORS.accent)
-          : row.highlightedDays?.includes(day.dayNum)
-            ? EXPORT_COLORS.accent
-            : hasAssignment && day.isWeekend
+      const fill = marker
+        ? marker.fillArgb
+        : hasUnresolved
+          ? EXPORT_COLORS.unresolved
+          : hasAssignment && row.backgroundColor
+            ? colorArgb(row.backgroundColor, EXPORT_COLORS.accent)
+            : row.highlightedDays?.includes(day.dayNum)
               ? EXPORT_COLORS.accent
-              : hasAssignment
-                ? EXPORT_COLORS.assigned
-                : day.isWeekend
-                  ? EXPORT_COLORS.weekendMuted
-                  : EXPORT_COLORS.surface;
+              : hasAssignment && day.isWeekend
+                ? EXPORT_COLORS.accent
+                : hasAssignment
+                  ? EXPORT_COLORS.assigned
+                  : day.isWeekend
+                    ? EXPORT_COLORS.weekendMuted
+                    : EXPORT_COLORS.surface;
       styleCell(cell, {
         fill,
-        color: hasAssignment && !hasUnresolved
-          ? colorArgb(row.textColor, EXPORT_COLORS.text)
-          : hasUnresolved ? EXPORT_COLORS.unresolvedText : EXPORT_COLORS.text,
+        color: marker && !hasUnresolved
+          ? EXPORT_COLORS.text
+          : hasAssignment && !hasUnresolved
+            ? colorArgb(row.textColor, EXPORT_COLORS.text)
+            : hasUnresolved ? EXPORT_COLORS.unresolvedText : EXPORT_COLORS.text,
         bold: hasAssignment,
         size: hasAssignment ? 9 : 11,
       });
+      if (marker) {
+        cell.border = {
+          ...dataBorder(),
+          left: { style: 'medium', color: { argb: marker.accentArgb } },
+        };
+      }
       maxLines = Math.max(maxLines, assignments.length || 1);
     });
     schedule.getRow(excelRow).height = Math.max(28, 16 * maxLines);
@@ -376,9 +422,10 @@ export function buildLateScheduleWorkbook(
     createScheduleWorksheet(workbook, model.rows, currentTitle, year, monthIndex, daysChunk, notice, dayChunks.length);
   });
 
-  const legendEntries = buildLegendEmployees(model.roster);
+  const legendEntries = model.roster;
   const employees = workbook.addWorksheet('Employee Directory', {
-    pageSetup: { orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    views: [{ showGridLines: false }],
+    pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
   ['Employee Name', 'Code', 'Arabic Name', 'Status'].forEach((label, index) => {
     const cell = employees.getCell(1, index + 1);
@@ -427,7 +474,7 @@ function downloadBuffer(buffer: ArrayBuffer, fileName: string): void {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 export async function exportLateScheduleExcel(
@@ -458,12 +505,14 @@ export function buildLateSchedulePrintHtml(
   rows: OTShiftRow[],
   roster: UnifiedEmployee[],
   currentTitle: string,
-  _year: number,
+  year: number,
+  monthIndex: number,
   daysList: LateScheduleCalendarDay[],
   isRtl: boolean,
   notice = '',
 ): string {
   const model = buildLateScheduleExportModel(rows, roster);
+  const fileBaseName = `OT_Schedule_${year}-${String(monthIndex + 1).padStart(2, '0')}`;
   const direction = isRtl ? 'rtl' : 'ltr';
   const language = isRtl ? 'ar' : 'en';
   const labels = isRtl
@@ -525,25 +574,29 @@ export function buildLateSchedulePrintHtml(
               : ` style="background:${rowBackground};color:${rowText || '#101b2d'}"`;
             return `<span class="assignment-chip${assignment.unresolved ? ' unresolved-chip' : ''}"${chipStyle}>${escapeHtml(exportEmployeeName(assignment, isRtl))}</span>`;
           }).join('');
-        return `<td class="${classes}"><div class="assignment-stack">${chips}</div></td>`;
+        const marker = markerColors(row.cellMarkers?.[day.dayNum]);
+        const markerStyle = marker
+          ? ` style="background:${marker.fill};box-shadow:inset 0 0 0 .7mm ${marker.accent}"`
+          : '';
+        return `<td class="${classes}"${markerStyle}><div class="assignment-stack">${chips}</div></td>`;
       }).join('');
       return `<tr><th class="metadata-column shift-name"${rowStyle}>${escapeHtml(row.title)}</th><td class="metadata-column">${escapeHtml(row.location)}</td><td class="metadata-column time" dir="ltr">${escapeHtml(row.timeRange)}</td><td class="metadata-column">${row.hours}</td>${dayCells}</tr>`;
     }).join('');
     return `<main class="schedule-page" data-schedule-page="${dayRange}-${pageIndex + 1}">
-      <header class="print-header"><div><span class="brand-kicker">CT Scan Department</span><h1>OT Schedule</h1><p>${escapeHtml(currentTitle)}</p></div><div class="page-meta"><span>${labels.days}: ${escapeHtml(dayRange)}</span>${notice ? `<aside>${escapeHtml(notice)}</aside>` : ''}</div></header>
+      <header class="print-header"><div><span class="brand-kicker">CT Scan Department</span><h1>OT Schedule</h1><p>${escapeHtml(exportHeading(currentTitle, year, monthIndex))}</p></div><div class="page-meta"><span>${labels.days}: ${escapeHtml(dayRange)}</span>${notice ? `<aside>${escapeHtml(notice)}</aside>` : ''}</div></header>
       <table class="schedule-table" dir="ltr"><thead><tr><th class="metadata-column">${labels.shift}</th><th class="metadata-column">${labels.location}</th><th class="metadata-column">${labels.time}</th><th class="metadata-column">${labels.hours}</th>${dayHeaders}</tr></thead><tbody>${body}</tbody></table>
     </main>`;
   })).join('');
 
-  const employeeEntries = buildLegendEmployees(model.roster).map((employee, index) => (
+  const employeeEntries = model.roster.map((employee, index) => (
     `<tr data-employee-entry="${index + 1}"><td>${index + 1}</td><td>${escapeHtml(employee.nameEn)}</td><td dir="ltr"><strong>${escapeHtml(printableEmployeeCode(employee))}</strong></td><td>${escapeHtml(employee.nameAr)}</td><td>${employee.unresolved ? labels.unresolved : labels.assigned}</td></tr>`
   )).join('');
 
   return `<!doctype html>
 <html dir="${direction}" lang="${language}">
-<head><meta charset="UTF-8"><title>OT Schedule — ${escapeHtml(currentTitle)}</title><style>
+<head><meta charset="UTF-8"><title>${escapeHtml(fileBaseName)}</title><style>
 @page{size:A4 landscape;margin:8mm}
-*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#101b2d;font-family:Arial,sans-serif}body{font-size:8px}
+*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#101b2d;font-family:Arial,"Noto Sans Arabic",sans-serif}body{font-size:8px}
 .schedule-page{width:100%;break-inside:avoid;page-break-inside:avoid}.schedule-page+.schedule-page{break-before:page;page-break-before:always}
 .print-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8mm;margin-bottom:4mm;border-bottom:2px solid #0f6b78;padding:0 0 3mm}.brand-kicker{color:#0f6b78;font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}.print-header h1{margin:1mm 0 0;color:#173952;font-size:18px}.print-header p{margin:1mm 0 0;color:#5b6472;font-size:9px}.page-meta{display:flex;max-width:42%;flex-direction:column;gap:2mm;align-items:flex-end}.page-meta>span{display:inline-flex;border-radius:999px;background:#e2e8f0;padding:1.5mm 3mm;color:#173952;font-size:8px;font-weight:700}.print-header aside{border-radius:3mm;background:#f1f5f7;padding:2.5mm;color:#5b6472;font-size:8px;white-space:pre-wrap}
 table{width:100%;border-collapse:collapse;table-layout:fixed}.schedule-table th,.schedule-table td{border:1px solid #b8c7cd;padding:1mm;text-align:center;vertical-align:top;overflow-wrap:anywhere}.schedule-table thead th{background:#173952;color:#fff;font-weight:700}.schedule-table thead .day-column{width:17mm;background:#f1f5f7;color:#101b2d}.day-column span{display:block;font-size:5.5px;color:#5b6472}.day-column strong{display:block;margin-top:.4mm;font-size:7px}.schedule-table .metadata-column{width:18mm}.schedule-table .shift-name{width:36mm;text-align:start}.schedule-table .time{width:22mm}.schedule-table td{background:#fff}.schedule-table td.weekend,.schedule-table thead th.weekend{background:#e4eef1;color:#101b2d}.schedule-table td.highlighted{background:#f9e298}.schedule-table td.unresolved{background:#ffe4e6}
@@ -552,37 +605,50 @@ table{width:100%;border-collapse:collapse;table-layout:fixed}.schedule-table th,
 </style></head><body>${schedulePages}<section class="employee-directory"><h2>${labels.employees}</h2><table><thead><tr><th>No.</th><th>${labels.name}</th><th>${labels.code}</th><th>${labels.arabicName}</th><th>${labels.status}</th></tr></thead><tbody>${employeeEntries}</tbody></table></section></body></html>`;
 }
 
-export function exportLateSchedulePdf(
+export async function exportLateSchedulePdf(
   rows: OTShiftRow[],
   roster: UnifiedEmployee[],
   currentTitle: string,
   year: number,
+  monthIndex: number,
   daysList: LateScheduleCalendarDay[],
   isRtl: boolean,
   notice = '',
-): void {
-  const html = buildLateSchedulePrintHtml(rows, roster, currentTitle, year, daysList, isRtl, notice);
+): Promise<void> {
+  const html = buildLateSchedulePrintHtml(rows, roster, currentTitle, year, monthIndex, daysList, isRtl, notice);
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
-  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:1600px;border:0;visibility:hidden';
+  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:1600px;height:1100px;border:0;pointer-events:none';
   document.body.appendChild(frame);
   const win = frame.contentWindow;
   const doc = frame.contentDocument || win?.document;
   if (!win || !doc) {
     frame.remove();
-    return;
+    throw new Error('Unable to create the OT print document.');
   }
-  const cleanup = () => frame.remove();
+  const cleanup = () => {
+    if (frame.isConnected) frame.remove();
+  };
   win.addEventListener('afterprint', cleanup, { once: true });
   doc.open();
   doc.write(html);
   doc.close();
-  window.setTimeout(() => {
-    try {
-      win.focus();
-      win.print();
-    } catch {
-      cleanup();
-    }
-  }, 300);
+  await new Promise<void>((resolve, reject) => {
+    const triggerPrint = async () => {
+      try {
+        await doc.fonts?.ready;
+        frame.style.height = `${Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight, 1100)}px`;
+        win.focus();
+        win.print();
+        resolve();
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => window.setTimeout(() => { void triggerPrint(); }, 150));
+    });
+  });
+  window.setTimeout(cleanup, 60_000);
 }

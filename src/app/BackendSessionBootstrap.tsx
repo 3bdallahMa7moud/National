@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
 import axios from 'axios';
-import { fetchAndHydrateBootstrap, fetchSessionViewer } from '@/lib/backendBootstrap';
+import {
+  fetchAndHydrateBootstrap,
+  fetchAndHydrateOperationalInbox,
+  fetchSessionViewer,
+} from '@/lib/backendBootstrap';
 import { mapViewerToAuthUser } from '@/lib/backendAdapters';
 import { startBackendStateSync } from '@/lib/backendStateSync';
 import { useAuthStore } from '@/stores/authStore';
@@ -10,6 +14,24 @@ export default function BackendSessionBootstrap() {
   useEffect(() => {
     startBackendStateSync();
     let cancelled = false;
+
+    const refreshAll = () => {
+      if (cancelled || !useAuthStore.getState().user || document.visibilityState === 'hidden') return;
+      void fetchAndHydrateBootstrap().catch(() => undefined);
+    };
+
+    const refreshInbox = () => {
+      if (cancelled || !useAuthStore.getState().user || document.visibilityState === 'hidden') return;
+      void fetchAndHydrateOperationalInbox().catch(() => undefined);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshAll();
+    };
+
+    window.addEventListener('focus', refreshAll);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const inboxInterval = window.setInterval(refreshInbox, 10_000);
 
     async function bootstrap() {
       try {
@@ -30,6 +52,9 @@ export default function BackendSessionBootstrap() {
 
     return () => {
       cancelled = true;
+      window.clearInterval(inboxInterval);
+      window.removeEventListener('focus', refreshAll);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 

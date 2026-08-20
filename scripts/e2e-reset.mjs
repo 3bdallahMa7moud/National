@@ -4,16 +4,13 @@ import { spawnSync } from 'node:child_process';
 
 const rootDir = process.cwd();
 const prismaDir = path.join(rootDir, 'prisma');
-const appDb = path.join(prismaDir, 'app.db');
 const e2eDb = path.join(prismaDir, 'prisma-e2e.db');
 
 try {
-  if (fs.existsSync(e2eDb)) {
-    fs.rmSync(e2eDb, { force: true });
+  for (const file of [e2eDb, `${e2eDb}-journal`, `${e2eDb}-wal`, `${e2eDb}-shm`]) {
+    if (fs.existsSync(file)) fs.rmSync(file, { force: true });
   }
-  if (fs.existsSync(appDb)) {
-    fs.copyFileSync(appDb, e2eDb);
-  }
+  fs.closeSync(fs.openSync(e2eDb, 'w'));
 } catch (error) {
   console.error('Failed to prepare E2E database:', error);
   process.exit(1);

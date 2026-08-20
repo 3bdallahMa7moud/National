@@ -7,6 +7,7 @@ const notificationMocks = vi.hoisted(() => ({
   markRead: vi.fn(),
   markAllRead: vi.fn(),
   deleteNotification: vi.fn(),
+  prepareNotificationOpen: vi.fn(),
   notifications: [
     {
       id: 'notification-page-1',
@@ -51,7 +52,9 @@ describe('NotificationsPage semantics', () => {
 
     openButton?.focus();
     fireEvent.click(openButton as HTMLButtonElement, { detail: 0 });
-    expect(notificationMocks.markRead).toHaveBeenCalledWith('notification-page-1');
+    expect(notificationMocks.prepareNotificationOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'notification-page-1' }),
+    );
 
     fireEvent.click(deleteButton, { detail: 0 });
     expect(notificationMocks.deleteNotification).toHaveBeenCalledWith('notification-page-1');

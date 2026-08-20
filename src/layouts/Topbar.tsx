@@ -24,7 +24,12 @@ export default function Topbar() {
   const { toggleSidebar } = useUIStore();
   const navigate = useNavigate();
   const { dateLocale } = useLanguage();
-  const { notifications, markRead, markAllRead } = useNotifications();
+  const {
+    notifications,
+    markAllRead,
+    prepareNotificationOpen,
+    refreshNotifications,
+  } = useNotifications();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -74,7 +79,8 @@ export default function Topbar() {
 
           <NotificationCenter
             notifications={notifications}
-            onMarkRead={markRead}
+            onOpenNotification={prepareNotificationOpen}
+            onRefresh={refreshNotifications}
             onMarkAllRead={markAllRead}
           />
 

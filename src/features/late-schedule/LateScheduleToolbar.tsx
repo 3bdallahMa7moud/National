@@ -38,6 +38,7 @@ interface LateScheduleToolbarProps {
   onNextMonth(): void;
   onExportExcel(): void;
   onExportPdf(): void;
+  exporting?: 'excel' | 'pdf' | null;
   onAddShift(): void;
   adminTab?: 'schedule' | 'structure';
   onAdminTabChange?(tab: 'schedule' | 'structure'): void;
@@ -175,10 +176,10 @@ export default function LateScheduleToolbar(props: LateScheduleToolbarProps) {
             <span className="text-xs font-bold sm:text-sm">{t('toolbar.publishToEmployees')}</span>
           </Button>
         )}
-        <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<FileSpreadsheet className="h-4 w-4 text-emerald-600" />} onClick={props.onExportExcel}>
+        <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<FileSpreadsheet className="h-4 w-4 text-emerald-600" />} onClick={props.onExportExcel} loading={props.exporting === 'excel'} disabled={Boolean(props.exporting)}>
           <span className="text-xs sm:text-sm">{isRtl ? 'Excel' : 'Excel'}</span>
         </Button>
-        <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<Printer className="h-4 w-4" />} onClick={props.onExportPdf}>
+        <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<Printer className="h-4 w-4" />} onClick={props.onExportPdf} loading={props.exporting === 'pdf'} disabled={Boolean(props.exporting)}>
           <span className="text-xs sm:text-sm">PDF</span>
         </Button>
         {props.canEdit && props.isEditMode && (

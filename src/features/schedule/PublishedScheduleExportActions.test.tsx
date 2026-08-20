@@ -49,6 +49,23 @@ describe('PublishedScheduleExportActions', () => {
     expect(roster).toEqual([employee]);
   });
 
+  it('passes the selected OT month to PDF export', async () => {
+    render(
+      <PublishedScheduleExportActions
+        tab="ot"
+        year={2027}
+        month={4}
+        matrix={null}
+        roster={[]}
+        otTable={{ units: [], rows: [] }}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole('button')[1]);
+    await waitFor(() => expect(exportMocks.pdf).toHaveBeenCalledTimes(1));
+    expect(exportMocks.pdf.mock.calls[0][4]).toBe(4);
+  });
+
   it('disables both export formats when the selected published table is unavailable', () => {
     render(
       <PublishedScheduleExportActions

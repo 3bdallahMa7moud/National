@@ -21,15 +21,57 @@ import { useLateScheduleStore } from '@/stores/lateScheduleStore';
 import { useShiftRequestStore } from '@/stores/shiftRequestStore';
 import { setBackendStateUpdatedAt, suppressBackendSync } from './backendStateSync';
 
+let operationalRefreshStarted = 0;
+let operationalRefreshApplied = 0;
+
+function startOperationalRefresh() {
+  operationalRefreshStarted += 1;
+  return operationalRefreshStarted;
+}
+
+function applyOperationalRefresh(sequence: number, callback: () => void) {
+  if (sequence < operationalRefreshApplied) return false;
+  callback();
+  operationalRefreshApplied = sequence;
+  return true;
+}
+
 export async function fetchSessionViewer() {
   const response = await api.get<{ user: ApiViewer }>('/auth/session');
   return response.data.user;
 }
 
 export async function fetchAndHydrateBootstrap() {
+  const sequence = startOperationalRefresh();
   const response = await api.get<ApiBootstrapPayload>('/bootstrap');
-  hydrateBackendState(response.data);
+  hydrateBackendState(response.data, sequence);
   return response.data;
+}
+
+export async function fetchAndHydrateOperationalInbox() {
+  const sequence = startOperationalRefresh();
+  const shiftRequestsResponse = await api.get<{ shiftRequests: ShiftRequest[] }>('/shift-requests');
+  const notificationsResponse = await api.get<{ notifications: AppNotification[] }>('/notifications', {
+    params: { limit: 250 },
+  });
+
+  applyOperationalRefresh(sequence, () => {
+    useShiftRequestStore.setState((state) => ({
+      ...state,
+      requests: shiftRequestsResponse.data.shiftRequests,
+      storageError: null,
+    }));
+    useTargetedNotificationStore.setState((state) => ({
+      ...state,
+      notifications: notificationsResponse.data.notifications,
+      storageError: null,
+    }));
+  });
+
+  return {
+    shiftRequests: shiftRequestsResponse.data.shiftRequests,
+    notifications: notificationsResponse.data.notifications,
+  };
 }
 
 function normalizeScheduleMonthMap(source: Record<string, unknown>) {
@@ -55,7 +97,7 @@ function normalizeScheduleVersionMap(source: Record<string, unknown[]>) {
   );
 }
 
-export function hydrateBackendState(payload: ApiBootstrapPayload) {
+export function hydrateBackendState(payload: ApiBootstrapPayload, sequence?: number) {
   suppressBackendSync(() => {
     setBackendStateUpdatedAt(payload);
     useDepartmentStore.getState().setRecords(payload.departments.map(mapApiDepartmentToRecord));
@@ -68,19 +110,29 @@ export function hydrateBackendState(payload: ApiBootstrapPayload) {
       ['backend-bootstrap'],
     );
 
-    useTargetedNotificationStore.getState().replaceNotifications(
-      payload.notifications as AppNotification[],
-    );
+    const hydrateOperationalState = () => {
+      useTargetedNotificationStore.setState((state) => ({
+        ...state,
+        notifications: payload.notifications as AppNotification[],
+        storageError: null,
+      }));
+
+      useShiftRequestStore.setState((state) => ({
+        ...state,
+        requests: payload.shiftRequests as ShiftRequest[],
+        storageError: null,
+      }));
+    };
+
+    if (sequence === undefined) {
+      hydrateOperationalState();
+    } else {
+      applyOperationalRefresh(sequence, hydrateOperationalState);
+    }
 
     useOperationalAuditStore.setState((state) => ({
       ...state,
       entries: payload.auditEntries as OperationalAuditEntry[],
-      storageError: null,
-    }));
-
-    useShiftRequestStore.setState((state) => ({
-      ...state,
-      requests: payload.shiftRequests as ShiftRequest[],
       storageError: null,
     }));
 

@@ -57,4 +57,11 @@ describe('LateScheduleToolbar edit, marker, and publish controls', () => {
     expect(onPublish).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Draft saved automatically')).toBeInTheDocument();
   });
+
+  it('prevents duplicate exports while a file is being prepared', () => {
+    render(<LateScheduleToolbar {...baseProps} exporting="excel" />);
+
+    expect(screen.getByRole('button', { name: 'Excel' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'PDF' })).toBeDisabled();
+  });
 });

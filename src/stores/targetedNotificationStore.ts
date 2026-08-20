@@ -205,29 +205,9 @@ export function createTargetedNotificationStore(
   return createStore<TargetedNotificationState>()((set, get) => makeState(options, set, get));
 }
 
-let notificationChannel: BroadcastChannel | null = null;
-const broadcastNotifications = () => {
-  try {
-    notificationChannel?.postMessage({ type: 'notifications-changed' });
-  } catch {
-    // Cross-tab delivery is best-effort after local persistence succeeds.
-  }
-};
-
+// Notifications are a server-backed cache. Isolated stores can still opt into
+// storage for unit tests and migrations, but the application store must not
+// rehydrate another account's or an older tab's local snapshot.
 export const useTargetedNotificationStore = create<TargetedNotificationState>()(
-  (set, get) => makeState({ onChanged: broadcastNotifications }, set, get),
+  (set, get) => makeState({ storage: null }, set, get),
 );
-
-if (typeof window !== 'undefined') {
-  try {
-    if ('BroadcastChannel' in window) {
-      notificationChannel = new BroadcastChannel('ngh-targeted-notifications');
-      notificationChannel.addEventListener('message', () => useTargetedNotificationStore.getState().reloadFromStorage());
-    }
-    window.addEventListener('storage', (event) => {
-      if (event.key === TARGETED_NOTIFICATION_STORAGE_KEY) useTargetedNotificationStore.getState().reloadFromStorage();
-    });
-  } catch {
-    // The current tab continues to work without a cross-tab channel.
-  }
-}

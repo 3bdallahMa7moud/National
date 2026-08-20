@@ -5,7 +5,6 @@ import {
   assignmentRequestKey,
   browserShiftAssignmentGateway,
   hasDayShiftOTConflict,
-  reloadPublishedAssignmentSnapshots,
 } from '@/lib/shiftAssignmentGateway';
 import { isAdminOrSuperAdmin, type AuthUser } from '@/types/employee';
 import {
@@ -26,7 +25,7 @@ import type {
   ShiftRequestTimelineEvent,
 } from '@/types/shiftRequest';
 import { useEmployeeAccessStore } from './employeeAccessStore';
-import { getEmployeeDirectoryRecord, useEmployeeDirectoryStore } from './employeeDirectoryStore';
+import { getEmployeeDirectoryRecord } from './employeeDirectoryStore';
 import { useAuthStore } from './authStore';
 import { useOperationalAuditStore } from './operationalAuditStore';
 import { useTargetedNotificationStore } from './targetedNotificationStore';
@@ -915,51 +914,12 @@ export function createShiftRequestStore(options: ShiftRequestStoreOptions = {}):
   return createStore<ShiftRequestState>()((set, get) => makeState(options, set, get));
 }
 
-let shiftRequestChannel: BroadcastChannel | null = null;
-const broadcastShiftRequests = (event: { scheduleChanged: boolean }) => {
-  try {
-    shiftRequestChannel?.postMessage({ type: 'shift-requests-changed', scheduleChanged: event.scheduleChanged });
-  } catch {
-    // Cross-tab sync is best-effort after local persistence succeeds.
-  }
-};
-
+// Protected shift-request workflows are hydrated from the backend. Keep the
+// browser store as an in-memory cache so an old localStorage snapshot cannot
+// replace authoritative request statuses when a tab regains focus.
 export const useShiftRequestStore = create<ShiftRequestState>()(
-  (set, get) => makeState({ onChanged: broadcastShiftRequests }, set, get),
+  (set, get) => makeState({ storage: null }, set, get),
 );
-
-useEmployeeDirectoryStore.subscribe(() => {
-  useShiftRequestStore.getState().reconcileDirectory();
-});
-
-if (typeof window !== 'undefined') {
-  try {
-    if ('BroadcastChannel' in window) {
-      shiftRequestChannel = new BroadcastChannel('ngh-shift-requests');
-      shiftRequestChannel.addEventListener('message', (event) => {
-        useShiftRequestStore.getState().reloadFromStorage();
-        if (event.data?.scheduleChanged === true) reloadPublishedAssignmentSnapshots();
-      });
-    }
-    window.addEventListener('storage', (event) => {
-      if (event.key === SHIFT_REQUEST_STORAGE_KEY) {
-        const approvedBefore = new Set(useShiftRequestStore.getState().requests
-          .filter((request) => request.status === 'approved')
-          .map((request) => request.id));
-        useShiftRequestStore.getState().reloadFromStorage();
-        const hasNewApproval = useShiftRequestStore.getState().requests.some((request) =>
-          request.status === 'approved' && !approvedBefore.has(request.id),
-        );
-        if (hasNewApproval) reloadPublishedAssignmentSnapshots();
-      }
-    });
-    window.addEventListener('focus', () => {
-      useShiftRequestStore.getState().reloadFromStorage();
-    });
-  } catch {
-    // The active tab remains functional without cross-tab events.
-  }
-}
 
 export function employeeShiftRequestPermission(
   user: Pick<AuthUser, 'id' | 'departmentId' | 'scheduleEmployeeId'>,

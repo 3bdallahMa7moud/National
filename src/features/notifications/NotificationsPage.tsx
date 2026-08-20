@@ -16,7 +16,12 @@ type NotificationFilter = 'all' | 'unread' | 'urgent';
 export default function NotificationsPage() {
   const { t } = useTranslation(['notifications', 'common']);
   const navigate = useNavigate();
-  const { notifications, markRead, markAllRead, deleteNotification } = useNotifications();
+  const {
+    notifications,
+    markAllRead,
+    deleteNotification,
+    prepareNotificationOpen,
+  } = useNotifications();
   const [filter, setFilter] = useState<NotificationFilter>('all');
 
   const filtered = notifications.filter((notification) => {
@@ -43,10 +48,10 @@ export default function NotificationsPage() {
     },
   ];
 
-  const openNotification = (notification: AppNotification) => {
-    if (!notification.isRead) markRead(notification.id);
+  const openNotification = async (notification: AppNotification) => {
     const user = useAuthStore.getState().user;
     const targetUrl = getNotificationTargetUrl(notification, user);
+    await prepareNotificationOpen(notification);
     navigate(targetUrl);
   };
 
@@ -126,7 +131,7 @@ export default function NotificationsPage() {
               >
                 <button
                   type="button"
-                  onClick={() => openNotification(notification)}
+                  onClick={() => { void openNotification(notification); }}
                   className="flex min-w-0 flex-1 items-start gap-3 rounded-card px-3 py-4 text-start focus-visible:z-10"
                 >
                   <span
