@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   post: vi.fn(),
   get: vi.fn().mockResolvedValue({ data: { ok: true } }),
-  fetchAndHydrateBootstrap: vi.fn(),
+  startAuthenticatedBackend: vi.fn(),
   syncAuthUserLocale: vi.fn(),
 }));
 
@@ -28,8 +28,8 @@ vi.mock('@/lib/axios', () => ({
   },
 }));
 
-vi.mock('@/lib/backendBootstrap', () => ({
-  fetchAndHydrateBootstrap: mocks.fetchAndHydrateBootstrap,
+vi.mock('@/lib/authenticatedBackend', () => ({
+  startAuthenticatedBackend: mocks.startAuthenticatedBackend,
 }));
 
 const adminUser: AuthUser = {
@@ -71,7 +71,7 @@ describe('LoginPage', () => {
     await changeLanguage('en');
     mocks.login.mockReset();
     mocks.post.mockReset();
-    mocks.fetchAndHydrateBootstrap.mockReset();
+    mocks.startAuthenticatedBackend.mockReset();
     mocks.syncAuthUserLocale.mockReset();
   });
 
@@ -95,7 +95,7 @@ describe('LoginPage', () => {
         },
       },
     });
-    mocks.fetchAndHydrateBootstrap.mockResolvedValue(undefined);
+    mocks.startAuthenticatedBackend.mockResolvedValue(undefined);
     renderLogin();
 
     fireEvent.change(screen.getByLabelText('Email or Username'), {
@@ -109,7 +109,7 @@ describe('LoginPage', () => {
 
     expect(await screen.findByText('Admin destination', {}, { timeout: 2000 })).toBeInTheDocument();
     expect(mocks.post).toHaveBeenCalledWith('/auth/login', { identifier: 'EMP-003', password: '123456' });
-    expect(mocks.fetchAndHydrateBootstrap).toHaveBeenCalledTimes(1);
+    expect(mocks.startAuthenticatedBackend).toHaveBeenCalledTimes(1);
     expect(mocks.login).toHaveBeenCalledWith(expect.objectContaining(adminUser));
   });
 
@@ -132,7 +132,7 @@ describe('LoginPage', () => {
         },
       },
     });
-    mocks.fetchAndHydrateBootstrap.mockReturnValue(bootstrap.promise);
+    mocks.startAuthenticatedBackend.mockReturnValue(bootstrap.promise);
     renderLogin();
 
     fireEvent.change(screen.getByLabelText('Email or Username'), {
@@ -144,7 +144,7 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
 
     expect(await screen.findByText('Admin destination', {}, { timeout: 2000 })).toBeInTheDocument();
-    expect(mocks.fetchAndHydrateBootstrap).toHaveBeenCalledTimes(1);
+    expect(mocks.startAuthenticatedBackend).toHaveBeenCalledTimes(1);
 
     bootstrap.resolve();
   });

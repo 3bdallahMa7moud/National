@@ -1,0 +1,26 @@
+{
+  "name": "CT Scan Scheduling",
+  "short_name": "CT Scheduling",
+  "description": "Secure CT scan workforce scheduling for National Guard Health Affairs.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0b7285",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/ct-logo.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

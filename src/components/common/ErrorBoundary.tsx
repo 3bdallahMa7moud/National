@@ -1,6 +1,5 @@
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import ErrorState from './ErrorState';
-import { queryClient } from '@/lib/queryClient';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -40,7 +39,9 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
 
   resetErrorBoundary = (): void => {
     if (this.props.invalidateQueries) {
-      void queryClient.invalidateQueries();
+      void import('@/lib/queryClient')
+        .then(({ queryClient }) => queryClient.invalidateQueries())
+        .catch(() => undefined);
     }
     this.props.onReset?.();
     this.setState({

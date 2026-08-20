@@ -13,6 +13,13 @@ describe('public and internal indexing policy', () => {
     expect(
       parsedHtml.querySelector('meta[name="description"]')?.getAttribute('content'),
     ).toContain('CT scan workforce scheduling');
+    expect(
+      parsedHtml.querySelector('meta[property="og:title"]')?.getAttribute('content'),
+    ).toBe('CT Scan Scheduling');
+    expect(
+      parsedHtml.querySelector('link[rel="manifest"]')?.getAttribute('href'),
+    ).toBe('/site.webmanifest');
+    expect(parsedHtml.querySelector('#root')?.textContent).toContain('Loading secure CT scheduling workspace');
     expect(parsedHtml.title).toBe('CT Scan Scheduling');
   });
 
@@ -23,6 +30,17 @@ describe('public and internal indexing policy', () => {
     expect(robots).toContain('Disallow: /admin/');
     expect(robots).toContain('Disallow: /employee/');
     expect(robots).toContain('Disallow: /schedule/');
+    expect(robots).toContain('Disallow: /forgot-password');
     expect(robots).not.toContain('Disallow: /login');
+  });
+
+  it('publishes a valid installable application manifest', async () => {
+    const manifest = JSON.parse(
+      await readFile(resolve(process.cwd(), 'public/site.webmanifest'), 'utf8'),
+    ) as { name?: string; start_url?: string; icons?: unknown[] };
+
+    expect(manifest.name).toBe('CT Scan Scheduling');
+    expect(manifest.start_url).toBe('/login');
+    expect(manifest.icons).not.toHaveLength(0);
   });
 });

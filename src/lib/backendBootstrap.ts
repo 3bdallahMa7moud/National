@@ -4,7 +4,6 @@ import type { ShiftRequest } from '@/types/shiftRequest';
 import api from './axios';
 import {
   type ApiBootstrapPayload,
-  type ApiViewer,
   mapApiDepartmentToRecord,
   mapApiEmployeeToDirectoryRecord,
 } from './backendAdapters';
@@ -36,11 +35,6 @@ function applyOperationalRefresh(sequence: number, callback: () => void) {
   return true;
 }
 
-export async function fetchSessionViewer() {
-  const response = await api.get<{ user: ApiViewer }>('/auth/session');
-  return response.data.user;
-}
-
 export async function fetchAndHydrateBootstrap() {
   const sequence = startOperationalRefresh();
   const response = await api.get<ApiBootstrapPayload>('/bootstrap');
@@ -50,10 +44,12 @@ export async function fetchAndHydrateBootstrap() {
 
 export async function fetchAndHydrateOperationalInbox() {
   const sequence = startOperationalRefresh();
-  const shiftRequestsResponse = await api.get<{ shiftRequests: ShiftRequest[] }>('/shift-requests');
-  const notificationsResponse = await api.get<{ notifications: AppNotification[] }>('/notifications', {
-    params: { limit: 250 },
-  });
+  const [shiftRequestsResponse, notificationsResponse] = await Promise.all([
+    api.get<{ shiftRequests: ShiftRequest[] }>('/shift-requests'),
+    api.get<{ notifications: AppNotification[] }>('/notifications', {
+      params: { limit: 250 },
+    }),
+  ]);
 
   applyOperationalRefresh(sequence, () => {
     useShiftRequestStore.setState((state) => ({

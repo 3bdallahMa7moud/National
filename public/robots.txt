@@ -8,4 +8,4 @@ Disallow: /shift-requests
 Disallow: /notifications
 Disallow: /profile
 Disallow: /403
-
+Disallow: /forgot-password

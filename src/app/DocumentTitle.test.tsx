@@ -43,6 +43,15 @@ describe('DocumentTitle', () => {
         'content',
         'index, follow',
       );
+      expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+        'content',
+        expect.stringContaining('One place for scheduling'),
+      );
+      expect(document.querySelector('meta[property="og:title"]')).toHaveAttribute(
+        'content',
+        'Sign In | CT Scan Scheduling',
+      );
+      expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toMatch(/\/login$/);
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Open schedule' }));
@@ -52,6 +61,7 @@ describe('DocumentTitle', () => {
         'content',
         'noindex, nofollow, noarchive',
       );
+      expect(document.querySelector('link[rel="canonical"]')).not.toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Open unknown route' }));
@@ -87,6 +97,11 @@ describe('DocumentTitle', () => {
 
     await waitFor(() => {
       expect(document.title).toBe('تسجيل الدخول | جدولة الأشعة المقطعية');
+      expect(document.querySelector('meta[property="og:locale"]')).toHaveAttribute('content', 'ar_SA');
+      expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+        'content',
+        expect.stringContaining('مكان واحد للجدولة'),
+      );
     });
   });
 });

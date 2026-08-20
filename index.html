@@ -3,17 +3,34 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0b7285" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="application-name" content="CT Scan Scheduling" />
   <meta name="description" content="Secure CT scan workforce scheduling for National Guard Health Affairs." />
   <meta name="robots" content="index, follow" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="CT Scan Scheduling" />
+  <meta property="og:title" content="CT Scan Scheduling" />
+  <meta property="og:description" content="Secure CT scan workforce scheduling for National Guard Health Affairs." />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="CT Scan Scheduling" />
+  <meta name="twitter:description" content="Secure CT scan workforce scheduling for National Guard Health Affairs." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/ct-logo.png" />
+  <link rel="manifest" href="/site.webmanifest" />
   <script src="/theme-bootstrap.js" defer></script>
   <title>CT Scan Scheduling</title>
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <main class="flex min-h-screen items-center justify-center bg-background px-4 text-center" role="status" aria-live="polite" aria-busy="true">
+      <p class="text-sm font-semibold text-text-secondary">Loading secure CT scheduling workspace…</p>
+    </main>
+  </div>
+  <noscript>This secure scheduling application requires JavaScript to sign in.</noscript>
 
   <script type="module" src="/src/main.tsx"></script>
 </body>

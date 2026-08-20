@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import React from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import { queryClient } from '@/lib/queryClient';
@@ -87,7 +87,7 @@ describe('ErrorBoundary Component', () => {
     expect(screen.getByText('Recovered Content')).toBeInTheDocument();
   });
 
-  it('invalidates queries when invalidateQueries is set to true on reset', () => {
+  it('invalidates queries when invalidateQueries is set to true on reset', async () => {
     render(
       <ErrorBoundary invalidateQueries>
         <ProblemChild shouldThrow={true} />
@@ -97,7 +97,7 @@ describe('ErrorBoundary Component', () => {
     const retryButton = screen.getByRole('button', { name: 'common:errorState.resetSection' });
     fireEvent.click(retryButton);
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1));
   });
 
   it('renders function fallback when provided', () => {

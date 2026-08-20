@@ -89,6 +89,22 @@ describe('server integration', () => {
     expect(sessionAfterLogout.status).toBe(401);
   });
 
+  it('performance: compresses large authenticated API responses when the client supports gzip', async () => {
+    const agent = makeAgent(app);
+    await login(agent, 'admin@hospital.sa');
+
+    const response = await agent
+      .get('/api/bootstrap')
+      .set('accept-encoding', 'gzip');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-encoding']).toBe('gzip');
+    expect(response.headers.vary).toContain('Accept-Encoding');
+    expect(response.headers['x-powered-by']).toBeUndefined();
+    expect(response.body.schedule).toBeDefined();
+    expect(response.body.overtime).toBeDefined();
+  });
+
   it('auth: invalid credentials are rejected', async () => {
     const agent = makeAgent(app);
     const response = await agent.post('/api/auth/login').send({

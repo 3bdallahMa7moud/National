@@ -1,7 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Trans } from 'react-i18next';
-import RouteGuard from '@/features/auth/RouteGuard';
 import {
   AuthenticatedLandingRedirect,
   LoginRouteGuard,
@@ -10,9 +9,10 @@ import RouteErrorFallback from '@/components/common/RouteErrorFallback';
 import NamespaceBoundary from '@/i18n/NamespaceBoundary';
 import type { Namespace } from '@/i18n';
 import DocumentTitle from './DocumentTitle';
-import LoginPage from '@/features/auth/LoginPage';
 
 const AppShell = lazy(() => import('@/layouts/AppShell'));
+const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
+const RouteGuard = lazy(() => import('@/features/auth/RouteGuard'));
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'));
 const NotFoundPage = lazy(() => import('@/features/auth/NotFoundPage'));
 const ForbiddenPage = lazy(() => import('@/features/auth/ForbiddenPage'));
@@ -87,7 +87,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/',
-    element: titledElement(<RouteGuard />),
+    element: titledElement(lazyElement(<RouteGuard />)),
     errorElement: <RouteErrorFallback />,
     children: [
       {
@@ -96,7 +96,7 @@ export const router = createBrowserRouter([
         children: [
           // مسارات المسؤول (Admin Routes)
           {
-            element: <RouteGuard allowedRoles={['admin']} />,
+            element: lazyElement(<RouteGuard allowedRoles={['admin']} />),
             errorElement: <RouteErrorFallback />,
             children: [
               {
@@ -143,7 +143,7 @@ export const router = createBrowserRouter([
           },
           // مسارات الموظف والعامة المشتركة (Employee Routes)
           {
-            element: <RouteGuard allowedRoles={['employee']} />,
+            element: lazyElement(<RouteGuard allowedRoles={['employee']} />),
             errorElement: <RouteErrorFallback />,
             children: [
               {
@@ -151,41 +151,41 @@ export const router = createBrowserRouter([
                 element: featureElement('dashboard', <EmployeeDashboardPage />),
               },
               {
-                element: <RouteGuard requiredAnyPermission={['schedule.own.view', 'schedule.ot.own.view']} />,
+                element: lazyElement(<RouteGuard requiredAnyPermission={['schedule.own.view', 'schedule.ot.own.view']} />),
                 children: [{
                   path: 'schedule/me',
                   element: featureElement(['schedule', 'shiftRequests'], <EmployeeSchedulePage />),
                 }],
               },
               {
-                element: <RouteGuard requiredAnyPermission={['schedule.department.view', 'schedule.ot.department.view']} />,
+                element: lazyElement(<RouteGuard requiredAnyPermission={['schedule.department.view', 'schedule.ot.department.view']} />),
                 children: [{
                   path: 'schedule/department',
                   element: featureElement('schedule', <DepartmentSchedulePage />),
                 }],
               },
               {
-                element: <RouteGuard requiredPermission="schedule.ot.own.view" />,
+                element: lazyElement(<RouteGuard requiredPermission="schedule.ot.own.view" />),
                 children: [{
                   path: 'late-schedule',
                   element: <Navigate to="/schedule/me?tab=ot" replace />,
                 }],
               },
               {
-                element: <RouteGuard requiredPermission="schedule.calendar.sync" />,
+                element: lazyElement(<RouteGuard requiredPermission="schedule.calendar.sync" />),
                 children: [{
                   path: 'calendar-sync',
                   element: featureElement('calendar', <CalendarSyncPage />),
                 }],
               },
               {
-                element: <RouteGuard requiredAnyPermission={[
+                element: lazyElement(<RouteGuard requiredAnyPermission={[
                   'schedule.exchange.create',
                   'schedule.replace.create',
                   'schedule.requests.respond',
                   'schedule.requests.cancelOwn',
                   'schedule.department.requests.view',
-                ]} />,
+                ]} />),
                 children: [{
                   path: 'shift-requests',
                   element: featureElement('shiftRequests', <EmployeeShiftRequestsPage />),

@@ -14,7 +14,6 @@ import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
 import { isAdminOrSuperAdmin } from '@/types';
 import api from '@/lib/axios';
-import { fetchAndHydrateBootstrap } from '@/lib/backendBootstrap';
 import { mapViewerToAuthUser, type ApiViewer } from '@/lib/backendAdapters';
 import AuthSplitLayout, {
   AUTH_FORM_COLUMN_CLASS,
@@ -56,7 +55,9 @@ export default function LoginPage() {
         startTransition(() => {
           navigate(isAdminOrSuperAdmin(authUser) ? '/admin/dashboard' : '/employee/dashboard');
         });
-        void fetchAndHydrateBootstrap().catch(() => undefined);
+        void import('@/lib/authenticatedBackend')
+          .then(({ startAuthenticatedBackend }) => startAuthenticatedBackend())
+          .catch(() => undefined);
       } catch (error) {
         if (axios.isAxiosError(error)) {
           const status = error.response?.status;
@@ -96,7 +97,7 @@ export default function LoginPage() {
     <AuthSplitLayout>
       <aside className={AUTH_HERO_COLUMN_CLASS}>
         <div
-          className="absolute inset-0 z-0 bg-[url('/saudi-hospital-1024.webp')] bg-cover bg-center"
+          className="auth-login-hero-image absolute inset-0 z-0 bg-cover bg-center"
           role="img"
           aria-label={t('common:hospital.imageAlt')}
         >
@@ -215,7 +216,11 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full py-2" loading={isSubmitting}>
+              <Button
+                type="submit"
+                className="w-full py-2 dark:!bg-primary-800 dark:hover:!bg-primary-700"
+                loading={isSubmitting}
+              >
                 {t('auth:login.submit')}
               </Button>
             </form>

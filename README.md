@@ -51,6 +51,14 @@ Key backend route groups:
 
 The frontend keeps Zustand for UI state and caching, but scheduling, overtime, notifications, and shift-request mutations now sync against the backend instead of using browser storage as the source of truth.
 
+## Production Performance And Indexing
+
+- Public authentication routes load independently from the protected scheduling, overtime, and synchronization bundles.
+- Hashed Vite assets use immutable caching in `vercel.json`; stable public images use bounded caching with stale revalidation.
+- API responses larger than 1 KiB are compressed when the client advertises a supported encoding.
+- Public metadata includes route-aware titles, descriptions, canonical URLs, Open Graph/Twitter cards, and an application manifest.
+- Authenticated and password-recovery routes are excluded from indexing through runtime robots metadata and `public/robots.txt`.
+
 ## Environment
 
 Copy `.env.example` to `.env`:
@@ -189,4 +197,4 @@ These development accounts are seeded as already email-verified and must not be 
 - Local development and automated verification use SQLite. Production deployment should use a managed relational database with proper backup and operations controls.
 - Password-reset and employee password-setup delivery in production requires a configured email provider. Public sign-up remains disabled.
 - Playwright needs a local Chromium installation from `npx playwright install chromium` before `npm run test:e2e` can run.
-- `npm audit` still reports unresolved high-severity advisories in `react-router-dom` and a dev-only `brace-expansion` path under `eslint`. These need upstream-compatible dependency remediation before the repository can be called fully release-ready.
+- `npm audit` retains one advisory chain in the Prisma CLI/configuration tool (`prisma` → `@prisma/config` → `deepmerge-ts`). npm currently offers only a forced Prisma downgrade, so it was not applied to a production-ready codebase without a dedicated migration review. The affected packages are marked `devOptional` in the lockfile rather than request-path server code; deployment owners must track the upstream fix or explicitly accept the tooling-only risk.

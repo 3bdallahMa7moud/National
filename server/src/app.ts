@@ -1,5 +1,6 @@
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import express from 'express';
 import session from 'express-session';
 import { PrismaSessionStore } from '@quixo3/prisma-session-store';
@@ -40,6 +41,7 @@ function resolveAllowedOrigins(primaryOrigin: string) {
 
 export function createApp() {
   const app = express();
+  app.disable('x-powered-by');
   const allowedOrigins = resolveAllowedOrigins(env.APP_ORIGIN);
   const sessionStore = isProduction
     ? new PrismaSessionStore(prisma, {
@@ -58,6 +60,7 @@ export function createApp() {
     },
     credentials: true,
   }));
+  app.use(compression({ threshold: 1024 }));
   app.use(express.json({ limit: '5mb' }));
   app.use(cookieParser());
   app.use(session({

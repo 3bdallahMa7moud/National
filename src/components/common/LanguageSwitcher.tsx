@@ -32,7 +32,7 @@ export default function LanguageSwitcher({ className, variant = 'default' }: Lan
           'relative inline-flex h-11 w-11 items-center justify-center rounded-xl transition-colors hover:bg-hover',
           className,
         )}
-        aria-label={t('language.switchTo', { lang: otherLanguageLabel })}
+        aria-label={`${t(`language.${language}`)} — ${t('language.switchTo', { lang: otherLanguageLabel })}`}
         title={t('language.switchTo', { lang: otherLanguageLabel })}
       >
         <Globe className="h-5 w-5 text-text-secondary" aria-hidden="true" />
@@ -49,7 +49,7 @@ export default function LanguageSwitcher({ className, variant = 'default' }: Lan
           'relative flex min-h-11 items-center gap-2 rounded-btn border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-hover',
           className,
         )}
-        aria-label={t('language.switchTo', { lang: otherLanguageLabel })}
+        aria-label={`${t(`language.${language}`)} — ${t('language.switchTo', { lang: otherLanguageLabel })}`}
         title={t('language.switchTo', { lang: otherLanguageLabel })}
       >
         <Globe className="h-4 w-4 text-text-secondary" aria-hidden="true" />

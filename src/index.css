@@ -43,6 +43,16 @@ body {
   overflow-x: clip;
 }
 
+.auth-login-hero-image {
+  background-image: url('/saudi-hospital-640.webp');
+}
+
+@media (min-width: 1280px) {
+  .auth-login-hero-image {
+    background-image: url('/saudi-hospital-1024.webp');
+  }
+}
+
 img,
 picture,
 video,

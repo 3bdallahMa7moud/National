@@ -38,6 +38,7 @@
     "axios": "^1.7.7",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dayjs": "^1.11.13",
@@ -63,6 +64,7 @@
     "@playwright/test": "^1.62.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -91,7 +93,7 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "brace-expansion": "1.1.17",
+    "brace-expansion": "1.1.18",
     "exceljs": {
       "uuid": "11.1.1"
     }

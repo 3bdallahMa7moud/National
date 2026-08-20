@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import { Duplex } from 'node:stream';
+import { gunzipSync } from 'node:zlib';
 import { AccessTemplateId, PrismaClient, UserRole } from '@prisma/client';
 import { hashPassword } from '../src/lib/auth.js';
 import { prisma } from '../src/lib/prisma.js';
@@ -201,7 +202,10 @@ export class TestAgent {
           return;
         }
         settled = true;
-        const text = Buffer.concat(chunks).toString('utf8');
+        const rawBody = Buffer.concat(chunks);
+        const contentEncoding = String(res.getHeader('content-encoding') ?? '');
+        const decodedBody = contentEncoding === 'gzip' ? gunzipSync(rawBody) : rawBody;
+        const text = decodedBody.toString('utf8');
         const contentType = String(res.getHeader('content-type') ?? '');
         const response: TestResponse = {
           status: res.statusCode,
