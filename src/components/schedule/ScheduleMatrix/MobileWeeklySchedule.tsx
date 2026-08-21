@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { getShiftChipStyle } from './getShiftChipClasses';
 import { scheduleCellMarkerBackground, scheduleCellMarkerKey } from '@/lib/scheduleCellMarkers';
+import { filterActiveScheduleRows } from '@/lib/scheduleMatrixArchive';
 import { buildEmployeeDisplayLookup } from '@/lib/employeeDisplay';
 import { useEmployeeDirectoryStore } from '@/stores/employeeDirectoryStore';
 import type { Assignment, MatrixCellRef, ScheduleMatrixData } from '@/types/scheduleMatrix';
@@ -12,9 +13,17 @@ interface MobileWeeklyScheduleProps {
   data: ScheduleMatrixData;
   onCellClick?: (ref: MatrixCellRef) => void;
   onAssignmentClick?: (ref: MatrixCellRef, assignment: Assignment) => void;
+  showEmptySlots?: boolean;
+  markerToolActive?: boolean;
 }
 
-function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWeeklyScheduleProps) {
+function MobileWeeklySchedule({
+  data,
+  onCellClick,
+  onAssignmentClick,
+  showEmptySlots = false,
+  markerToolActive = false,
+}: MobileWeeklyScheduleProps) {
   const { t, i18n } = useTranslation(['schedule', 'common']);
   const isRtl = i18n.dir() === 'rtl';
   const daysInMonth = new Date(data.year, data.month + 1, 0).getDate();
@@ -72,12 +81,45 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
     );
   }, [data, directoryRecords, isRtl, selectedDay]);
 
+  const slots = useMemo(() => {
+    const employeeLookup = buildEmployeeDisplayLookup(data.legend, directoryRecords, isRtl);
+    return data.facilities.flatMap((facility) =>
+      facility.units
+        .filter((unit) => !unit.archived)
+        .flatMap((unit) =>
+          filterActiveScheduleRows(data, facility.id, unit.rows).map((row) => {
+            const cellAssignments = row.cellsByDay[selectedDay] || [];
+            const markerColor = data.cellMarkers[scheduleCellMarkerKey(row.id, selectedDay)];
+            return {
+              ref: { facilityId: facility.id, unitId: unit.id, rowId: row.id, day: selectedDay },
+              facility: facility.name,
+              unit: unit.name,
+              shift: row.shiftLabel,
+              rowLabel: row.rowLabel,
+              time: row.timeRange,
+              colorKey: row.colorKey,
+              backgroundColor: row.backgroundColor,
+              textColor: row.textColor,
+              markerColor,
+              assignments: cellAssignments.map((assignment, index) => ({
+                assignment,
+                index,
+                employee: employeeLookup.resolve(assignment),
+              })),
+            };
+          }),
+        ),
+    ).filter((entry) => showEmptySlots || entry.assignments.length > 0);
+  }, [data, directoryRecords, isRtl, selectedDay, showEmptySlots]);
+
   const selectedDate = new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   }).format(new Date(data.year, data.month, selectedDay));
   const visibleAssignments = showAll ? assignments : assignments.slice(0, 12);
+  const visibleSlots = showAll ? slots : slots.slice(0, 12);
+  const visibleCount = showEmptySlots ? slots.length : assignments.length;
 
   return (
     <section
@@ -157,9 +199,106 @@ function MobileWeeklySchedule({ data, onCellClick, onAssignmentClick }: MobileWe
           </span>
         </div>
 
-        {assignments.length === 0 ? (
+        {visibleCount === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-surface-muted px-4 py-8 text-center text-sm text-text-secondary">
             {t('schedule:matrix.noAssignments')}
+          </div>
+        ) : showEmptySlots ? (
+          <div className="space-y-2">
+            {visibleSlots.map((entry) => {
+              const chipStyle = getShiftChipStyle(entry.colorKey, entry.backgroundColor, entry.textColor);
+              return (
+                <article
+                  key={`${entry.ref.facilityId}-${entry.ref.unitId}-${entry.ref.rowId}`}
+                  data-cell-marker-color={entry.markerColor}
+                  className="relative overflow-hidden rounded-xl border border-border bg-surface p-3 shadow-soft"
+                  style={{
+                    backgroundColor: entry.markerColor
+                      ? scheduleCellMarkerBackground(entry.markerColor)
+                      : undefined,
+                  }}
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border"
+                      style={chipStyle}
+                      aria-hidden="true"
+                    >
+                      <Clock3 className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="truncate text-sm font-extrabold text-text-primary">
+                        {entry.rowLabel || entry.shift}
+                      </h4>
+                      <p className="mt-1 truncate text-xs font-semibold text-primary-teal">
+                        {entry.shift} · {entry.unit}
+                      </p>
+                      <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-text-secondary">
+                        <span dir="ltr">{entry.time}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="truncate">{entry.facility}</span>
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-pill bg-surface-muted px-2 py-1 text-[11px] font-bold text-text-secondary">
+                      {t('schedule:matrix.assignmentCount', { count: entry.assignments.length })}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {entry.assignments.length === 0 ? (
+                      <span className="inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted px-3 text-xs font-semibold text-text-secondary">
+                        {t('schedule:matrix.emptyCell')}
+                      </span>
+                    ) : entry.assignments.map(({ assignment, employee, index }) => (
+                      <button
+                        key={`${assignment.employeeId}-${index}`}
+                        type="button"
+                        disabled={!onAssignmentClick}
+                        onClick={() => onAssignmentClick?.(entry.ref, assignment)}
+                        className="min-h-10 min-w-0 max-w-full rounded-lg border border-current/20 px-2.5 py-1.5 text-start text-xs font-bold disabled:cursor-default"
+                        style={chipStyle}
+                        title={employee.tooltip}
+                      >
+                        <span className="block max-w-full truncate">
+                          {employee.code || assignment.employeeCode}
+                        </span>
+                        <span className="mt-0.5 block max-w-full truncate text-[10px] font-semibold opacity-80">
+                          {employee.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {onCellClick && (
+                    <button
+                      type="button"
+                      onClick={() => onCellClick(entry.ref)}
+                      className={cn(
+                        'mt-3 min-h-11 w-full rounded-btn border px-3 text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30',
+                        markerToolActive
+                          ? 'border-primary-teal bg-primary-teal/10 text-primary-teal'
+                          : 'border-primary bg-primary text-white hover:bg-primary-700',
+                      )}
+                    >
+                      {markerToolActive
+                        ? t('schedule:markers.activeHint')
+                        : t('schedule:matrix.assignEmployee')}
+                    </button>
+                  )}
+                </article>
+              );
+            })}
+            {slots.length > 12 && (
+              <button
+                type="button"
+                onClick={() => setShowAll((current) => !current)}
+                className="min-h-11 w-full rounded-btn border border-border bg-surface-muted px-4 text-sm font-semibold text-primary transition-colors hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {showAll
+                  ? t('schedule:matrix.showFewerAssignments')
+                  : t('schedule:matrix.showAllAssignments', { count: slots.length })}
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">

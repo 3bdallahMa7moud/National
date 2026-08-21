@@ -5,7 +5,7 @@ import express from 'express';
 import session from 'express-session';
 import { PrismaSessionStore } from '@quixo3/prisma-session-store';
 import { env, isProduction } from './config/env.js';
-import { prisma } from './lib/prisma.js';
+import { databaseReady, prisma } from './lib/prisma.js';
 import { attachViewer } from './middleware/auth.js';
 import { authRouter } from './routes/auth.js';
 import { bootstrapRouter } from './routes/bootstrap.js';
@@ -42,6 +42,7 @@ function resolveAllowedOrigins(primaryOrigin: string) {
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', isProduction ? 1 : false);
   const allowedOrigins = resolveAllowedOrigins(env.APP_ORIGIN);
   const sessionStore = isProduction
     ? new PrismaSessionStore(prisma, {
@@ -76,6 +77,14 @@ export function createApp() {
     saveUninitialized: false,
     store: sessionStore,
   }));
+  app.use(async (_req, _res, next) => {
+    try {
+      await databaseReady;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
   app.use(attachViewer);
 
   app.use('/api/health', healthRouter);

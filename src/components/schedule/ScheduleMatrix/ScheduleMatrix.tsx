@@ -374,6 +374,7 @@ function ScheduleMatrix({
   const isVacationMode = !readOnly && adminMode === 'vacations';
   const showMobileOrderSurface = isOrderMode && !!onReorder;
   const showMobileWeeklySummary = readOnly && !isOrderMode;
+  const showMobileAdminSurface = !readOnly && !isOrderMode;
 
   // Flatten facilities/units/rows into a 1D item array for virtualizer
   const flatRows = useMemo(() => {
@@ -513,7 +514,7 @@ function ScheduleMatrix({
 
   return (
     <>
-      <div className={cn(showMobileOrderSurface || showMobileWeeklySummary ? 'md:hidden' : 'hidden')}>
+      <div className={cn(showMobileOrderSurface || showMobileWeeklySummary || showMobileAdminSurface ? 'md:hidden' : 'hidden')}>
         {showMobileOrderSurface ? (
           <MobileMatrixOrder
             data={data}
@@ -534,13 +535,23 @@ function ScheduleMatrix({
               ? (ref, assignment) => handleChipClick(ref, assignment, { hasAssignments: true })
               : undefined}
           />
+        ) : showMobileAdminSurface ? (
+          <MobileWeeklySchedule
+            data={data}
+            onCellClick={isEditable || isBrushMode || markerToolActive ? handleCellClick : undefined}
+            onAssignmentClick={onChipClick
+              ? (ref, assignment) => handleChipClick(ref, assignment, { hasAssignments: true })
+              : undefined}
+            showEmptySlots={isEditable || isBrushMode || markerToolActive}
+            markerToolActive={markerToolActive}
+          />
         ) : null
         }
       </div>
       <div
         className={cn(
-          'gap-3',
-          readOnly ? 'hidden items-start md:flex' : 'flex flex-col md:flex-row md:items-start',
+          'flex w-full min-w-0 gap-3',
+          readOnly ? 'hidden items-start md:flex' : 'hidden flex-col md:flex md:flex-row md:items-start',
         )}
         data-testid="desktop-schedule-matrix"
       >
@@ -556,11 +567,11 @@ function ScheduleMatrix({
         <div
           ref={scrollRef}
           className={cn(
-            'matrix-scroll-container overflow-auto',
+            'matrix-scroll-container min-w-0 overflow-auto',
             isScrolled && 'is-scrolled',
           )}
-          style={{ 
-            maxHeight: isExpanded ? 'calc(100vh - 160px)' : 'calc(100vh - 260px)',
+          style={{
+            maxHeight: isExpanded ? 'calc(100dvh - 160px)' : 'calc(100dvh - 260px)',
             '--matrix-day-col': `${dayColWidth}px`,
             '--matrix-label-col': `${labelColWidth}px`,
             '--matrix-facility-col': `${facilityColWidth}px`,

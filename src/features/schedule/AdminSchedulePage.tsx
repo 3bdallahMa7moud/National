@@ -822,7 +822,7 @@ export default function AdminSchedulePage() {
 
   return (
     <div className={cn(
-      "space-y-4 pb-8 transition-all duration-200",
+      "w-full min-w-0 space-y-4 pb-8 transition-all duration-200",
       isExpanded && "fixed inset-0 z-[100] bg-surface-muted p-4 sm:p-6 overflow-auto w-screen h-screen"
     )}>
       {/* ── Toolbar ── */}

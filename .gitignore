@@ -26,7 +26,6 @@ test-results
 *.sln
 *.sw?
 
-.vercel
 .env*
 
 /tmp/npm-cache/

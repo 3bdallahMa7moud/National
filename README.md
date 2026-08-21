@@ -54,7 +54,6 @@ The frontend keeps Zustand for UI state and caching, but scheduling, overtime, n
 ## Production Performance And Indexing
 
 - Public authentication routes load independently from the protected scheduling, overtime, and synchronization bundles.
-- Hashed Vite assets use immutable caching in `vercel.json`; stable public images use bounded caching with stale revalidation.
 - API responses larger than 1 KiB are compressed when the client advertises a supported encoding.
 - Public metadata includes route-aware titles, descriptions, canonical URLs, Open Graph/Twitter cards, and an application manifest.
 - Authenticated and password-recovery routes are excluded from indexing through runtime robots metadata and `public/robots.txt`.
@@ -88,6 +87,7 @@ Notes:
 - Local development is pinned to `127.0.0.1` to avoid `localhost` loopback resolution differences between browser, Vite proxy, and the backend.
 - The backend dev and dist start commands load `.env` explicitly, so the server and frontend use the same local database and origin settings.
 - `SESSION_SECRET` must be replaced outside local development.
+- In production, `NODE_ENV`, `APP_ORIGIN` (HTTPS), `DATABASE_URL`, a custom `SESSION_SECRET` (at least 32 characters), `EMAIL_PROVIDER=resend`, `EMAIL_FROM`, and `RESEND_API_KEY` must be set explicitly. Development defaults are rejected by the server.
 - `ENABLE_DEV_PASSWORD_RESET_CODES=true` is for automated tests only when the server runs with `NODE_ENV=test` and `EMAIL_PROVIDER="console"`.
 - `EMAIL_PROVIDER="console"` does not send real email. Password-reset and employee password-setup requests now fail outside automated tests until `EMAIL_PROVIDER="resend"`, `RESEND_API_KEY`, and a valid `EMAIL_FROM` sender are configured.
 

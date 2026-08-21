@@ -70,11 +70,11 @@ export default function ScheduleSettingsWorkspace({
   const activePanelId = `${instanceId}-${activeView}-panel`;
 
   return (
-    <section className="space-y-4">
+    <section className="w-full min-w-0 space-y-4">
       <div
         role="tablist"
         aria-label={t('settingsPanel.workspace.ariaLabel')}
-        className="grid grid-cols-1 gap-2 rounded-2xl border border-border bg-surface p-2 shadow-soft sm:grid-cols-2 lg:grid-cols-3"
+        className="grid w-full min-w-0 grid-cols-1 gap-2 rounded-2xl border border-border bg-surface p-2 shadow-soft sm:grid-cols-2 lg:grid-cols-3"
       >
         {tabs.map(({ view, label, icon }) => {
           const selected = activeView === view;
@@ -93,14 +93,14 @@ export default function ScheduleSettingsWorkspace({
               onClick={() => setActiveView(view)}
               onKeyDown={(event) => handleTabKeyDown(event, view)}
               className={cn(
-                'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-teal focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                'inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl border px-2.5 py-2.5 text-xs font-extrabold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-teal focus-visible:ring-offset-2 focus-visible:ring-offset-surface sm:px-4 sm:text-sm',
                 selected
                   ? 'border-primary-teal bg-primary-teal text-white shadow-sm'
                   : 'border-transparent bg-surface-muted/50 text-text-secondary hover:border-border hover:bg-hover hover:text-ink',
               )}
             >
               {icon}
-              <span>{label}</span>
+              <span className="min-w-0 truncate">{label}</span>
             </button>
           );
         })}

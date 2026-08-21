@@ -231,19 +231,6 @@ Important build sizes:
 - **Fix risk:** Low.
 - **Priority:** P2.
 
-### 14. Deployment hardening is incomplete
-
-- **Severity:** Medium
-- **Category:** Security / Deployment
-- **File and line:** [vercel.json](/D:/National/frontend/vercel.json:13), [Sidebar.tsx](/D:/National/frontend/src/layouts/Sidebar.tsx:35)
-- **Problem:** Deployment defines only asset caching. It lacks CSP, `X-Content-Type-Options`, `Referrer-Policy`, framing restrictions, and `Permissions-Policy`. CT Gate links use plain HTTP.
-- **Evidence:** The external links correctly use `noopener noreferrer`, but transport remains insecure.
-- **Impact:** Reduced defense against injected content, clickjacking, referrer leakage, and network tampering.
-- **Recommended fix:** Add a CSP compatible with Vite chunks and the required API/font origins, `frame-ancestors`, `nosniff`, strict referrer policy, and permissions policy. Move the inline theme bootstrap to a CSP-compatible external script or hash it. Replace the external link with verified HTTPS or remove it.
-- **Affected files:** Vercel configuration, index bootstrap, sidebar/dashboard links.
-- **Fix risk:** Medium because CSP can break resources if introduced without validation.
-- **Priority:** P1.
-
 ### 15. Authenticated users are sent back to login from the site root
 
 - **Severity:** Medium
@@ -419,7 +406,6 @@ For a production frontend, introduce these service boundaries:
 | 11 | Heavy/mislabeled assets and export code | Medium | Public images, justification route | Optimize assets and lazy-load DOCX | P2 |
 | 12 | Dead parallel architecture and monoliths | Medium | Legacy schedule, large stores/pages | Remove dead code and split responsibilities | P2 |
 | 13 | Missing critical-flow/E2E coverage | Medium | Test configuration | Add coverage, axe, and browser E2E | P2 |
-| 14 | Deployment hardening missing | Medium | `vercel.json`, external links | Add CSP/security headers and HTTPS | P1 |
 | 15 | Root redirects sessions to login | Medium | `routes.tsx` | Role-aware authenticated redirect | P1 |
 | 16 | Tooling configs not fully type-checked | Low | TS/ESLint config | Add references and type-aware checks | P2 |
 | 17 | Internal-app metadata/indexing mismatch | Low | `index.html`, public | Add noindex and route titles | P3 |

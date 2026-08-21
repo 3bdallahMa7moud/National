@@ -83,7 +83,7 @@ export default function LateScheduleMobileWeek({
       className={cn('min-w-0 max-w-full space-y-4 overflow-x-hidden', visibilityClass)}
       aria-label={isRtl ? 'عرض المناوبات الإضافية الأسبوعي' : 'Weekly OT schedule'}
     >
-      <div className="rounded-2xl border border-border bg-surface p-2.5 sm:p-3 shadow-card">
+      <div className="rounded-2xl border border-border bg-surface p-2.5 shadow-card sm:p-3">
         <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
         <button
           type="button"
@@ -95,7 +95,7 @@ export default function LateScheduleMobileWeek({
           {isRtl ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <p className="truncate text-sm sm:text-base font-extrabold text-text-primary">{monthName} {year}</p>
+          <p className="truncate text-sm font-extrabold text-text-primary sm:text-base">{monthName} {year}</p>
           <p className="mt-0.5 text-[10px] sm:text-xs font-medium text-text-secondary">
             {isRtl ? `الأسبوع ${safeWeekIndex + 1} من ${weekStarts.length}` : `Week ${safeWeekIndex + 1} of ${weekStarts.length}`}
           </p>
@@ -127,7 +127,7 @@ export default function LateScheduleMobileWeek({
               onClick={() => setSelectedDay(day)}
               aria-label={`${isRtl ? 'اختر' : 'Select'} ${monthName} ${day}`}
               className={cn(
-                'flex min-h-[3.75rem] sm:min-h-16 min-w-0 max-w-full flex-col items-center justify-center overflow-hidden rounded-xl border px-0.5 py-1 text-xs outline-none transition-colors focus:ring-2 focus:ring-primary/40',
+                'flex min-h-[3.5rem] min-w-0 max-w-full flex-col items-center justify-center overflow-hidden rounded-xl border px-0.5 py-1 text-xs outline-none transition-colors focus:ring-2 focus:ring-primary/40 sm:min-h-16',
                 selected
                   ? 'border-primary bg-primary text-white shadow-sm'
                   : highlighted
@@ -156,7 +156,7 @@ export default function LateScheduleMobileWeek({
               key={row.id}
               data-cell-marker-color={markerColor}
               className={cn(
-                'relative min-w-0 max-w-full overflow-hidden rounded-2xl border bg-surface p-4 shadow-card',
+                'relative min-w-0 max-w-full overflow-hidden rounded-2xl border bg-surface p-3 shadow-card sm:p-4',
                 highlighted ? 'border-warning/50' : 'border-border',
               )}
               style={{
@@ -176,9 +176,9 @@ export default function LateScheduleMobileWeek({
                 aria-hidden="true"
               />
               <div className="min-w-0 ps-1">
-                <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start justify-between gap-2 sm:gap-3">
                   <h3 className="min-w-0 break-words text-sm font-extrabold leading-6 text-text-primary">{row.title}</h3>
-                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary">
+                  <span className="max-w-[42%] shrink-0 truncate rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary">
                     {assignments.length} {isRtl ? 'موظف' : assignments.length === 1 ? 'employee' : 'employees'}
                   </span>
                 </div>

@@ -232,23 +232,23 @@ function ScheduleSettingsPanel({
 
 
   return (
-    <section className="rounded-2xl border border-border bg-surface shadow-soft overflow-hidden transition-all">
+    <section className="w-full min-w-0 overflow-hidden rounded-2xl border border-border bg-surface shadow-soft transition-all">
       {/* ── Top Header Bar ── */}
-      <div className="border-b border-border/80 bg-surface-muted/40 px-4 py-3.5 sm:px-6">
-        <div className="flex flex-col gap-3.5 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2.5">
+      <div className="min-w-0 border-b border-border/80 bg-surface-muted/40 px-3 py-3.5 sm:px-6">
+        <div className="flex min-w-0 flex-col gap-3.5 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-start gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-teal/10 text-primary-teal shadow-sm">
               <Settings2 className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-sm font-extrabold text-ink sm:text-base">{t('schedule:settingsPanel.title')}</h2>
               <p className="text-[11px] text-text-secondary">Customize shifts, organizational units, and row hierarchy</p>
             </div>
           </div>
 
           {/* Facility Selector */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-xl border border-border bg-surface p-0.5 shadow-sm">
+          <div className="w-full min-w-0 overflow-x-auto pb-1 md:w-auto md:overflow-visible md:pb-0">
+            <div className="flex w-max min-w-full rounded-xl border border-border bg-surface p-0.5 shadow-sm md:min-w-0">
               {data.facilities.map((item) => (
                 <button
                   key={item.id}
@@ -269,13 +269,13 @@ function ScheduleSettingsPanel({
 
         {/* ── Section Navigation Tabs (Full Width Responsive) ── */}
         {showTabSwitcher && (
-          <div className="mt-4 flex flex-wrap gap-1.5 border-t border-border/60 pt-3">
+          <div className="mt-4 flex min-w-0 gap-1.5 overflow-x-auto border-t border-border/60 pt-3 pb-1">
             {availableTabs.includes('shifts') && (
               <button
                 type="button"
                 onClick={() => setActiveTab('shifts')}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all',
+                  'inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-extrabold transition-all sm:px-4',
                   activeTab === 'shifts'
                     ? 'bg-surface text-primary-teal shadow-sm border border-border'
                     : 'text-text-secondary hover:bg-hover/60 hover:text-ink',
@@ -291,7 +291,7 @@ function ScheduleSettingsPanel({
                 type="button"
                 onClick={() => setActiveTab('units')}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold transition-all',
+                  'inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-extrabold transition-all sm:px-4',
                   activeTab === 'units'
                     ? 'bg-surface text-primary-teal shadow-sm border border-border'
                     : 'text-text-secondary hover:bg-hover/60 hover:text-ink',
@@ -306,19 +306,19 @@ function ScheduleSettingsPanel({
       </div>
 
       {/* ── Main Panel Content ── */}
-      <div className="p-4 sm:p-6">
+      <div className="min-w-0 p-3 sm:p-6">
         {/* ========================================================= */}
         {/* TAB 1: SHIFT DEFINITIONS */}
         {/* ========================================================= */}
         {activeTab === 'shifts' && (
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* Header & Active/Archived Filter */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+              <div className="min-w-0">
                 <h3 className="text-sm font-extrabold text-ink sm:text-base">Shift Types & Schedule Codes</h3>
                 <p className="text-xs text-text-secondary">Configure shift hours, colors, short codes, and icons used across the schedule grid</p>
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
                 <span className="inline-flex min-h-8 items-center rounded-full border border-primary-teal/20 bg-primary-teal/10 px-3 text-xs font-bold text-primary-teal">
                   {t('schedule:settingsPanel.shiftVisibleCountBadge', { count: visibleShifts.length })}
                 </span>
@@ -540,7 +540,7 @@ function ScheduleSettingsPanel({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-[1fr_42px_42px] gap-2 items-end">
+                      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_42px_42px] items-end gap-2">
                         <div>
                           <label className="text-[10px] font-bold text-text-secondary block mb-0.5">Preset Category</label>
                           <select
@@ -686,7 +686,7 @@ function ScheduleSettingsPanel({
                 <p className="text-xs text-text-secondary">Rename departments, reorder rows, and assign default shift types</p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
                 <span className="inline-flex min-h-8 items-center rounded-full border border-primary-teal/20 bg-primary-teal/10 px-3 text-xs font-bold text-primary-teal">
                   {t('schedule:settingsPanel.unitVisibleCountBadge', { count: visibleUnits.length })}
                 </span>
@@ -748,15 +748,15 @@ function ScheduleSettingsPanel({
                       unitRefs.current[unitDef.id] = element;
                     }}
                     data-highlighted={unitDef.id === highlightedUnitId ? 'true' : 'false'}
-                    className={cn(
-                      'rounded-2xl border border-border bg-surface shadow-sm overflow-hidden transition-all',
+                     className={cn(
+                       'min-w-0 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm transition-all',
                       unitDef.id === highlightedUnitId && 'border-primary-teal/60 ring-2 ring-primary-teal/30 shadow-lg',
                       unitDef.archived && 'opacity-70 bg-surface-muted/40',
                     )}
                   >
                     {/* Unit Header Banner */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border bg-surface-muted/60 p-4">
-                      <div className="flex items-center gap-2.5 flex-1">
+                      <div className="flex min-w-0 flex-col justify-between gap-3 border-b border-border bg-surface-muted/60 p-3 sm:flex-row sm:items-center sm:p-4">
+                       <div className="flex min-w-0 flex-1 items-center gap-2.5">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-teal/10 text-primary-teal font-extrabold text-xs">
                           {idx + 1}
                         </div>
@@ -765,12 +765,12 @@ function ScheduleSettingsPanel({
                           disabled={unitDef.archived}
                           onChange={(event) => onRenameUnit(facility.id, unitDef.id, event.target.value)}
                           placeholder="Unit Name"
-                          className="h-9 w-full max-w-md rounded-xl border border-border bg-surface px-3 text-sm font-extrabold text-ink focus:border-primary-teal focus:outline-none shadow-sm"
+                           className="h-9 w-full min-w-0 max-w-md rounded-xl border border-border bg-surface px-3 text-sm font-extrabold text-ink focus:border-primary-teal focus:outline-none shadow-sm"
                         />
                       </div>
 
                       {/* Unit Action Controls */}
-                      <div className="flex items-center justify-end gap-1.5 shrink-0">
+                      <div className="flex w-full items-center justify-end gap-1.5 shrink-0 sm:w-auto">
                         <button
                           type="button"
                           onClick={() =>
@@ -817,24 +817,24 @@ function ScheduleSettingsPanel({
                                 )}
                               >
                                 {/* Row Label Input */}
-                                <div className="flex-1 min-w-0 flex items-center gap-2">
+                                <div className="flex min-w-0 flex-1 items-center gap-2">
                                   <span className="text-xs font-mono font-bold text-text-secondary/70 shrink-0 w-6">#{rowIndex + 1}</span>
                                   <input
                                     value={row.rowLabel}
                                     disabled={row.archived}
                                     onChange={(event) => onUpdateRow(row.id, { rowLabel: event.target.value })}
                                     placeholder="Row / Bed Label"
-                                    className="h-8.5 w-full rounded-lg border border-border bg-surface px-3 text-xs font-bold text-ink focus:border-primary-teal focus:outline-none shadow-sm"
+                                    className="h-8.5 min-w-0 w-full rounded-lg border border-border bg-surface px-3 text-xs font-bold text-ink focus:border-primary-teal focus:outline-none shadow-sm"
                                   />
                                 </div>
 
                                 {/* Default Shift Selector & Count */}
-                                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
+                                 <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
                                   <select
                                     value={row.shiftDefinitionId || ''}
                                     disabled={row.archived}
                                     onChange={(event) => onUpdateRow(row.id, { shiftDefinitionId: event.target.value })}
-                                    className="h-8.5 w-full sm:w-[190px] rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-ink focus:border-primary-teal focus:outline-none shadow-sm"
+                                     className="h-8.5 min-w-0 w-full rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-ink focus:border-primary-teal focus:outline-none shadow-sm sm:w-[190px]"
                                   >
                                     {activeShiftDefinitions.map((definition) => (
                                       <option key={definition.id} value={definition.id}>{definition.englishName || definition.label}</option>
@@ -854,7 +854,7 @@ function ScheduleSettingsPanel({
                                   </span>
 
                                   {/* Row Action Buttons */}
-                                  <div className="flex items-center gap-1 ms-auto sm:ms-0 bg-surface rounded-lg border border-border p-0.5 shadow-sm">
+                            <div className="ms-auto flex items-center gap-1 rounded-lg border border-border bg-surface p-0.5 shadow-sm sm:ms-0">
                                     {row.archived ? (
                                       <button
                                         type="button"

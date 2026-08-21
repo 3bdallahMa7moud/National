@@ -38,7 +38,7 @@ function LegendPanel({
   return (
     <div
       data-testid="schedule-legend"
-      className="flex w-[200px] min-w-[200px] flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-soft"
+      className="flex w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-soft md:w-[200px] md:min-w-[200px]"
     >
       {/* Header */}
       <div className="border-b border-border bg-surface-muted px-3 py-2.5">

@@ -50,7 +50,7 @@ export default function LateScheduleToolbar(props: LateScheduleToolbarProps) {
   const adminTab = props.adminTab ?? 'schedule';
 
   return (
-    <header className="rounded-2xl border border-border bg-surface p-4 shadow-soft space-y-4">
+    <header className="w-full min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border bg-surface p-3 shadow-soft sm:p-4">
       {/* Top row: Title + Navigation + Mode Switcher */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
@@ -65,21 +65,21 @@ export default function LateScheduleToolbar(props: LateScheduleToolbarProps) {
 
         {/* Admin Tabs (Schedule vs Structure) */}
         {props.canEdit && props.onAdminTabChange && (
-          <div className="flex items-center rounded-xl border border-border bg-surface-muted p-1 text-xs font-bold" role="tablist">
+          <div className="grid w-full min-w-0 grid-cols-2 items-center rounded-xl border border-border bg-surface-muted p-1 text-xs font-bold sm:flex sm:w-auto" role="tablist">
             <button
               type="button"
               role="tab"
               aria-selected={adminTab === 'schedule'}
               onClick={() => props.onAdminTabChange?.('schedule')}
               className={cn(
-                'flex items-center gap-2 rounded-lg px-3.5 py-2 transition-all',
+                'flex min-w-0 items-center justify-center gap-2 rounded-lg px-2.5 py-2 transition-all sm:px-3.5',
                 adminTab === 'schedule'
                   ? 'bg-surface text-primary shadow-sm font-extrabold'
                   : 'text-text-secondary hover:text-text-primary',
               )}
             >
-              <CalendarDays className="h-4 w-4 text-primary" />
-              <span>{isRtl ? 'جدول المناوبات' : 'Schedule Grid'}</span>
+              <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0 truncate">{isRtl ? 'جدول المناوبات' : 'Schedule Grid'}</span>
             </button>
             <button
               type="button"
@@ -87,71 +87,71 @@ export default function LateScheduleToolbar(props: LateScheduleToolbarProps) {
               aria-selected={adminTab === 'structure'}
               onClick={() => props.onAdminTabChange?.('structure')}
               className={cn(
-                'flex items-center gap-2 rounded-lg px-3.5 py-2 transition-all',
+                'flex min-w-0 items-center justify-center gap-2 rounded-lg px-2.5 py-2 transition-all sm:px-3.5',
                 adminTab === 'structure'
                   ? 'bg-surface text-primary shadow-sm font-extrabold'
                   : 'text-text-secondary hover:text-text-primary',
               )}
             >
-              <ListOrdered className="h-4 w-4 text-primary" />
-              <span>{isRtl ? 'هيكل وترتيب الجدول' : 'Structure & Order'}</span>
+              <ListOrdered className="h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0 truncate">{isRtl ? 'هيكل وترتيب الجدول' : 'Structure & Order'}</span>
             </button>
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2">
-          <div className="flex items-center gap-1.5 rounded-xl border border-border bg-surface-muted p-1">
+        <div className="grid w-full min-w-0 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-start">
+          <div className="flex min-w-0 items-center gap-1.5 rounded-xl border border-border bg-surface-muted p-1">
             <button type="button" onClick={props.onPreviousMonth} className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm" aria-label={isRtl ? 'الشهر السابق' : 'Previous month'}>
               {isRtl ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
             </button>
-            <span className="min-w-32 px-3 text-center text-xs sm:text-sm font-bold text-text-primary">{props.monthLabel}</span>
+            <span className="min-w-0 flex-1 truncate px-2 text-center text-xs font-bold text-text-primary sm:min-w-32 sm:px-3 sm:text-sm">{props.monthLabel}</span>
             <button type="button" onClick={props.onNextMonth} className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm" aria-label={isRtl ? 'الشهر التالي' : 'Next month'}>
               {isRtl ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </button>
           </div>
 
           {/* View Mode Switcher */}
-          <div className="flex items-center rounded-xl border border-border bg-surface-muted p-1 text-xs font-bold" role="tablist" aria-label={isRtl ? 'طريقة عرض جدول OT' : 'OT schedule view mode'}>
+          <div className="grid min-w-0 grid-cols-3 items-center rounded-xl border border-border bg-surface-muted p-1 text-xs font-bold sm:flex" role="tablist" aria-label={isRtl ? 'طريقة عرض جدول OT' : 'OT schedule view mode'}>
             <button
               type="button"
               role="tab"
               aria-selected={props.viewMode === 'auto'}
               onClick={() => props.onViewModeChange('auto')}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-colors ${props.viewMode === 'auto' ? 'bg-surface text-primary shadow-sm font-extrabold' : 'text-text-secondary hover:text-text-primary'}`}
+              className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors sm:px-2.5 ${props.viewMode === 'auto' ? 'bg-surface text-primary shadow-sm font-extrabold' : 'text-text-secondary hover:text-text-primary'}`}
               title={isRtl ? 'تلقائي حسب حجم الشاشة' : 'Auto based on screen size'}
             >
-              <Smartphone className="h-3.5 w-3.5 sm:hidden" />
+              <Smartphone className="h-3.5 w-3.5 shrink-0 sm:hidden" />
               <LayoutGrid className="hidden h-3.5 w-3.5 sm:inline" />
-              <span>{isRtl ? 'تلقائي' : 'Auto'}</span>
+              <span className="min-w-0 truncate">{isRtl ? 'تلقائي' : 'Auto'}</span>
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={props.viewMode === 'grid'}
               onClick={() => props.onViewModeChange('grid')}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-colors ${props.viewMode === 'grid' ? 'bg-surface text-primary shadow-sm font-extrabold' : 'text-text-secondary hover:text-text-primary'}`}
+              className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors sm:px-2.5 ${props.viewMode === 'grid' ? 'bg-surface text-primary shadow-sm font-extrabold' : 'text-text-secondary hover:text-text-primary'}`}
               title={isRtl ? 'عرض الشبكة الشهرية الكاملة' : 'Full monthly table grid'}
             >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              <span>{isRtl ? 'شبكة الشهر' : 'Grid'}</span>
+              <LayoutGrid className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 truncate">{isRtl ? 'شبكة الشهر' : 'Grid'}</span>
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={props.viewMode === 'week'}
               onClick={() => props.onViewModeChange('week')}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-colors ${props.viewMode === 'week' ? 'bg-surface text-primary shadow-sm font-extrabold' : 'text-text-secondary hover:text-text-primary'}`}
+              className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors sm:px-2.5 ${props.viewMode === 'week' ? 'bg-surface text-primary shadow-sm font-extrabold' : 'text-text-secondary hover:text-text-primary'}`}
               title={isRtl ? 'عرض الأسبوع بالبطاقات' : 'Weekly cards view'}
             >
-              <LayoutList className="h-3.5 w-3.5" />
-              <span>{isRtl ? 'الأسبوع' : 'Week'}</span>
+              <LayoutList className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 truncate">{isRtl ? 'الأسبوع' : 'Week'}</span>
             </button>
           </div>
         </div>
       </div>
 
       {/* Bottom row: Export and Add actions */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="grid grid-cols-2 items-stretch gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
         {props.canEdit && (
           <Button
             className="min-h-11 flex-1 sm:flex-initial"
@@ -173,7 +173,7 @@ export default function LateScheduleToolbar(props: LateScheduleToolbarProps) {
               ? t('toolbar.publishToEmployees')
               : t('toolbar.noDraftToPublish')}
           >
-            <span className="text-xs font-bold sm:text-sm">{t('toolbar.publishToEmployees')}</span>
+            <span className="min-w-0 truncate text-xs font-bold sm:text-sm">{t('toolbar.publishToEmployees')}</span>
           </Button>
         )}
         <Button variant="secondary" className="min-h-11 flex-1 sm:flex-initial" icon={<FileSpreadsheet className="h-4 w-4 text-emerald-600" />} onClick={props.onExportExcel} loading={props.exporting === 'excel'} disabled={Boolean(props.exporting)}>
@@ -183,7 +183,7 @@ export default function LateScheduleToolbar(props: LateScheduleToolbarProps) {
           <span className="text-xs sm:text-sm">PDF</span>
         </Button>
         {props.canEdit && props.isEditMode && (
-          <Button className="min-h-11 w-full sm:w-auto" icon={<Plus className="h-4 w-4" />} onClick={props.onAddShift}>
+          <Button className="col-span-2 min-h-11 w-full sm:w-auto" icon={<Plus className="h-4 w-4" />} onClick={props.onAddShift}>
             <span className="text-xs sm:text-sm font-bold">{isRtl ? 'إضافة شفت OT' : 'Add OT shift'}</span>
           </Button>
         )}
